@@ -56,7 +56,7 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
-  collection, addDoc, getDocs, deleteDoc, serverTimestamp
+  collection, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -75,16 +75,16 @@ let player={ holdings:{}, cash:5000000 };
 let currentUser=null;
 let chart;
 
-// 기업 데이터 (basePrice 포함)
+// 기업 기본 데이터
 let companies = [
-  { name:"떡잎방범대", price:10000000, history:[10000000], basePrice:10000 },
-  { name:"카스틸로",   price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"사쿠라",     price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"청룡",       price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"경찰청",     price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"EMS",        price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"올드보이",   price:10000000,  history:[10000000],  basePrice:500 },
-  { name:"작두",       price:10000000,  history:[10000000],  basePrice:800 }
+  { name:"떡잎방범대", basePrice:1000 },
+  { name:"카스틸로",   basePrice:500 },
+  { name:"사쿠라",     basePrice:500 },
+  { name:"청룡",       basePrice:500 },
+  { name:"경찰청",     basePrice:500 },
+  { name:"EMS",        basePrice:500 },
+  { name:"올드보이",   basePrice:500 },
+  { name:"작두",       basePrice:800 }
 ];
 
 // 로그인
@@ -99,9 +99,10 @@ async function loginUser(userId,userName){
     player={ cash:5000000, holdings:{} };
   }
   currentUser={ id:userId, name:userName };
-  renderUserInfo(); renderCompanies();
+  renderUserInfo();
 }
 
+// 유저 데이터 동기화
 async function syncUserData(){
   if(!currentUser) return;
   await updateDoc(doc(db,"users",currentUser.id),{
@@ -123,12 +124,13 @@ function renderCompanies(){
   container.innerHTML='';
   companies.forEach(c=>{
     const held=player.holdings[c.name]||0;
+    const price = c.price ?? c.basePrice;
     const div=document.createElement('div');
     div.className='company';
     div.innerHTML=`
       <div>
         <strong>${c.name}</strong><br>
-        가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br>
+        가격: <span id="price-${c.name}">${price.toLocaleString()}</span> KRW<br>
         보유: <span id="holding-${c.name}">${held}</span>주
       </div>
       <div style="text-align:right;">
@@ -141,85 +143,99 @@ function renderCompanies(){
       </div>`;
     container.appendChild(div);
   });
-  updateChart(); renderUserInfo();
+  updateChart();
 }
 
 function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
 
+// 매수
 window.buy=async function(name){
   const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
   const c=companies.find(x=>x.name===name);
-  if(player.cash<c.price*qty){ alert("현금 부족"); return; }
-  player.cash-=c.price*qty;
+  if(player.cash<(c.price??c.basePrice)*qty){ alert("현금 부족"); return; }
+  player.cash-=(c.price??c.basePrice)*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price??c.basePrice}`);
   await syncUserData();
   renderCompanies();
 }
 
+// 매도
 window.sell=async function(name){
   const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
   const c=companies.find(x=>x.name===name);
   if((player.holdings[name]||0)<qty){ alert("보유 주식 부족"); return; }
-  player.cash+=c.price*qty;
+  player.cash+=(c.price??c.basePrice)*qty;
   player.holdings[name]-=qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price??c.basePrice}`);
   await syncUserData();
   renderCompanies();
 }
 
-function updateChart(){
-  if(!chart) return;
-  chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
-  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
-  chart.update();
-}
-
+// 로그아웃
 window.logout=function(){
   currentUser=null; player={ holdings:{}, cash:5000000 };
   document.getElementById('loginModal').style.display="flex";
-  renderUserInfo(); renderCompanies();
+  renderUserInfo();
   log("🚪 로그아웃 되었습니다.");
 }
 
-// ✅ 관리자 코드
+// 관리자 코드
 window.checkAdminCode=async function(){
   const code=document.getElementById("adminCode").value.trim();
+
   if(code === "RESETBASE"){
     for(const c of companies){
       c.price = c.basePrice;
       c.history = [c.basePrice];
-      const ref = doc(db,"companies",c.name);
-      await updateDoc(ref, { price:c.basePrice, history:[c.basePrice] });
+      await updateDoc(doc(db,"companies",c.name),{
+        price:c.basePrice,
+        history:[c.basePrice]
+      });
     }
-    updateChart();
-    renderCompanies();
     alert("📉 모든 기업이 원래 시작 가격으로 초기화되었습니다.");
+  }
+  else if(code === "RESETGRAPH"){
+    for(const c of companies){
+      await updateDoc(doc(db,"companies",c.name),{
+        history:[c.price??c.basePrice]
+      });
+    }
+    alert("📊 중앙 그래프가 초기화되었습니다.");
   }
   else{
     alert("알 수 없는 코드입니다.");
   }
 }
 
-// 초기화
-document.addEventListener("DOMContentLoaded",()=>{
-  const ctx=document.getElementById('chart').getContext('2d');
-  chart=new Chart(ctx,{ type:'line',
-    data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
-      borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
-    options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격(KRW)"}}}}
+// 차트
+let ctx=document.getElementById('chart').getContext('2d');
+chart=new Chart(ctx,{ type:'line',
+  data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:[c.basePrice],
+    borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
+  options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격(KRW)"}}}}
+});
+
+// 🔥 Firestore 구독: companies 컬렉션
+onSnapshot(collection(db,"companies"), snapshot=>{
+  snapshot.forEach(docSnap=>{
+    const data=docSnap.data();
+    const company=companies.find(c=>c.name===docSnap.id);
+    if(company){
+      company.price=data.price;
+      company.history=data.history || [company.basePrice];
+    }
   });
-  document.getElementById("startBtn").addEventListener("click",async()=>{
-    const userId=document.getElementById("userId").value.trim();
-    const userName=document.getElementById("userName").value.trim();
-    if(!userId||!userName){ alert("고유번호와 이름을 모두 입력해주세요."); return; }
-    await loginUser(userId,userName);
-    document.getElementById("loginModal").style.display="none";
-  });
+  renderCompanies();
+});
+
+document.getElementById("startBtn").addEventListener("click",async()=>{
+  const userId=document.getElementById("userId").value.trim();
+  const userName=document.getElementById("userName").value.trim();
+  if(!userId||!userName){ alert("고유번호와 이름을 모두 입력해주세요."); return; }
+  await loginUser(userId,userName);
+  document.getElementById("loginModal").style.display="none";
 });
 </script>
 </body>
 </html>
-
-
-
