@@ -60,11 +60,11 @@ hr { border:0; border-top:1px solid #374151; margin:14px 0; }
 
 <!-- 관리자 섹션 -->
 <div id="adminSection">
-  <input type="text" id="adminCode" placeholder="관리자 코드 (ADMIN123 / GRAPHSTART / GRAPHSTOP / SEED123)">
+  <input type="text" id="adminCode" placeholder="관리자 코드 (ADMIN123 / GRAPHSTART / GRAPHSTOP)">
   <button onclick="checkAdminCode()">실행</button>
 </div>
 
-<!-- 관리자: 입금요청 + 그래프제어 -->
+<!-- 관리자 모달 -->
 <div id="adminModal">
   <div id="adminModalContent">
     <button class="closeBtn" onclick="closeAdminModal()">✖</button>
@@ -73,9 +73,9 @@ hr { border:0; border-top:1px solid #374151; margin:14px 0; }
 
     <hr>
     <h2>그래프 제어(중앙)</h2>
-    <div class="small">※ 한 명의 관리자만 시작하세요. 모든 유저는 Firestore 구독으로 동일 그래프를 봅니다.</div>
+    <div class="small">모든 기업이 동시에 갱신됩니다. multiplier 로 변동폭 조절.</div>
     <div class="graphControls">
-      <button id="startGraphBtn">시작(중앙 랜덤 변동)</button>
+      <button id="startGraphBtn">시작</button>
       <button id="stopGraphBtn">중지</button>
     </div>
     <div id="graphControl"></div>
@@ -84,261 +84,59 @@ hr { border:0; border-top:1px solid #374151; margin:14px 0; }
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
-/* ================= Firebase ================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
   collection, addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
-  authDomain: "cotyledons-of-stock.firebaseapp.com",
-  projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",
-  messagingSenderId: "343488842605",
-  appId: "1:343488842605:web:f4c1205568f5994d55e864",
-  measurementId: "G-YB960D84W4"
-};
+const firebaseConfig = { /* 🔑 당신 Firebase 설정 그대로 */ };
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-/* ================= 상태 ================= */
-let player = { holdings:{}, cash:5000000 };
-let currentUser = null;
-let chart, chartInited = false;
+let player={ holdings:{}, cash:5000000 };
+let currentUser=null;
+let chart, chartInited=false;
+let timers={}; let isGraphMaster=false;
 
-let companies = [
-  { name:"떡잎방범대", price:1000, history:[1000], interval:5000 },
-  { name:"카스틸로",   price:500,  history:[500],  interval:7000 },
-  { name:"사쿠라",     price:500,  history:[500],  interval:10000 },
-  { name:"청룡",       price:500,  history:[500],  interval:8000 },
-  { name:"경찰청",     price:500,  history:[500],  interval:6000 },
-  { name:"EMS",        price:500,  history:[500],  interval:9000 },
-  { name:"올드보이",   price:500,  history:[500],  interval:12000 },
-  { name:"작두",       price:800,  history:[800],  interval:5000 }
+// multiplier 추가
+let companies=[
+  { name:"떡잎방범대", price:1000, history:[1000], multiplier:1.0 },
+  { name:"카스틸로",   price:500,  history:[500],  multiplier:1.5 },
+  { name:"사쿠라",     price:500,  history:[500],  multiplier:0.8 },
+  { name:"청룡",       price:500,  history:[500],  multiplier:2.0 },
+  { name:"경찰청",     price:500,  history:[500],  multiplier:1.2 },
+  { name:"EMS",        price:500,  history:[500],  multiplier:0.6 },
+  { name:"올드보이",   price:500,  history:[500],  multiplier:1.8 },
+  { name:"작두",       price:800,  history:[800],  multiplier:1.0 }
 ];
 
-/* 중앙 랜덤 변동 컨트롤 */
-let isGraphMaster = false;
-let timers = {}; // { [companyName]: intervalId }
-
-/* ================= 공통 UI ================= */
-function renderUserInfo(){
-  document.getElementById('userInfo').innerHTML=`
-    <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
-    현금: ${player.cash.toLocaleString()} KRW
-    <button style="margin-left:8px" onclick="logout()">로그아웃</button>
-  `;
-}
-function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
-
-/* ================= 로그인/유저 ================= */
-async function loginUser(userId,userName){
-  // 유저 생성/로드
-  const userRef=doc(db,"users",userId);
-  const snap=await getDoc(userRef);
-  if(snap.exists()){
-    const data=snap.data();
-    player={ cash:data.cash??5000000, holdings:data.holdings??{} };
-  } else {
-    await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
-    player={ cash:5000000, holdings:{} };
-  }
-  currentUser={ id:userId, name:userName };
-  renderUserInfo(); renderCompanies(); ensureChart();
-
-  // ✅ companies 자동 시드 (없으면 생성)
-  await ensureCompaniesSeed();
-
-  // ✅ 모든 유저: 기업 구독 → 동일 그래프
-  subscribeCompanies();
-}
-
-async function syncUserData(){
-  if(!currentUser) return;
-  await updateDoc(doc(db,"users",currentUser.id),{
-    cash:player.cash,
-    holdings:player.holdings
-  });
-}
-
-/* ================= 기업/차트 UI ================= */
-function renderCompanies(){
-  const container=document.getElementById('companies');
-  container.innerHTML='';
-  companies.forEach(c=>{
-    const held=player.holdings[c.name]||0;
-    const div=document.createElement('div');
-    div.className='company';
-    div.innerHTML=`
-      <div>
-        <strong>${c.name}</strong><br>
-        가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br>
-        보유: <span id="holding-${c.name}">${held}</span>주
-      </div>
-      <div style="text-align:right;">
-        <input type="number" id="qty-${c.name}" value="1" min="1"
-               style="min-width:60px; max-width:100px; text-align:right; margin-bottom:5px;">
-        <div style="display:flex; gap:5px; justify-content:flex-end;">
-          <button onclick="buy('${c.name}')">매수</button>
-          <button onclick="sell('${c.name}')">매도</button>
-        </div>
-      </div>`;
-    container.appendChild(div);
-  });
-  updateChart(); renderUserInfo();
-}
-
-function ensureChart(){
-  if(chartInited) return;
-  const ctx=document.getElementById('chart').getContext('2d');
-  chart=new Chart(ctx,{ type:'line',
-    data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
-      borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
-    options:{ responsive:true, animation:false,
-      scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격(KRW)"}}}}
-  });
-  chartInited = true;
-}
-function updateChart(){
-  if(!chartInited) return;
-  const maxLen = Math.max(...companies.map(c => c.history.length));
-  chart.data.labels = Array.from({length:maxLen},(_,i)=>i);
-  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
-  chart.update();
-}
-
-/* ================= 매수/매도 ================= */
-window.buy=async function(name){
-  const qty=Math.max(1, parseInt(document.getElementById(`qty-${name}`).value,10) || 1);
-  const c=companies.find(x=>x.name===name);
-  if(player.cash<c.price*qty){ alert("현금 부족"); return; }
-  player.cash-=c.price*qty;
-  player.holdings[name]=(player.holdings[name]||0)+qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
-  await syncUserData();
-  const holdingSpan=document.getElementById(`holding-${c.name}`);
-  if(holdingSpan) holdingSpan.textContent = player.holdings[c.name];
-  renderUserInfo();
-}
-window.sell=async function(name){
-  const qty=Math.max(1, parseInt(document.getElementById(`qty-${name}`).value,10) || 1);
-  const c=companies.find(x=>x.name===name);
-  if((player.holdings[name]||0)<qty){ alert("보유 주식 부족"); return; }
-  player.cash+=c.price*qty;
-  player.holdings[name]-=qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
-  await syncUserData();
-  const holdingSpan=document.getElementById(`holding-${c.name}`);
-  if(holdingSpan) holdingSpan.textContent = player.holdings[c.name];
-  renderUserInfo();
-}
-
-/* ================= 입금 요청 ================= */
-document.getElementById("depositBtn").addEventListener("click",()=>{
-  const acc=document.getElementById("accountNumber").value.trim();
-  const amt=parseInt(document.getElementById("depositAmount").value,10);
-  if(!currentUser){ alert("먼저 로그인하세요."); return; }
-  if(!acc||!amt||amt<=0){ alert("계좌번호/금액을 확인하세요."); return; }
-  alert("현금추가 요청이 완료되었습니다. 인게임 머니 지불 후 변동됩니다");
-  addDoc(collection(db,"depositRequests"),{
-    userId:currentUser.id,
-    userName:currentUser.name,
-    account:acc, amount:amt,
-    createdAt:serverTimestamp()
-  });
-  // 입력칸 초기화
-  document.getElementById("accountNumber").value="";
-  document.getElementById("depositAmount").value="";
-});
-
-/* ================= 관리자: 코드 ================= */
-window.checkAdminCode=async function(){
-  const code=document.getElementById("adminCode").value.trim();
-  if(code==="ADMIN123"){
-    await loadDepositRequests();
-    renderGraphControlPanel();
-    document.getElementById("adminModal").style.display="flex";
-  } else if(code==="SEED123"){
-    await seedCompanies(true);
-    alert("companies 컬렉션 시드 완료(이미 있던 문서는 유지).");
-  } else if(code==="GRAPHSTART" || code==="GRAPH123"){
-    await startCentralUpdates();
-  } else if(code==="GRAPHSTOP"){
-    stopCentralUpdates();
-  } else {
-    alert("알 수 없는 코드입니다.");
-  }
-}
-
-/* ================= 관리자: 입금요청 ================= */
-async function loadDepositRequests(){
-  const q=await getDocs(collection(db,"depositRequests"));
-  const list=document.getElementById("requestsList");
-  list.innerHTML="";
-  q.forEach(docSnap=>{
-    const r=docSnap.data();
-    const div=document.createElement("div");
-    div.className="requestBox";
-    div.id="req-"+docSnap.id;
-    div.innerHTML=`
-      <strong>${r.userName}(${r.userId})</strong><br>
-      계좌: ${r.account}<br>
-      금액: ${r.amount.toLocaleString()} KRW<br>
-      <button onclick="approveRequest('${docSnap.id}','${r.userId}',${r.amount})">승인</button>
-      <button onclick="rejectRequest('${docSnap.id}')">거절</button>
-    `;
-    list.appendChild(div);
-  });
-}
-window.approveRequest=async function(reqId,userId,amount){
-  const userRef=doc(db,"users",userId);
-  const snap=await getDoc(userRef);
-  if(snap.exists()){
-    const data=snap.data();
-    await updateDoc(userRef,{ cash:(data.cash||0)+amount });
-  }
-  await addDoc(collection(db,"depositHistory"),{
-    userId:userId, amount:amount, status:"approved", processedAt:serverTimestamp()
-  });
-  await deleteDoc(doc(db,"depositRequests",reqId));
-  const el=document.getElementById("req-"+reqId);
-  if(el) el.remove();
-}
-window.rejectRequest=async function(reqId){
-  await addDoc(collection(db,"depositHistory"),{
-    requestId:reqId, status:"rejected", processedAt:serverTimestamp()
-  });
-  await deleteDoc(doc(db,"depositRequests",reqId));
-  const el=document.getElementById("req-"+reqId);
-  if(el) el.remove();
-}
-window.closeAdminModal=function(){ document.getElementById("adminModal").style.display="none"; }
-
-/* ================= 관리자: 그래프 제어 ================= */
-async function ensureCompaniesSeed(){
+/* 🔥 중앙 랜덤 변동 (모든 기업 동시 갱신) */
+async function updateAllCompanies(){
   for(const c of companies){
     const ref=doc(db,"companies",c.name);
     const snap=await getDoc(ref);
-    if(!snap.exists()){
-      await setDoc(ref,{ price:c.price, history:c.history, interval:c.interval });
+    if(snap.exists()){
+      const data=snap.data();
+      const shock=(Math.random()-0.5)*0.1; // 기본 ±10%
+      const newPrice=Math.max(1, Math.floor(data.price*(1+shock*(c.multiplier||1))));
+      const newHistory=[...(data.history||[]), newPrice];
+      await updateDoc(ref,{ price:newPrice, history:newHistory });
     }
   }
 }
-async function seedCompanies(force=false){
-  for(const c of companies){
-    const ref=doc(db,"companies",c.name);
-    if(force){ 
-      await setDoc(ref,{ price:c.price, history:c.history, interval:c.interval });
-    } else {
-      const snap=await getDoc(ref);
-      if(!snap.exists()){
-        await setDoc(ref,{ price:c.price, history:c.history, interval:c.interval });
-      }
-    }
-  }
+async function startCentralUpdates(){
+  if(isGraphMaster) return;
+  isGraphMaster=true;
+  timers["all"]=setInterval(updateAllCompanies,5000); // 5초마다 전체 동시 갱신
+  alert("중앙 랜덤 변동 시작");
 }
+function stopCentralUpdates(){
+  clearInterval(timers["all"]); timers={}; isGraphMaster=false;
+  alert("중앙 랜덤 변동 중지");
+}
+
+/* 기업 구독 → 모든 유저 동일 그래프 */
 function subscribeCompanies(){
   companies.forEach(c=>{
     onSnapshot(doc(db,"companies",c.name),(snap)=>{
@@ -352,31 +150,8 @@ function subscribeCompanies(){
     });
   });
 }
-async function randomUpdateCompany(name){
-  const ref=doc(db,"companies",name);
-  const snap=await getDoc(ref);
-  if(snap.exists()){
-    const data=snap.data();
-    const shock=(Math.random()-0.5)*0.1;
-    const newPrice=Math.max(1,Math.floor(data.price*(1+shock)));
-    const newHistory=[...(data.history||[]),newPrice];
-    await updateDoc(ref,{ price:newPrice, history:newHistory });
-  }
-}
-async function startCentralUpdates(){
-  if(isGraphMaster){ alert("이미 실행중입니다."); return; }
-  isGraphMaster=true;
-  await ensureCompaniesSeed();
-  companies.forEach(c=>{
-    timers[c.name]=setInterval(()=>randomUpdateCompany(c.name), c.interval||5000);
-  });
-  alert("중앙 랜덤 변동 시작됨");
-}
-function stopCentralUpdates(){
-  for(const key in timers){ clearInterval(timers[key]); }
-  timers={}; isGraphMaster=false;
-  alert("중앙 랜덤 변동 중지됨");
-}
+
+/* 관리자 제어 패널 */
 function renderGraphControlPanel(){
   const panel=document.getElementById("graphControl");
   panel.innerHTML="";
@@ -385,42 +160,50 @@ function renderGraphControlPanel(){
     row.className="graphRow";
     row.innerHTML=`
       <span class="name">${c.name}</span>
-      <input type="number" id="interval-${c.name}" value="${c.interval}" min="1000" step="1000"> ms
-      <button onclick="saveInterval('${c.name}')">저장</button>
+      multiplier: <input type="number" id="multi-${c.name}" value="${c.multiplier}" step="0.1">
+      <button onclick="saveMultiplier('${c.name}')">저장</button>
     `;
     panel.appendChild(row);
   });
 }
-window.saveInterval=async function(name){
-  const input=document.getElementById(`interval-${name}`);
-  const val=parseInt(input.value,10);
-  if(val<1000){ alert("최소 1000ms 이상"); return; }
-  const ref=doc(db,"companies",name);
-  await updateDoc(ref,{ interval:val });
-  companies.find(c=>c.name===name).interval=val;
-  alert(`${name}의 interval ${val}ms 저장됨`);
+window.saveMultiplier=async function(name){
+  const input=document.getElementById(`multi-${name}`);
+  const val=parseFloat(input.value);
+  if(val<=0){ alert("0보다 커야 합니다"); return; }
+  companies.find(c=>c.name===name).multiplier=val;
+  await updateDoc(doc(db,"companies",name),{ multiplier:val });
+  alert(`${name} multiplier 저장됨: ${val}`);
 }
 
-/* ================= 로그아웃 ================= */
-window.logout=function(){
-  currentUser=null; player={ holdings:{}, cash:5000000 };
-  document.getElementById('loginModal').style.display="flex";
-  renderUserInfo(); renderCompanies();
-  log("🚪 로그아웃 되었습니다.");
+/* 관리자 코드 */
+window.checkAdminCode=async function(){
+  const code=document.getElementById("adminCode").value.trim();
+  if(code==="ADMIN123"){
+    renderGraphControlPanel();
+    document.getElementById("adminModal").style.display="flex";
+  } else if(code==="GRAPHSTART"){ startCentralUpdates(); }
+  else if(code==="GRAPHSTOP"){ stopCentralUpdates(); }
 }
 
-/* ================= 초기화 ================= */
-document.addEventListener("DOMContentLoaded",()=>{
-  document.getElementById("startBtn").addEventListener("click",async()=>{
-    const userId=document.getElementById("userId").value.trim();
-    const userName=document.getElementById("userName").value.trim();
-    if(!userId||!userName){ alert("고유번호와 이름을 모두 입력해주세요."); return; }
-    await loginUser(userId,userName);
-    document.getElementById("loginModal").style.display="none";
+/* 차트 */
+function ensureChart(){
+  if(chartInited) return;
+  const ctx=document.getElementById('chart').getContext('2d');
+  chart=new Chart(ctx,{ type:'line',
+    data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
+      borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
+    options:{ responsive:true, animation:false,
+      scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격(KRW)"}}}}
   });
-  document.getElementById("startGraphBtn").addEventListener("click",startCentralUpdates);
-  document.getElementById("stopGraphBtn").addEventListener("click",stopCentralUpdates);
-});
+  chartInited=true;
+}
+function updateChart(){
+  if(!chartInited) return;
+  const maxLen=Math.max(...companies.map(c=>c.history.length));
+  chart.data.labels=Array.from({length:maxLen},(_,i)=>i);
+  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
+  chart.update();
+}
 </script>
 </body>
 </html>
