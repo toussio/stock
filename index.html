@@ -29,9 +29,14 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 /* 관리자 모달 */
 #adminModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%;
   background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#adminModalContent { background:#1f2937; padding:20px; border-radius:10px; width:400px; max-height:80%; overflow:auto; }
+#adminModalContent { background:#1f2937; padding:20px; border-radius:10px; width:400px; max-height:80%; overflow:auto; position:relative; }
 #adminModalContent h2 { margin-top:0; }
 .requestBox { margin-bottom:10px; padding:10px; background:#111827; border-radius:6px; }
+#adminModalContent .closeBtn {
+  position:absolute; top:10px; right:10px;
+  background:none; border:none; color:#e5e7eb;
+  font-size:18px; cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -66,9 +71,9 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <!-- 관리자 요청 모달 -->
 <div id="adminModal">
   <div id="adminModalContent">
+    <button class="closeBtn" onclick="closeAdminModal()">✖</button>
     <h2>입금 요청 관리</h2>
     <div id="requestsList"></div>
-    <button onclick="closeAdminModal()">닫기</button>
   </div>
 </div>
 
@@ -164,48 +169,45 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     document.getElementById("depositAmount").value = "";
   }
 
-  // 관리자 승인/거절 모달
+  // 관리자 코드 입력 → 모달 열기
   window.checkAdminCode = async function(){
     const code = document.getElementById("adminCode").value.trim();
-
-    if(code === "APPROVE123"){
-      const q = query(collection(db, "depositRequests"),
-        where("approved","==",false)
-      );
-      const snap = await getDocs(q);
-
-      if(snap.empty){
-        alert("승인 대기중인 요청이 없습니다.");
-        return;
-      }
-
-      let html = "";
-      snap.docs.forEach(docSnap => {
-        const req = docSnap.data();
-        html += `
-          <div class="requestBox">
-            <strong>${req.userName} (${req.userId})</strong><br>
-            계좌번호: ${req.account}<br>
-            금액: ${req.amount.toLocaleString()} KRW<br>
-            요청시간: ${req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : "N/A"}<br>
-            <button onclick="approveRequest('${docSnap.id}', ${req.amount}, '${req.userId}', '${req.userName}')">승인</button>
-            <button onclick="rejectRequest('${docSnap.id}', '${req.userName}')">거절</button>
-          </div>
-        `;
-      });
-
-      document.getElementById("requestsList").innerHTML = html;
-      document.getElementById("adminModal").style.display = "flex";
-    }
-    else {
-      alert("잘못된 코드입니다.");
-    }
+    if(code === "APPROVE123"){ await loadDepositRequests(); }
+    else { alert("잘못된 코드입니다."); }
   }
 
+  async function loadDepositRequests(){
+    const q = query(collection(db, "depositRequests"),
+      where("approved","==",false), where("rejected","!=",true));
+    const snap = await getDocs(q);
+
+    if(snap.empty){ alert("승인 대기중인 요청이 없습니다."); return; }
+
+    let html = "";
+    snap.docs.forEach(docSnap => {
+      const req = docSnap.data();
+      html += `
+        <div class="requestBox" id="req-${docSnap.id}">
+          <strong>${req.userName} (${req.userId})</strong><br>
+          계좌번호: ${req.account}<br>
+          금액: ${req.amount.toLocaleString()} KRW<br>
+          요청시간: ${req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : "N/A"}<br>
+          <button onclick="approveRequest('${docSnap.id}', ${req.amount}, '${req.userId}', '${req.userName}')">승인</button>
+          <button onclick="rejectRequest('${docSnap.id}', '${req.userName}')">거절</button>
+        </div>
+      `;
+    });
+
+    document.getElementById("requestsList").innerHTML = html;
+    document.getElementById("adminModal").style.display = "flex";
+  }
+
+  // 닫기
   window.closeAdminModal = function(){
     document.getElementById("adminModal").style.display = "none";
   }
 
+  // 승인
   window.approveRequest = async function(docId, amount, userId, userName){
     await updateDoc(doc(db,"depositRequests",docId), { approved:true });
     const userRef = doc(db,"users",userId);
@@ -215,13 +217,14 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       await updateDoc(userRef, { cash:(u.cash||0)+amount });
     }
     alert(`${userName} 님 요청 승인 완료`);
-    closeAdminModal();
+    document.getElementById(`req-${docId}`).remove(); // ✅ 화면에서 제거
   }
 
+  // 거절
   window.rejectRequest = async function(docId, userName){
     await updateDoc(doc(db,"depositRequests",docId), { approved:false, rejected:true });
     alert(`${userName} 님 요청 거절 처리됨`);
-    closeAdminModal();
+    document.getElementById(`req-${docId}`).remove(); // ✅ 화면에서 제거
   }
 
   // UI
