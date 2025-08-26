@@ -16,13 +16,14 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 #loginModal { display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
 #loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
 #loginModal input { margin:10px 0; padding:5px; width:80%; }
-
 /* 관리자 */
 #adminSection { text-align:center; margin-top:20px; }
 #adminModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#adminModal .panel { background:#1f2937; padding:20px; border-radius:10px; width:520px; max-height:90%; overflow:auto; position:relative; }
+#adminModal .panel { background:#1f2937; padding:20px; border-radius:10px; width:600px; max-height:90%; overflow:auto; position:relative; }
 #adminModal .panel .close { position:absolute; top:10px; right:10px; }
-#resetForm { display:none; margin-top:15px; background:#111827; padding:10px; border-radius:8px; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #444; padding:6px; text-align:center; }
+th { background:#374151; }
 </style>
 </head>
 <body>
@@ -70,7 +71,6 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
     <hr style="margin:20px 0;" />
 
     <h3>그래프 제어</h3>
-    <button onclick="openResetForm()">그래프 초기화</button>
     <button onclick="startAutoGraph()">자동 시작</button>
     <button onclick="stopAutoGraph()">자동 멈춤</button>
     <div style="margin-top:10px;">
@@ -78,12 +78,16 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
       <button onclick="applyGraphConfig()">적용</button>
     </div>
 
-    <!-- 초기화 폼: 기업별 가격/변동폭 -->
-    <div id="resetForm">
-      <h4>기업별 초기 가격 & 변동폭 설정</h4>
-      <div id="resetInputs"></div>
-      <button onclick="applyResetPrices()">저장 & 초기화</button>
-    </div>
+    <hr style="margin:20px 0;" />
+
+    <h3>기업별 시작가 & 변동폭 설정</h3>
+    <table>
+      <thead>
+        <tr><th>기업명</th><th>시작가</th><th>변동폭(%)</th></tr>
+      </thead>
+      <tbody id="companySettingsBody"></tbody>
+    </table>
+    <button onclick="applyCompanySettings()">저장 & 적용</button>
   </div>
 </div>
 
@@ -112,7 +116,7 @@ let player = { holdings:{}, cash:5000000 };
 let currentUser = null;
 let chart;
 
-/* 기업 기본값 (range는 각 기업별 변동폭) */
+/* 기업 기본값 */
 let companies = [
   { name:"떡잎방범대", price:1000, history:[1000], range:0.05 },
   { name:"카스틸로", price:500, history:[500], range:0.05 },
@@ -141,7 +145,6 @@ window.loginUser = async function(userId,userName){
   currentUser={ id:userId, name:userName };
   renderUserInfo(); renderCompanies();
 
-  // 회사 문서 초기화 + 실시간 구독
   for(const c of companies){
     const ref=doc(db,"companies",c.name);
     const compSnap=await getDoc(ref);
@@ -182,6 +185,7 @@ function renderCompanies(){
         보유: ${held}주
       </div>
       <div>
+        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px; text-align:right; margin-right:5px;">
         <button onclick="buy('${c.name}')">매수</button>
         <button onclick="sell('${c.name}')">매도</button>
       </div>`;
@@ -192,20 +196,22 @@ function renderCompanies(){
 
 /* 거래 */
 window.buy=async function(name){
+  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
   const c=companies.find(x=>x.name===name);
-  if(player.cash<c.price){ alert("현금 부족"); return; }
-  player.cash-=c.price;
-  player.holdings[name]=(player.holdings[name]||0)+1;
-  log(`✅ ${currentUser.name} ${name} 매수 @ ${c.price}`);
+  if(player.cash<c.price*qty){ alert("현금 부족"); return; }
+  player.cash-=c.price*qty;
+  player.holdings[name]=(player.holdings[name]||0)+qty;
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
 };
 window.sell=async function(name){
+  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
   const c=companies.find(x=>x.name===name);
-  if((player.holdings[name]||0)<1){ alert("보유 부족"); return; }
-  player.cash+=c.price;
-  player.holdings[name]-=1;
-  log(`✅ ${currentUser.name} ${name} 매도 @ ${c.price}`);
+  if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
+  player.cash+=c.price*qty;
+  player.holdings[name]-=qty;
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
 };
@@ -226,28 +232,26 @@ window.requestDeposit=async function(){
   log(`📨 입금요청 ${amt.toLocaleString()} KRW / 계좌:${acct}`);
 };
 
-/* 관리자 열기/닫기 */
+/* 관리자 */
 window.openAdminPanel = async function(){
   const code=document.getElementById("adminCode").value.trim();
   if(code!=="ADMIN123"){ alert("관리자 코드가 틀렸습니다."); return; }
   document.getElementById("adminModal").style.display="flex";
   loadDepositRequests();
+  renderCompanySettings();
 };
 window.closeAdminPanel=function(){ document.getElementById("adminModal").style.display="none"; };
 
-/* 대기중 요청만 표시 */
 async function loadDepositRequests(){
   const q=await getDocs(query(collection(db,"depositRequests")));
   const list=document.getElementById("requestsList");
   list.innerHTML="";
   q.forEach(docSnap=>{
     const r=docSnap.data();
-    if(r.approved !== null) return; // 대기중만
+    if(r.approved !== null) return;
     const div=document.createElement("div");
     div.style.background="#111827";
-    div.style.padding="10px";
-    div.style.marginBottom="8px";
-    div.style.borderRadius="6px";
+    div.style.padding="10px"; div.style.marginBottom="8px"; div.style.borderRadius="6px";
     div.id="req-"+docSnap.id;
     div.innerHTML=`
       <strong>${r.userName}(${r.userId})</strong><br/>
@@ -259,9 +263,7 @@ async function loadDepositRequests(){
     `;
     list.appendChild(div);
   });
-  if(!list.innerHTML){
-    list.innerHTML="<div>대기 중인 요청이 없습니다.</div>";
-  }
+  if(!list.innerHTML){ list.innerHTML="<div>대기 중인 요청이 없습니다.</div>"; }
 }
 window.approveRequest=async function(reqId,userId,amount){
   const userRef=doc(db,"users",userId);
@@ -280,44 +282,37 @@ window.rejectRequest=async function(reqId){
   loadDepositRequests();
 };
 
-/* 그래프 제어: 초기화 폼 */
-window.openResetForm = function(){
-  const form = document.getElementById("resetForm");
-  const inputs = document.getElementById("resetInputs");
-  inputs.innerHTML="";
+/* 기업별 설정 UI */
+function renderCompanySettings(){
+  const body=document.getElementById("companySettingsBody");
+  body.innerHTML="";
   companies.forEach(c=>{
-    const currentRange = c.range ? (c.range*100) : 5;
-    inputs.innerHTML += `
-      <div style="margin:5px 0;">
-        <label>${c.name} 가격:
-          <input type="number" id="reset-price-${c.name}" value="${c.price}" style="width:100px;">
-        </label>
-        <label> 변동폭(%):
-          <input type="number" id="reset-range-${c.name}" value="${currentRange}" style="width:60px;">
-        </label>
-      </div>
+    const currentRange=c.range?(c.range*100):5;
+    body.innerHTML+=`
+      <tr>
+        <td>${c.name}</td>
+        <td><input type="number" id="set-price-${c.name}" value="${c.price}" style="width:100px;"></td>
+        <td><input type="number" id="set-range-${c.name}" value="${currentRange}" style="width:60px;"></td>
+      </tr>
     `;
   });
-  form.style.display="block";
-};
-window.applyResetPrices = async function(){
+}
+window.applyCompanySettings=async function(){
   for(const c of companies){
-    const val = parseInt(document.getElementById(`reset-price-${c.name}`).value,10);
-    const rng = parseFloat(document.getElementById(`reset-range-${c.name}`).value)/100;
-    const initPrice = (!isNaN(val) && val>0) ? val : c.price;
-    const range = (!isNaN(rng) && rng>0) ? rng : 0.05;
-    const ref = doc(db,"companies",c.name);
-    await setDoc(ref,{ price:initPrice, history:[initPrice], range:range });
-    c.price=initPrice; c.history=[initPrice]; c.range=range;
+    const priceVal=parseInt(document.getElementById(`set-price-${c.name}`).value,10);
+    const rangeVal=parseFloat(document.getElementById(`set-range-${c.name}`).value)/100;
+    const newPrice=(!isNaN(priceVal)&&priceVal>0)?priceVal:c.price;
+    const newRange=(!isNaN(rangeVal)&&rangeVal>0)?rangeVal:0.05;
+    const ref=doc(db,"companies",c.name);
+    await setDoc(ref,{ price:newPrice, history:[newPrice], range:newRange });
+    c.price=newPrice; c.history=[newPrice]; c.range=newRange;
   }
-  log("🔄 기업별 그래프 및 가격/변동폭 초기화 완료");
-  document.getElementById("resetForm").style.display="none";
+  log("✅ 기업별 시작가/변동폭 설정이 저장되었습니다.");
   updateChart(); renderCompanies();
 };
 
-/* 자동 그래프 */
-let autoInterval=null;
-let updateSpeed=5000;
+/* 그래프 */
+let autoInterval=null; let updateSpeed=5000;
 window.startAutoGraph=function(){
   if(autoInterval) return;
   autoInterval=setInterval(async()=>{
@@ -326,7 +321,7 @@ window.startAutoGraph=function(){
       const s=await getDoc(ref);
       if(s.exists()){
         const d=s.data();
-        const range = d.range ?? 0.05; // 기업별 변동폭
+        const range=d.range ?? 0.05;
         const change=(Math.random()*2*range - range);
         const newPrice=Math.max(1, Math.round(d.price*(1+change)));
         const newHistory=[...d.history, newPrice];
