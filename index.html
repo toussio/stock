@@ -62,7 +62,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     collection, addDoc, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // 🔹 Firebase Config
+  // 🔹 Firebase 설정
   const firebaseConfig = {
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
@@ -92,7 +92,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     { name: "작두", price: 800, history: [800] }
   ];
 
-  // 🔹 로그인 처리 (Firestore 연동)
+  // 🔹 Firestore 연동 로그인
   async function loginUser(userId, userName){
     const userRef = doc(db, "users", userId);
     const snap = await getDoc(userRef);
@@ -127,15 +127,25 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     });
   }
 
-  async function requestDepositToDB(account, amount){
-    if(!currentUser) return alert("먼저 로그인하세요.");
-    if(!account || !amount || amount<=0) return alert("계좌번호/금액을 확인하세요.");
-    await addDoc(collection(db, "depositRequests"), {
+  // 🔹 끊김 없는 추가 요청
+  function requestDepositToDB(account, amount){
+    if(!currentUser) { alert("먼저 로그인하세요."); return; }
+    if(!account || !amount || amount<=0) { alert("계좌번호/금액을 확인하세요."); return; }
+
+    // UI 먼저 응답
+    alert("입금 요청이 접수되었습니다. (관리자 승인 대기)");
+
+    // Firestore 저장은 백그라운드 처리
+    addDoc(collection(db, "depositRequests"), {
       userId: currentUser.id, userName: currentUser.name,
       account, amount, approved: false,
       createdAt: serverTimestamp()
-    });
-    alert("입금 요청이 접수되었습니다 (관리자 승인 대기)");
+    }).then(()=>console.log("입금 요청 저장 완료"))
+      .catch(err=>console.error("입금 요청 실패:",err));
+
+    // 입력칸 초기화
+    document.getElementById("accountNumber").value = "";
+    document.getElementById("depositAmount").value = "";
   }
 
   async function approveMyDeposits(){
@@ -145,19 +155,19 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       where("approved","==",false));
     const snap = await getDocs(q);
     if(snap.empty) return alert("승인 대기중인 요청이 없습니다.");
-    let total = 0;
+    let total=0;
     for(const docSnap of snap.docs){
-      const req = docSnap.data();
-      total += req.amount;
-      await updateDoc(doc(db, "depositRequests", docSnap.id), { approved:true });
+      const req=docSnap.data();
+      total+=req.amount;
+      await updateDoc(doc(db,"depositRequests",docSnap.id),{ approved:true });
     }
-    player.cash += total;
+    player.cash+=total;
     await syncUserData();
     renderUserInfo();
     alert(`관리자 승인 완료: 총 ${total.toLocaleString()} KRW 입금`);
   }
 
-  // 🔹 UI 렌더링
+  // 🔹 UI
   function renderUserInfo(){
     document.getElementById('userInfo').innerHTML = `
       <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
@@ -166,17 +176,17 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       <div style="margin-top:10px;">
         <input type="text" id="accountNumber" placeholder="계좌번호 입력">
         <input type="number" id="depositAmount" placeholder="금액 입력">
-        <button onclick="(async()=>{
+        <button onclick="(function(){
           const acc=document.getElementById('accountNumber').value.trim();
           const amt=parseInt(document.getElementById('depositAmount').value,10);
-          await requestDepositToDB(acc, amt);
+          requestDepositToDB(acc, amt);
         })()">추가 요청</button>
       </div>
     `;
   }
 
   function renderCompanies(){
-    const container = document.getElementById('companies');
+    const container=document.getElementById('companies');
     container.innerHTML='';
     companies.forEach(c=>{
       const held=player.holdings[c.name]||0;
@@ -234,17 +244,13 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     chart.update();
   }
 
-  // 로그아웃
   window.logout = function(){
-    currentUser=null;
-    player={ holdings:{}, cash:5000000 };
+    currentUser=null; player={ holdings:{}, cash:5000000 };
     document.getElementById('loginModal').style.display="flex";
-    renderUserInfo();
-    renderCompanies();
+    renderUserInfo(); renderCompanies();
     log("🚪 로그아웃 되었습니다.");
   }
 
-  // 관리자 코드 실행
   window.checkAdminCode = async function(){
     const code=document.getElementById("adminCode").value.trim();
     if(code==="ADMIN123"){
@@ -263,7 +269,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     else if(code==="RESET123"){
       companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
       updateChart(); renderCompanies();
-      alert("기업 가격/그래프 초기화");
     }
     else if(code==="RESETALL"){
       currentUser=null; player={ holdings:{}, cash:5000000 };
@@ -277,7 +282,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     else { alert("잘못된 코드입니다."); }
   }
 
-  // 초기 Chart 생성
   document.addEventListener("DOMContentLoaded",()=>{
     const ctx=document.getElementById('chart').getContext('2d');
     chart=new Chart(ctx,{ type:'line',
