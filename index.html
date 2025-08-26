@@ -155,14 +155,16 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       div.innerHTML=`
         <div>
           <strong>${c.name}</strong><br>
-          가격: ${c.price.toLocaleString()} KRW<br>
-          보유: ${held}주
+          가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br>
+          보유: <span id="holding-${c.name}">${held}</span>주
         </div>
         <div style="text-align:right;">
           <input type="number" id="qty-${c.name}" value="1" min="1"
-                 style="min-width:60px; max-width:100px; text-align:right; margin-bottom:5px;"><br>
-          <button onclick="buy('${c.name}')">매수</button>
-          <button onclick="sell('${c.name}')">매도</button>
+                 style="min-width:60px; max-width:100px; text-align:right; margin-bottom:5px;">
+          <div style="display:flex; gap:5px; justify-content:flex-end;">
+            <button onclick="buy('${c.name}')">매수</button>
+            <button onclick="sell('${c.name}')">매도</button>
+          </div>
         </div>`;
       container.appendChild(div);
     });
@@ -194,13 +196,20 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     renderCompanies();
   }
 
+  // ✅ 가격만 부분 업데이트 (UI 초기화 없음)
   function updatePrices(){
     companies.forEach(c=>{
       const shock=(Math.random()-0.5)*0.1;
       c.price=Math.max(1,Math.floor(c.price*(1+shock)));
       c.history.push(c.price);
+
+      const priceSpan=document.getElementById(`price-${c.name}`);
+      if(priceSpan) priceSpan.textContent = c.price.toLocaleString();
+
+      const holdingSpan=document.getElementById(`holding-${c.name}`);
+      if(holdingSpan) holdingSpan.textContent = player.holdings[c.name] || 0;
     });
-    renderCompanies();
+    updateChart();
   }
   setInterval(updatePrices,5000);
 
@@ -256,4 +265,3 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 </script>
 </body>
 </html>
-
