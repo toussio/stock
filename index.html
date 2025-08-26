@@ -126,11 +126,11 @@ let autoInterval = null;
 let updateSpeed = 3000;   // 기본 3초
 let changeRange = 0.05;   // 기본 ±5%
 
-// 🔥 그래프 초기화
+// 🔥 그래프 전체 초기화
 async function resetAllCompanies(){
   for(const c of companies){
     const ref = doc(db,"companies",c.name);
-    await updateDoc(ref, { price:c.price, history:[c.price] });
+    await setDoc(ref, { price:c.price, history:[c.price] });
   }
   log("🔄 모든 회사 그래프 초기화 완료");
 }
@@ -151,9 +151,7 @@ async function autoUpdatePrice(companyName) {
 // 시작/멈춤
 window.startAutoGraph=function(){
   if(autoInterval) return;
-  autoInterval = setInterval(()=>{
-    companies.forEach(c=>autoUpdatePrice(c.name));
-  }, updateSpeed);
+  autoInterval = setInterval(()=>{ companies.forEach(c=>autoUpdatePrice(c.name)); }, updateSpeed);
   log("⚡ 자동 그래프 시작");
 };
 window.stopAutoGraph=function(){
@@ -187,7 +185,7 @@ window.runAdminCommand = async function(){
   document.getElementById("adminCommand").value="";
 };
 
-// 🔧 관리자 모달 관련
+// 관리자 모달 관련
 window.checkAdminCode=function(){
   const code=document.getElementById("adminCode").value.trim();
   if(code==="ADMIN123"){
@@ -203,9 +201,18 @@ window.showTab=function(tab){
   document.getElementById("tab-"+tab).classList.add("active");
 };
 
-// 🔧 나머지 함수 (렌더링, 유저, 입금요청 등)
-// ... (생략: 기존 코드 그대로 두시면 됩니다)
+// 📝 로그 출력
 function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
+
+// 차트 초기화
+document.addEventListener("DOMContentLoaded",()=>{
+  const ctx=document.getElementById('chart').getContext('2d');
+  chart=new Chart(ctx,{ type:'line',
+    data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
+      borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
+    options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격(KRW)"}}}}
+  });
+});
 </script>
 </body>
 </html>
