@@ -49,182 +49,251 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <div id="adminSection">
   <input type="text" id="adminCode" placeholder="관리자 코드 입력">
   <button onclick="checkAdminCode()">실행</button>
-  <button onclick="logout()">로그아웃</button>
 </div>
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<script>
-let player = { holdings: {}, cash: 5000000 };
-let currentUser = null;
-let chart;
-let tradeLog = [];
+<!-- Firebase (ES Module) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc,
+    collection, addDoc, query, where, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// 기업 데이터
-const companies = [
-  { name: "떡잎방범대", price: 1000, history: [1000] },
-  { name: "카스틸로", price: 500, history: [500] },
-  { name: "사쿠라", price: 500, history: [500] },
-  { name: "청룡", price: 500, history: [500] },
-  { name: "경찰청", price: 500, history: [500] },
-  { name: "EMS", price: 500, history: [500] },
-  { name: "올드보이", price: 500, history: [500] },
-  { name: "작두", price: 800, history: [800] }
-];
+  // 🔹 Firebase Config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
+    authDomain: "cotyledons-of-stock.firebaseapp.com",
+    projectId: "cotyledons-of-stock",
+    storageBucket: "cotyledons-of-stock.appspot.com",
+    messagingSenderId: "343488842605",
+    appId: "1:343488842605:web:f4c1205568f5994d55e864",
+    measurementId: "G-YB960D84W4"
+  };
 
-// 페이지 로드 시 localStorage 확인
-document.addEventListener("DOMContentLoaded", () => {
-  const savedUser = localStorage.getItem("currentUser");
-  const savedPlayer = localStorage.getItem("player");
-  const ctx = document.getElementById('chart').getContext('2d');
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
 
-  chart = new Chart(ctx,{
-    type:'line',
-    data:{
-      labels:[0],
-      datasets:companies.map(c=>({
-        label:c.name,
-        data:c.history,
-        borderColor:'#'+Math.floor(Math.random()*16777215).toString(16),
-        fill:false
-      }))
-    },
-    options:{responsive:true,scales:{
-      x:{ title:{display:true,text:'틱'} },
-      y:{ title:{display:true,text:'가격(KRW)'}}
-    }}
-  });
+  let player = { holdings: {}, cash: 5000000 };
+  let currentUser = null;
+  let chart;
+  let tradeLog = [];
 
-  if(savedUser && savedPlayer){
-    currentUser = JSON.parse(savedUser);
-    player = JSON.parse(savedPlayer);
-    renderUserInfo();
-    renderCompanies();
-  } else {
-    document.getElementById('loginModal').style.display = 'flex';
-  }
+  const companies = [
+    { name: "떡잎방범대", price: 1000, history: [1000] },
+    { name: "카스틸로", price: 500, history: [500] },
+    { name: "사쿠라", price: 500, history: [500] },
+    { name: "청룡", price: 500, history: [500] },
+    { name: "경찰청", price: 500, history: [500] },
+    { name: "EMS", price: 500, history: [500] },
+    { name: "올드보이", price: 500, history: [500] },
+    { name: "작두", price: 800, history: [800] }
+  ];
 
-  document.getElementById('startBtn').addEventListener("click", () => {
-    const userId = document.getElementById('userId').value.trim();
-    const userName = document.getElementById('userName').value.trim();
-    if (!userId || !userName) {
-      alert("고유번호와 이름을 모두 입력해주세요."); return;
+  // 🔹 로그인 처리 (Firestore 연동)
+  async function loginUser(userId, userName){
+    const userRef = doc(db, "users", userId);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      player = { cash: data.cash ?? 5000000, holdings: data.holdings ?? {} };
+    } else {
+      await setDoc(userRef, { id:userId, name:userName, cash:5000000, holdings:{} });
+      player = { cash: 5000000, holdings: {} };
     }
     currentUser = { id: userId, name: userName };
-    player = { holdings:{}, cash:5000000 };
-    saveState();
-    document.getElementById('loginModal').style.display = "none";
     renderUserInfo();
     renderCompanies();
-  });
-});
+  }
 
-function saveState(){
-  localStorage.setItem("currentUser", JSON.stringify(currentUser));
-  localStorage.setItem("player", JSON.stringify(player));
-}
+  async function syncUserData(){
+    if(!currentUser) return;
+    await updateDoc(doc(db, "users", currentUser.id), {
+      cash: player.cash,
+      holdings: player.holdings
+    });
+  }
 
-function renderUserInfo(){
-  document.getElementById('userInfo').innerHTML =
-    `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 현금: ${player.cash.toLocaleString()} KRW`;
-}
+  async function saveTrade(type, company, qty, price){
+    const now = new Date().toLocaleString();
+    tradeLog.push({date: now, userId: currentUser.id, userName: currentUser.name,
+                   type, company, qty, price, cash: player.cash});
+    await addDoc(collection(db, "trades"), {
+      userId: currentUser.id, userName: currentUser.name,
+      type, company, qty, price, cashAfter: player.cash,
+      createdAt: serverTimestamp()
+    });
+  }
 
-function renderCompanies() {
-  const container = document.getElementById('companies');
-  container.innerHTML = '';
-  companies.forEach(c => {
-    const held = player.holdings[c.name] || 0;
-    const div = document.createElement('div');
-    div.className = 'company';
-    div.innerHTML = `
-      <div><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
-      <div>
-        <button onclick="buy('${c.name}',1)">매수</button>
-        <button onclick="sell('${c.name}',1)">매도</button>
+  async function requestDepositToDB(account, amount){
+    if(!currentUser) return alert("먼저 로그인하세요.");
+    if(!account || !amount || amount<=0) return alert("계좌번호/금액을 확인하세요.");
+    await addDoc(collection(db, "depositRequests"), {
+      userId: currentUser.id, userName: currentUser.name,
+      account, amount, approved: false,
+      createdAt: serverTimestamp()
+    });
+    alert("입금 요청이 접수되었습니다 (관리자 승인 대기)");
+  }
+
+  async function approveMyDeposits(){
+    if(!currentUser) return alert("로그인 필요");
+    const q = query(collection(db, "depositRequests"),
+      where("userId","==",currentUser.id),
+      where("approved","==",false));
+    const snap = await getDocs(q);
+    if(snap.empty) return alert("승인 대기중인 요청이 없습니다.");
+    let total = 0;
+    for(const docSnap of snap.docs){
+      const req = docSnap.data();
+      total += req.amount;
+      await updateDoc(doc(db, "depositRequests", docSnap.id), { approved:true });
+    }
+    player.cash += total;
+    await syncUserData();
+    renderUserInfo();
+    alert(`관리자 승인 완료: 총 ${total.toLocaleString()} KRW 입금`);
+  }
+
+  // 🔹 UI 렌더링
+  function renderUserInfo(){
+    document.getElementById('userInfo').innerHTML = `
+      <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
+      현금: ${player.cash.toLocaleString()} KRW
+      <button style="margin-left:8px" onclick="logout()">로그아웃</button>
+      <div style="margin-top:10px;">
+        <input type="text" id="accountNumber" placeholder="계좌번호 입력">
+        <input type="number" id="depositAmount" placeholder="금액 입력">
+        <button onclick="(async()=>{
+          const acc=document.getElementById('accountNumber').value.trim();
+          const amt=parseInt(document.getElementById('depositAmount').value,10);
+          await requestDepositToDB(acc, amt);
+        })()">추가 요청</button>
       </div>
     `;
-    container.appendChild(div);
-  });
-  updateChart(); renderUserInfo();
-}
-
-function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
-
-window.buy = function(name, qty){
-  const c = companies.find(x=>x.name===name);
-  if(player.cash < c.price*qty){ alert('현금 부족'); return; }
-  player.cash -= c.price*qty;
-  player.holdings[name] = (player.holdings[name]||0)+qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
-  saveState();
-  renderCompanies();
-}
-
-window.sell = function(name, qty){
-  const c = companies.find(x=>x.name===name);
-  if((player.holdings[name]||0)<qty){ alert('보유 주식 부족'); return; }
-  player.cash += c.price*qty;
-  player.holdings[name]-=qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
-  saveState();
-  renderCompanies();
-}
-
-function updatePrices(){
-  companies.forEach(c=>{
-    const shock = (Math.random()-0.5)*0.1;
-    c.price = Math.max(1, Math.floor(c.price*(1+shock)));
-    c.history.push(c.price);
-  });
-  renderCompanies();
-}
-setInterval(updatePrices,5000);
-
-function updateChart(){
-  if(!chart) return;
-  chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
-  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
-  chart.update();
-}
-
-// 로그아웃
-function logout(){
-  localStorage.removeItem("currentUser");
-  localStorage.removeItem("player");
-  currentUser = null;
-  player = { holdings:{}, cash:5000000 };
-  document.getElementById('loginModal').style.display="flex";
-  renderUserInfo();
-  renderCompanies();
-  log("🚪 로그아웃 되었습니다.");
-}
-
-// 관리자 코드 실행
-window.checkAdminCode = function(){
-  const code=document.getElementById("adminCode").value.trim();
-  if(code==="ADMIN123"){
-    if(tradeLog.length===0){ alert("거래 기록이 없습니다."); return; }
-    alert("엑셀 다운로드 기능 구현됨");
   }
-  else if(code==="RESET123"){
-    companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
-    updateChart(); renderCompanies();
-    alert("기업 가격/그래프가 초기화 되었습니다.");
+
+  function renderCompanies(){
+    const container = document.getElementById('companies');
+    container.innerHTML='';
+    companies.forEach(c=>{
+      const held=player.holdings[c.name]||0;
+      const div=document.createElement('div');
+      div.className='company';
+      div.innerHTML=`
+        <div><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
+        <div>
+          <button onclick="buy('${c.name}',1)">매수</button>
+          <button onclick="sell('${c.name}',1)">매도</button>
+        </div>`;
+      container.appendChild(div);
+    });
+    updateChart(); renderUserInfo();
   }
-  else if(code==="RESETALL"){
-    localStorage.clear();
-    player={ holdings:{}, cash:5000000 };
-    companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+
+  function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
+
+  window.buy = async function(name, qty){
+    const c=companies.find(x=>x.name===name);
+    if(player.cash<c.price*qty){ alert('현금 부족'); return; }
+    player.cash-=c.price*qty;
+    player.holdings[name]=(player.holdings[name]||0)+qty;
+    log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
+    await syncUserData();
+    await saveTrade("매수",name,qty,c.price);
+    renderCompanies();
+  }
+
+  window.sell = async function(name, qty){
+    const c=companies.find(x=>x.name===name);
+    if((player.holdings[name]||0)<qty){ alert('보유 주식 부족'); return; }
+    player.cash+=c.price*qty;
+    player.holdings[name]-=qty;
+    log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
+    await syncUserData();
+    await saveTrade("매도",name,qty,c.price);
+    renderCompanies();
+  }
+
+  function updatePrices(){
+    companies.forEach(c=>{
+      const shock=(Math.random()-0.5)*0.1;
+      c.price=Math.max(1,Math.floor(c.price*(1+shock)));
+      c.history.push(c.price);
+    });
+    renderCompanies();
+  }
+  setInterval(updatePrices,5000);
+
+  function updateChart(){
+    if(!chart) return;
+    chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
+    chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
+    chart.update();
+  }
+
+  // 로그아웃
+  window.logout = function(){
     currentUser=null;
+    player={ holdings:{}, cash:5000000 };
     document.getElementById('loginModal').style.display="flex";
-    updateChart(); renderCompanies();
-    alert("모든 데이터가 초기화 되었습니다. (다시 로그인 필요)");
+    renderUserInfo();
+    renderCompanies();
+    log("🚪 로그아웃 되었습니다.");
   }
-  else {
-    alert("잘못된 코드입니다.");
+
+  // 관리자 코드 실행
+  window.checkAdminCode = async function(){
+    const code=document.getElementById("adminCode").value.trim();
+    if(code==="ADMIN123"){
+      if(tradeLog.length===0){ alert("거래 기록이 없습니다."); return; }
+      let csv="날짜,고유번호,이름,타입,기업,가격,수량,현금\n";
+      tradeLog.forEach(t=>{
+        csv+=`${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash}\n`;
+      });
+      const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+      const blob=new Blob([bom,csv],{type:"text/csv;charset=utf-8"});
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(blob);
+      a.download=`trade_log_${Date.now()}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    else if(code==="RESET123"){
+      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+      updateChart(); renderCompanies();
+      alert("기업 가격/그래프 초기화");
+    }
+    else if(code==="RESETALL"){
+      currentUser=null; player={ holdings:{}, cash:5000000 };
+      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+      document.getElementById('loginModal').style.display="flex";
+      updateChart(); renderCompanies();
+    }
+    else if(code==="APPROVE123"){
+      await approveMyDeposits();
+    }
+    else { alert("잘못된 코드입니다."); }
   }
-}
+
+  // 초기 Chart 생성
+  document.addEventListener("DOMContentLoaded",()=>{
+    const ctx=document.getElementById('chart').getContext('2d');
+    chart=new Chart(ctx,{ type:'line',
+      data:{ labels:[0],
+        datasets:companies.map(c=>({label:c.name,data:c.history,
+          borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false }))},
+      options:{ responsive:true, scales:{ x:{title:{display:true,text:'틱'}}, y:{title:{display:true,text:'가격(KRW)'}}}}
+    });
+    document.getElementById('startBtn').addEventListener("click", async ()=>{
+      const userId=document.getElementById('userId').value.trim();
+      const userName=document.getElementById('userName').value.trim();
+      if(!userId||!userName){ alert("고유번호와 이름을 모두 입력해주세요."); return; }
+      await loginUser(userId,userName);
+      document.getElementById('loginModal').style.display="none";
+    });
+  });
 </script>
 </body>
 </html>
