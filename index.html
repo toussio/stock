@@ -114,20 +114,6 @@ async function loginUser(userId,userName){
   }
   currentUser={ id:userId, name:userName };
   renderUserInfo(); renderCompanies();
-
-  // Firestore 구독
-  companies.forEach(c=>{
-    onSnapshot(doc(db,"companies",c.name),(snap)=>{
-      if(snap.exists()){
-        const data=snap.data();
-        c.price=data.price;
-        c.history=data.history;
-        const priceSpan=document.getElementById(`price-${c.name}`);
-        if(priceSpan) priceSpan.textContent=c.price.toLocaleString();
-        updateChart();
-      }
-    });
-  });
 }
 
 async function syncUserData(){
@@ -210,19 +196,24 @@ window.logout=function(){
   log("🚪 로그아웃 되었습니다.");
 }
 
-// 입금 요청
+// ✅ 입금 요청 + 입력칸 초기화
 document.getElementById("depositBtn").addEventListener("click",()=>{
   const acc=document.getElementById("accountNumber").value.trim();
   const amt=parseInt(document.getElementById("depositAmount").value,10);
   if(!currentUser){ alert("먼저 로그인하세요."); return; }
   if(!acc||!amt||amt<=0){ alert("계좌번호/금액을 확인하세요."); return; }
   alert("현금추가 요청이 완료되었습니다. 인게임 머니 지불 후 변동됩니다");
+
   addDoc(collection(db,"depositRequests"),{
     userId:currentUser.id,
     userName:currentUser.name,
     account:acc, amount:amt,
     createdAt:serverTimestamp()
   });
+
+  // 🔥 입력칸 초기화
+  document.getElementById("accountNumber").value="";
+  document.getElementById("depositAmount").value="";
 });
 
 // 관리자 코드
@@ -253,7 +244,6 @@ async function loadDepositRequests(){
   });
 }
 
-// ✅ 승인 처리 → 현금 추가 + 기록 남기고 삭제
 window.approveRequest=async function(reqId,userId,amount){
   const userRef=doc(db,"users",userId);
   const snap=await getDoc(userRef);
@@ -268,8 +258,6 @@ window.approveRequest=async function(reqId,userId,amount){
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
-
-// ✅ 거절 처리 → 기록 남기고 삭제
 window.rejectRequest=async function(reqId){
   await addDoc(collection(db,"depositHistory"),{
     requestId:reqId, status:"rejected", processedAt:serverTimestamp()
