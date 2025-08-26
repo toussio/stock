@@ -8,19 +8,10 @@
 body { font-family: Arial, sans-serif; background: #0f172a; color: #e5e7eb; margin: 0; padding: 20px; }
 h1 { text-align: center; }
 
-#userRow, #log { margin: 20px auto; max-width: 800px; }
-
-#userRow {
-  display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; justify-content:space-between;
-}
-#userInfo { font-size:16px; }
-#depositForm { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-#depositForm input { padding:6px; }
-#depositForm .memo { min-width:200px; }
-
+#userInfo, #log { margin: 20px auto; max-width: 800px; }
 #companies {
   display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 2열 */
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin: 20px auto;
   max-width: 800px;
@@ -47,36 +38,12 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 
 #downloadSection { text-align: center; margin-top: 20px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
 #downloadSection input { padding: 5px; }
-
-/* 관리자 승인 대기함 */
-#adminQueue { max-width:800px; margin:14px auto 0; display:none; }
-#adminQueue.active { display:block; }
-.req-card {
-  background:#1f2937; border-radius:8px; padding:10px; margin:8px 0;
-  display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;
-}
-.req-meta { font-size: 12px; opacity:.9; }
-.req-actions button { margin-left:6px; }
-.badge { padding:2px 6px; border-radius:6px; font-size:12px; }
-.badge.wait { background:#374151; }
-.badge.approved { background:#065f46; }
-.badge.rejected { background:#7f1d1d; }
 </style>
 </head>
 <body>
 <h1>인게임 주식 시뮬레이터</h1>
 
-<!-- 사용자 정보 + 입금 요청 -->
-<div id="userRow">
-  <div id="userInfo"></div>
-  <div id="depositForm">
-    <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
-    <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
-    <input id="cashMemo" type="text" class="memo" placeholder="메모 (선택)">
-    <button onclick="requestDeposit()">입금 요청</button>
-  </div>
-</div>
-
+<div id="userInfo"></div>
 <div id="companies"></div>
 <canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
@@ -91,17 +58,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   </div>
 </div>
 
-<!-- 다운로드/관리 -->
+<!-- 관리자 영역 -->
 <div id="downloadSection">
-  <input type="text" id="adminCode" placeholder="관리자 코드 (ADMIN123)" />
-  <button onclick="downloadExcel()">엑셀 다운로드</button>
-  <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
-</div>
-
-<!-- 관리자 승인 대기함 -->
-<div id="adminQueue">
-  <h3>입금 승인 대기함</h3>
-  <div id="queueList"></div>
+  <input type="text" id="adminCode" placeholder="관리자 코드 입력" />
+  <button onclick="handleAdminAction()">실행</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -109,43 +69,56 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 let player = { holdings: {}, cash: 5000000 };
 let currentUser = null;
 let tradeLog = [];
+
 let autoOn = true;
 let autoTimer = null;
 
-/* 입금 요청 목록 */
-let pendingDeposits = []; // {id,date,userId,userName,acct,amount,memo,status}
-
-/* 종목 + 기본 변동 규칙 */
+/* 종목 */
 const companies = [
-  { name: "떡잎방범대", price: 1000, history: [1000],
-    cfg: { vol: 0.03, drift: 0.002, jumpProb: 0.01, jumpVol: 0.10, min: 1 } },
-  { name: "카스틸로", price: 500, history: [500],
-    cfg: { vol: 0.06, drift: -0.001, jumpProb: 0.02, jumpVol: 0.20, min: 1 } },
-  { name: "사쿠라", price: 500, history: [500],
-    cfg: { vol: 0.04, drift: 0.000, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
-  { name: "청룡", price: 500, history: [500],
-    cfg: { vol: 0.08, drift: 0.003, jumpProb: 0.03, jumpVol: 0.25, min: 1 } },
-  { name: "경찰청", price: 500, history: [500],
-    cfg: { vol: 0.02, drift: 0.001, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
-  { name: "EMS", price: 500, history: [500],
-    cfg: { vol: 0.05, drift: -0.002, jumpProb: 0.01, jumpVol: 0.15, min: 1 } },
-  { name: "올드보이", price: 500, history: [500],
-    cfg: { vol: 0.07, drift: 0.000, jumpProb: 0.02, jumpVol: 0.30, min: 1 } },
-  { name: "작두", price: 800, history: [800],
-    cfg: { vol: 0.10, drift: 0.004, jumpProb: 0.05, jumpVol: 0.40, min: 1 } }
+  { name: "떡잎방범대", price: 1000, history: [1000] },
+  { name: "카스틸로", price: 500, history: [500] },
+  { name: "사쿠라", price: 500, history: [500] },
+  { name: "청룡", price: 500, history: [500] },
+  { name: "경찰청", price: 500, history: [500] },
+  { name: "EMS", price: 500, history: [500] },
+  { name: "올드보이", price: 500, history: [500] },
+  { name: "작두", price: 800, history: [800] }
 ];
 
-/* --------- F5 후에도 사용자 유지: localStorage --------- */
+/* ===== LocalStorage 저장/불러오기 ===== */
+function saveState() {
+  localStorage.setItem("stockPlayer", JSON.stringify(player));
+  localStorage.setItem("stockCompanies", JSON.stringify(companies));
+  localStorage.setItem("stockTradeLog", JSON.stringify(tradeLog));
+}
+function loadState() {
+  const p = localStorage.getItem("stockPlayer");
+  const c = localStorage.getItem("stockCompanies");
+  const t = localStorage.getItem("stockTradeLog");
+  if(p) player = JSON.parse(p);
+  if(c) {
+    const parsed = JSON.parse(c);
+    parsed.forEach((pc, i) => {
+      if(companies[i]) {
+        companies[i].price = pc.price;
+        companies[i].history = pc.history;
+      }
+    });
+  }
+  if(t) tradeLog = JSON.parse(t);
+}
+
+/* 사용자 저장 */
 function saveUser(u){ localStorage.setItem('stockUser', JSON.stringify(u)); }
 function loadUser(){
   const raw = localStorage.getItem('stockUser');
   if(!raw) return null;
   try { return JSON.parse(raw); } catch(e){ return null; }
 }
-function logout(){ localStorage.removeItem('stockUser'); location.reload(); }
 
-/* 페이지 로드: 저장된 사용자 있으면 자동 로그인 */
+/* 페이지 로드 */
 window.onload = () => {
+  loadState();
   const saved = loadUser();
   if(saved && saved.id && saved.name){
     currentUser = saved;
@@ -156,7 +129,7 @@ window.onload = () => {
   }
 };
 
-/* 로그인 버튼 */
+/* 로그인 */
 document.getElementById('startBtn').onclick = () => {
   const userId = document.getElementById('userId').value.trim();
   const userName = document.getElementById('userName').value.trim();
@@ -203,7 +176,7 @@ function buy(name, qty){
   const now=new Date().toLocaleString();
   log(`✅ ${currentUser.name}(${currentUser.id}) ${name} ${qty}주 매수 @ ${c.price}`);
   tradeLog.push({ date:now,userId:currentUser.id,userName:currentUser.name,type:'매수',company:name,qty,price:c.price,cash:player.cash });
-  renderCompanies();
+  renderCompanies(); saveState();
 }
 function sell(name, qty){
   const c = companies.find(x=>x.name===name);
@@ -213,126 +186,18 @@ function sell(name, qty){
   const now=new Date().toLocaleString();
   log(`✅ ${currentUser.name}(${currentUser.id}) ${name} ${qty}주 매도 @ ${c.price}`);
   tradeLog.push({ date:now,userId:currentUser.id,userName:currentUser.name,type:'매도',company:name,qty,price:c.price,cash:player.cash });
-  renderCompanies();
-}
-
-/* ===== 입금 요청/승인 흐름 ===== */
-function parseNumber(str){
-  const n = parseInt(String(str).replace(/[^0-9-]/g,''),10);
-  return isNaN(n) ? 0 : n;
-}
-
-function requestDeposit(){
-  if(!currentUser){ alert('먼저 로그인하세요.'); return; }
-  const acct = document.getElementById('acctNo').value.trim();
-  const amount = parseNumber(document.getElementById('cashAmount').value);
-  const memo = document.getElementById('cashMemo').value.trim();
-
-  if(!acct){ alert('계좌번호를 입력하세요.'); return; }
-  if(amount <= 0){ alert('금액을 올바르게 입력하세요.'); return; }
-
-  const req = {
-    id: 'REQ-' + Date.now(),
-    date: new Date().toLocaleString(),
-    userId: currentUser.id, userName: currentUser.name,
-    acct, amount, memo, status: '대기'
-  };
-  pendingDeposits.unshift(req);
-  log(`📨 입금 요청: ${currentUser.name}(${currentUser.id}) ${amount.toLocaleString()} KRW / 계좌:${acct}`);
-  // 입력 초기화
-  document.getElementById('acctNo').value = '';
-  document.getElementById('cashAmount').value = '';
-  document.getElementById('cashMemo').value = '';
-  renderQueue(); // 열려있으면 갱신
-}
-
-function toggleAdminQueue(){
-  const code = document.getElementById('adminCode').value.trim();
-  if(code !== 'ADMIN123'){ alert('관리자 코드가 필요합니다.'); return; }
-  const panel = document.getElementById('adminQueue');
-  panel.classList.toggle('active');
-  renderQueue();
-}
-
-function renderQueue(){
-  const code = document.getElementById('adminCode').value.trim();
-  if(code !== 'ADMIN123') return;
-  const list = document.getElementById('queueList');
-  list.innerHTML = '';
-  if(pendingDeposits.length === 0){
-    list.innerHTML = '<div class="req-card">대기 중인 요청이 없습니다.</div>';
-    return;
-  }
-  pendingDeposits.forEach(req => {
-    const div = document.createElement('div');
-    div.className = 'req-card';
-    const badgeClass = req.status==='대기'?'wait':(req.status==='승인'?'approved':'rejected');
-    div.innerHTML = `
-      <div>
-        <div><strong>${req.userName}(${req.userId})</strong> - ${req.amount.toLocaleString()} KRW <span class="badge ${badgeClass}">${req.status}</span></div>
-        <div class="req-meta">요청ID: ${req.id} | 계좌: ${req.acct} | 시간: ${req.date} | 메모: ${req.memo?req.memo:'-'}</div>
-      </div>
-      <div class="req-actions">
-        <button onclick="approveDeposit('${req.id}')">승인</button>
-        <button onclick="rejectDeposit('${req.id}')">거절</button>
-      </div>
-    `;
-    list.appendChild(div);
-  });
-}
-
-function approveDeposit(id){
-  const code = document.getElementById('adminCode').value.trim();
-  if(code !== 'ADMIN123'){ alert('관리자 코드가 필요합니다.'); return; }
-  const idx = pendingDeposits.findIndex(r => r.id === id);
-  if(idx === -1) return;
-  const req = pendingDeposits[idx];
-  if(req.status !== '대기') return;
-
-  player.cash += req.amount;   // 현금 반영
-  req.status = '승인';
-
-  const now = new Date().toLocaleString();
-  tradeLog.push({
-    date: now, userId: req.userId, userName: req.userName,
-    type:'입금(승인)', company:'현금', qty:0, price:0,
-    cash: player.cash, memo:`요청ID:${req.id} / 계좌:${req.acct} / 메모:${req.memo||''}`
-  });
-  log(`✅ 입금 승인: ${req.userName}(${req.userId}) ${req.amount.toLocaleString()} KRW 반영 (현금: ${player.cash.toLocaleString()} KRW)`);
-  renderUserInfo(); renderQueue();
-}
-
-function rejectDeposit(id){
-  const code = document.getElementById('adminCode').value.trim();
-  if(code !== 'ADMIN123'){ alert('관리자 코드가 필요합니다.'); return; }
-  const idx = pendingDeposits.findIndex(r => r.id === id);
-  if(idx === -1) return;
-  const req = pendingDeposits[idx];
-  if(req.status !== '대기') return;
-
-  req.status = '거절';
-  const now = new Date().toLocaleString();
-  tradeLog.push({
-    date: now, userId: req.userId, userName: req.userName,
-    type:'입금(거절)', company:'현금', qty:0, price:0,
-    cash: player.cash, memo:`요청ID:${req.id} / 계좌:${req.acct} / 메모:${req.memo||''}`
-  });
-  log(`⛔ 입금 거절: ${req.userName}(${req.userId}) ${req.amount.toLocaleString()} KRW (현금 변동 없음)`);
-  renderQueue();
+  renderCompanies(); saveState();
 }
 
 /* 자동 변동 */
-function nextPriceByCfg(c){
-  const { vol=0.05, drift=0, jumpProb=0, jumpVol=0.2, min=1 } = c.cfg||{};
-  let shock = (Math.random()*2-1)*vol + drift;
-  if(Math.random()<jumpProb) shock += (Math.random()*2-1)*jumpVol;
-  c.price = Math.max(min, Math.floor(c.price*(1+shock)));
-  c.history.push(c.price);
-}
 function updatePrices(){
   if(!autoOn) return;
-  companies.forEach(nextPriceByCfg);
-  renderCompanies();
+  companies.forEach(c=>{
+    const shock = (Math.random()-0.5)*0.1;
+    c.price = Math.max(1, Math.floor(c.price*(1+shock)));
+    c.history.push(c.price);
+  });
+  renderCompanies(); saveState();
 }
 function startAuto(){ stopAuto(); autoOn=true; autoTimer=setInterval(updatePrices,5000); }
 function stopAuto(){ if(autoTimer) clearInterval(autoTimer); autoTimer=null; }
@@ -348,21 +213,71 @@ function updateChart(){
   chart.update();
 }
 
-/* CSV 다운로드 (메모 포함) */
-function downloadExcel(){
-  const code=document.getElementById('adminCode').value.trim();
-  if(code!=='ADMIN123'){ alert('잘못된 코드입니다.'); return; }
-  if(tradeLog.length===0){ alert('거래 기록이 없습니다.'); return; }
+/* 관리자 실행 */
+function handleAdminAction() {
+  const code = document.getElementById('adminCode').value.trim();
+  if(code === 'ADMIN123') {
+    downloadExcel();
+  } else if(code === 'RESET123') {
+    if(confirm("⚠ 기업 가격과 그래프를 초기화하시겠습니까? (현금/보유주식은 유지됩니다)")) {
+      resetCompaniesOnly();
+    }
+  } else if(code === 'RESETALL') {
+    if(confirm("⚠ 모든 데이터(현금/보유주식/기업가격/거래기록)를 초기화하시겠습니까?")) {
+      resetAll();
+    }
+  } else {
+    alert('잘못된 코드입니다.');
+  }
+}
 
-  // 날짜 내림차순
+/* 기업 가격/그래프만 초기화 */
+function resetCompaniesOnly() {
+  companies.forEach(c => {
+    if(c.name === "떡잎방범대") { c.price = 1000; c.history = [1000]; }
+    else if(c.name === "카스틸로") { c.price = 500; c.history = [500]; }
+    else if(c.name === "사쿠라") { c.price = 500; c.history = [500]; }
+    else if(c.name === "청룡") { c.price = 500; c.history = [500]; }
+    else if(c.name === "경찰청") { c.price = 500; c.history = [500]; }
+    else if(c.name === "EMS") { c.price = 500; c.history = [500]; }
+    else if(c.name === "올드보이") { c.price = 500; c.history = [500]; }
+    else if(c.name === "작두") { c.price = 800; c.history = [800]; }
+  });
+  tradeLog = [];
+  saveState();
+  renderCompanies(); updateChart();
+  log("🛑 기업 가격과 그래프가 초기화되었습니다. (현금/보유주식은 유지)");
+}
+
+/* 모든 데이터 초기화 */
+function resetAll() {
+  player = { holdings: {}, cash: 5000000 };
+  tradeLog = [];
+  companies.forEach(c => {
+    if(c.name === "떡잎방범대") { c.price = 1000; c.history = [1000]; }
+    else if(c.name === "카스틸로") { c.price = 500; c.history = [500]; }
+    else if(c.name === "사쿠라") { c.price = 500; c.history = [500]; }
+    else if(c.name === "청룡") { c.price = 500; c.history = [500]; }
+    else if(c.name === "경찰청") { c.price = 500; c.history = [500]; }
+    else if(c.name === "EMS") { c.price = 500; c.history = [500]; }
+    else if(c.name === "올드보이") { c.price = 500; c.history = [500]; }
+    else if(c.name === "작두") { c.price = 800; c.history = [800]; }
+  });
+  localStorage.clear();
+  renderUserInfo(); renderCompanies(); updateChart();
+  log("🛑 전체 데이터가 초기화되었습니다. (현금/보유주식 포함)");
+}
+
+/* 엑셀 다운로드 */
+function downloadExcel(){
+  if(tradeLog.length===0){ alert('거래 기록이 없습니다.'); return; }
   const sortedLog=[...tradeLog].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  let csv='날짜,고유번호,이름,타입,기업,가격,수량,현금,총자산,메모\n';
+  let csv='날짜,고유번호,이름,타입,기업,가격,수량,현금,총자산\n';
   sortedLog.forEach(t=>{
     const evalQty = t.company && t.company!=='현금' ? (player.holdings[t.company]||0) : 0;
     const totalAsset = t.cash + evalQty*t.price;
-    csv += `${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash},${totalAsset},${t.memo??''}\n`;
+    csv += `${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash},${totalAsset}\n`;
   });
-
   const bom=new Uint8Array([0xEF,0xBB,0xBF]);
   const blob=new Blob([bom,csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
