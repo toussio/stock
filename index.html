@@ -213,6 +213,10 @@ function renderCompanies(){
   updateChart(); renderUserInfo();
 }
 
+/* 거래량 충격 설정 */
+const BASE_VOLUME = 1000;
+const IMPACT = 0.02;
+
 /* 거래 */
 window.buy=async function(name){
   const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
@@ -220,7 +224,14 @@ window.buy=async function(name){
   if(player.cash<c.price*qty){ alert("현금 부족"); return; }
   player.cash-=c.price*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
+
+  // 대량 매수 → 가격 상승
+  let impactRate=(qty/BASE_VOLUME)*IMPACT;
+  const newPrice=Math.max(1, Math.round(c.price*(1+impactRate)));
+  const ref=doc(db,"companies",c.name);
+  await updateDoc(ref,{ price:newPrice, history:[...c.history,newPrice] });
+
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price} → 새 가격 ${newPrice}`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
 };
@@ -230,7 +241,14 @@ window.sell=async function(name){
   if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
   player.cash+=c.price*qty;
   player.holdings[name]-=qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
+
+  // 대량 매도 → 가격 하락
+  let impactRate=(qty/BASE_VOLUME)*IMPACT;
+  const newPrice=Math.max(1, Math.round(c.price*(1-impactRate)));
+  const ref=doc(db,"companies",c.name);
+  await updateDoc(ref,{ price:newPrice, history:[...c.history,newPrice] });
+
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price} → 새 가격 ${newPrice}`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
 };
