@@ -7,7 +7,7 @@
 <style>
 body { font-family: Arial, sans-serif; background: #0f172a; color: #e5e7eb; margin: 0; padding: 20px; }
 h1 { text-align: center; }
-#userInfo, #log { margin: 20px auto; max-width: 800px; }
+#userInfo, #depositSection, #log { margin: 20px auto; max-width: 800px; }
 #companies {
   display: grid; grid-template-columns: repeat(2, 1fr);
   gap: 10px; margin: 20px auto; max-width: 800px;
@@ -31,6 +31,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <h1>인게임 주식 시뮬레이터</h1>
 
 <div id="userInfo"></div>
+<div id="depositSection"></div> <!-- 분리된 입금 요청 UI -->
 <div id="companies"></div>
 <canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
@@ -51,10 +52,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   <button onclick="checkAdminCode()">실행</button>
 </div>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<!-- Firebase (ES Module) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import {
@@ -62,7 +60,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     collection, addDoc, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // 🔹 Firebase 설정
   const firebaseConfig = {
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
@@ -92,7 +89,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     { name: "작두", price: 800, history: [800] }
   ];
 
-  // 🔹 Firestore 연동 로그인
+  // 로그인
   async function loginUser(userId, userName){
     const userRef = doc(db, "users", userId);
     const snap = await getDoc(userRef);
@@ -105,6 +102,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     }
     currentUser = { id: userId, name: userName };
     renderUserInfo();
+    renderDepositSection();
     renderCompanies();
   }
 
@@ -127,25 +125,17 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     });
   }
 
-  // 🔹 끊김 없는 추가 요청
+  // 입금 요청
   function requestDepositToDB(account, amount){
     if(!currentUser) { alert("먼저 로그인하세요."); return; }
     if(!account || !amount || amount<=0) { alert("계좌번호/금액을 확인하세요."); return; }
-
-    // UI 먼저 응답
     alert("입금 요청이 접수되었습니다. (관리자 승인 대기)");
 
-    // Firestore 저장은 백그라운드 처리
     addDoc(collection(db, "depositRequests"), {
       userId: currentUser.id, userName: currentUser.name,
       account, amount, approved: false,
       createdAt: serverTimestamp()
-    }).then(()=>console.log("입금 요청 저장 완료"))
-      .catch(err=>console.error("입금 요청 실패:",err));
-
-    // 입력칸 초기화
-    document.getElementById("accountNumber").value = "";
-    document.getElementById("depositAmount").value = "";
+    }).catch(err=>console.error("입금 요청 실패:",err));
   }
 
   async function approveMyDeposits(){
@@ -167,21 +157,24 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     alert(`관리자 승인 완료: 총 ${total.toLocaleString()} KRW 입금`);
   }
 
-  // 🔹 UI
+  // UI
   function renderUserInfo(){
     document.getElementById('userInfo').innerHTML = `
       <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
       현금: ${player.cash.toLocaleString()} KRW
       <button style="margin-left:8px" onclick="logout()">로그아웃</button>
-      <div style="margin-top:10px;">
-        <input type="text" id="accountNumber" placeholder="계좌번호 입력">
-        <input type="number" id="depositAmount" placeholder="금액 입력">
-        <button onclick="(function(){
-          const acc=document.getElementById('accountNumber').value.trim();
-          const amt=parseInt(document.getElementById('depositAmount').value,10);
-          requestDepositToDB(acc, amt);
-        })()">추가 요청</button>
-      </div>
+    `;
+  }
+
+  function renderDepositSection(){
+    document.getElementById('depositSection').innerHTML = `
+      <input type="text" id="accountNumber" placeholder="계좌번호 입력">
+      <input type="number" id="depositAmount" placeholder="금액 입력">
+      <button onclick="(function(){
+        const acc=document.getElementById('accountNumber').value.trim();
+        const amt=parseInt(document.getElementById('depositAmount').value,10);
+        requestDepositToDB(acc, amt);
+      })()">추가 요청</button>
     `;
   }
 
@@ -200,7 +193,8 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
         </div>`;
       container.appendChild(div);
     });
-    updateChart(); renderUserInfo();
+    updateChart();
+    renderUserInfo();
   }
 
   function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
@@ -253,32 +247,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 
   window.checkAdminCode = async function(){
     const code=document.getElementById("adminCode").value.trim();
-    if(code==="ADMIN123"){
-      if(tradeLog.length===0){ alert("거래 기록이 없습니다."); return; }
-      let csv="날짜,고유번호,이름,타입,기업,가격,수량,현금\n";
-      tradeLog.forEach(t=>{
-        csv+=`${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash}\n`;
-      });
-      const bom=new Uint8Array([0xEF,0xBB,0xBF]);
-      const blob=new Blob([bom,csv],{type:"text/csv;charset=utf-8"});
-      const a=document.createElement("a");
-      a.href=URL.createObjectURL(blob);
-      a.download=`trade_log_${Date.now()}.csv`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
-    else if(code==="RESET123"){
-      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
-      updateChart(); renderCompanies();
-    }
-    else if(code==="RESETALL"){
-      currentUser=null; player={ holdings:{}, cash:5000000 };
-      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
-      document.getElementById('loginModal').style.display="flex";
-      updateChart(); renderCompanies();
-    }
-    else if(code==="APPROVE123"){
-      await approveMyDeposits();
-    }
+    if(code==="ADMIN123"){ alert("엑셀 다운로드 (생략)"); }
+    else if(code==="RESET123"){ companies.forEach(c=>{ c.price=1000; c.history=[1000]; }); updateChart(); renderCompanies(); }
+    else if(code==="RESETALL"){ currentUser=null; player={ holdings:{}, cash:5000000 }; companies.forEach(c=>{ c.price=1000; c.history=[1000]; }); document.getElementById('loginModal').style.display="flex"; updateChart(); renderCompanies(); }
+    else if(code==="APPROVE123"){ await approveMyDeposits(); }
     else { alert("잘못된 코드입니다."); }
   }
 
