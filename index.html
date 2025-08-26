@@ -51,6 +51,9 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   <button onclick="checkAdminCode()">실행</button>
 </div>
 
+<!-- Chart.js (차트용 라이브러리) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <!-- Firebase (ES Module) -->
 <script type="module">
   // Firebase SDK import
@@ -64,7 +67,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
     projectId: "cotyledons-of-stock",
-    storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 수정됨
+    storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ appspot.com으로 수정
     messagingSenderId: "343488842605",
     appId: "1:343488842605:web:f4c1205568f5994d55e864",
     measurementId: "G-YB960D84W4"
@@ -84,6 +87,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   // ==== 게임 로직 ====
   let player = { holdings: {}, cash: 5000000 };
   let currentUser = null;
+  let chart; // 전역 차트 객체
 
   const companies = [
     { name: "떡잎방범대", price: 1000, history: [1000] },
@@ -99,9 +103,30 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   document.addEventListener("DOMContentLoaded", () => {
     const loginModal = document.getElementById('loginModal');
     const startBtn = document.getElementById('startBtn');
+    const ctx = document.getElementById('chart').getContext('2d');
+
+    // 차트 초기화
+    chart = new Chart(ctx,{
+      type:'line',
+      data:{
+        labels:Array.from({length:companies[0].history.length},(_,i)=>i),
+        datasets:companies.map(c=>({
+          label:c.name,
+          data:c.history,
+          borderColor:'#'+Math.floor(Math.random()*16777215).toString(16),
+          fill:false
+        }))
+      },
+      options:{
+        responsive:true,
+        scales:{
+          x:{ title:{display:true,text:'틱'} },
+          y:{ title:{display:true,text:'가격(KRW)'}}
+        }
+      }
+    });
 
     loginModal.style.display = 'flex';
-
     startBtn.addEventListener("click", () => {
       const userId = document.getElementById('userId').value.trim();
       const userName = document.getElementById('userName').value.trim();
@@ -185,15 +210,8 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   }
   setInterval(updatePrices,5000);
 
-  // 차트
-  const ctx=document.getElementById('chart').getContext('2d');
-  const chart=new Chart(ctx,{ type:'line',
-    data:{ labels:Array.from({length:companies[0].history.length},(_,i)=>i),
-      datasets:companies.map(c=>({ label:c.name, data:c.history, borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false }))
-    },
-    options:{ responsive:true, scales:{ x:{ title:{display:true,text:'틱'} }, y:{ title:{display:true,text:'가격(KRW)'}}}}
-  });
   function updateChart(){
+    if(!chart) return;
     chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
     chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
     chart.update();
