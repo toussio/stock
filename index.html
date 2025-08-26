@@ -27,7 +27,7 @@ th { background:#374151; }
 </style>
 </head>
 <body>
-<h1>떡잎방범대 주식 센터</h1>
+<h1>인게임 주식 시뮬레이터 (Firestore 연동)</h1>
 
 <div id="userRow">
   <div id="userInfo"></div>
@@ -129,6 +129,11 @@ let companies = [
   { name:"작두", price:800, history:[800], range:0.05 }
 ];
 
+/* localStorage */
+function saveUser(u){ localStorage.setItem("stockUser", JSON.stringify(u)); }
+function loadUser(){ try { return JSON.parse(localStorage.getItem("stockUser")); } catch(e){ return null; } }
+function clearUser(){ localStorage.removeItem("stockUser"); }
+
 /* 로그 */
 function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
 
@@ -144,8 +149,21 @@ window.loginUser = async function(userId,userName){
     player={ cash:5000000, holdings:{} };
   }
   currentUser={ id:userId, name:userName };
+  saveUser(currentUser);
+
   renderUserInfo(); renderCompanies();
 
+  // ✅ 유저 계좌 실시간 구독
+  onSnapshot(userRef,(docSnap)=>{
+    if(docSnap.exists()){
+      const data=docSnap.data();
+      player.cash=data.cash ?? player.cash;
+      player.holdings=data.holdings ?? player.holdings;
+      renderUserInfo();
+    }
+  });
+
+  // 회사 실시간 구독
   for(const c of companies){
     const ref=doc(db,"companies",c.name);
     const compSnap=await getDoc(ref);
@@ -216,7 +234,7 @@ window.sell=async function(name){
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
 };
-window.logout=function(){ currentUser=null; document.getElementById("loginModal").style.display="flex"; };
+window.logout=function(){ clearUser(); currentUser=null; document.getElementById("loginModal").style.display="flex"; };
 
 /* 입금 요청 */
 window.requestDeposit=async function(){
@@ -373,7 +391,7 @@ function updateChart(){
   chart.update();
 }
 
-/* 시작 버튼 */
+/* 시작 버튼 + 자동 로그인 유지 */
 document.getElementById("startBtn").addEventListener("click", async ()=>{
   const uid=document.getElementById("userId").value.trim();
   const uname=document.getElementById("userName").value.trim();
@@ -381,7 +399,16 @@ document.getElementById("startBtn").addEventListener("click", async ()=>{
   await loginUser(uid,uname);
   document.getElementById("loginModal").style.display="none";
 });
+document.addEventListener("DOMContentLoaded", async ()=>{
+  const saved = loadUser();
+  if(saved && saved.id && saved.name){
+    await loginUser(saved.id, saved.name);
+    document.getElementById("loginModal").style.display="none";
+    log("🔓 자동 로그인되었습니다.");
+  } else {
+    document.getElementById("loginModal").style.display="flex";
+  }
+});
 </script>
 </body>
 </html>
-
