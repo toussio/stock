@@ -25,6 +25,13 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 #loginModal input { margin: 10px 0; padding: 5px; width: 80%; }
 #adminSection { text-align:center; margin-top:20px; }
 #adminSection input { padding:5px; }
+
+/* 관리자 모달 */
+#adminModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
+#adminModalContent { background:#1f2937; padding:20px; border-radius:10px; width:400px; max-height:80%; overflow:auto; }
+#adminModalContent h2 { margin-top:0; }
+.requestBox { margin-bottom:10px; padding:10px; background:#111827; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -54,6 +61,15 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <div id="adminSection">
   <input type="text" id="adminCode" placeholder="관리자 코드 입력">
   <button onclick="checkAdminCode()">실행</button>
+</div>
+
+<!-- 관리자 요청 모달 -->
+<div id="adminModal">
+  <div id="adminModalContent">
+    <h2>입금 요청 관리</h2>
+    <div id="requestsList"></div>
+    <button onclick="closeAdminModal()">닫기</button>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -129,12 +145,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     });
   }
 
-  // ✅ 입금 요청 (팝업 수정)
+  // 입금 요청
   function requestDepositToDB(account, amount){
     if(!currentUser) { alert("먼저 로그인하세요."); return; }
     if(!account || !amount || amount<=0) { alert("계좌번호/금액을 확인하세요."); return; }
-
-    // 안내 문구 수정
     alert("현금추가 요청이 완료되었습니다. 인게임 머니 지불 후 변동됩니다");
 
     addDoc(collection(db, "depositRequests"), {
@@ -150,23 +164,64 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     document.getElementById("depositAmount").value = "";
   }
 
-  async function approveMyDeposits(){
-    if(!currentUser) return alert("로그인 필요");
-    const q = query(collection(db, "depositRequests"),
-      where("userId","==",currentUser.id),
-      where("approved","==",false));
-    const snap = await getDocs(q);
-    if(snap.empty) return alert("승인 대기중인 요청이 없습니다.");
-    let total=0;
-    for(const docSnap of snap.docs){
-      const req=docSnap.data();
-      total+=req.amount;
-      await updateDoc(doc(db,"depositRequests",docSnap.id),{ approved:true });
+  // 관리자 승인/거절 모달
+  window.checkAdminCode = async function(){
+    const code = document.getElementById("adminCode").value.trim();
+
+    if(code === "APPROVE123"){
+      const q = query(collection(db, "depositRequests"),
+        where("approved","==",false)
+      );
+      const snap = await getDocs(q);
+
+      if(snap.empty){
+        alert("승인 대기중인 요청이 없습니다.");
+        return;
+      }
+
+      let html = "";
+      snap.docs.forEach(docSnap => {
+        const req = docSnap.data();
+        html += `
+          <div class="requestBox">
+            <strong>${req.userName} (${req.userId})</strong><br>
+            계좌번호: ${req.account}<br>
+            금액: ${req.amount.toLocaleString()} KRW<br>
+            요청시간: ${req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : "N/A"}<br>
+            <button onclick="approveRequest('${docSnap.id}', ${req.amount}, '${req.userId}', '${req.userName}')">승인</button>
+            <button onclick="rejectRequest('${docSnap.id}', '${req.userName}')">거절</button>
+          </div>
+        `;
+      });
+
+      document.getElementById("requestsList").innerHTML = html;
+      document.getElementById("adminModal").style.display = "flex";
     }
-    player.cash+=total;
-    await syncUserData();
-    renderUserInfo();
-    alert(`관리자 승인 완료: 총 ${total.toLocaleString()} KRW 입금`);
+    else {
+      alert("잘못된 코드입니다.");
+    }
+  }
+
+  window.closeAdminModal = function(){
+    document.getElementById("adminModal").style.display = "none";
+  }
+
+  window.approveRequest = async function(docId, amount, userId, userName){
+    await updateDoc(doc(db,"depositRequests",docId), { approved:true });
+    const userRef = doc(db,"users",userId);
+    const snap = await getDoc(userRef);
+    if(snap.exists()){
+      const u = snap.data();
+      await updateDoc(userRef, { cash:(u.cash||0)+amount });
+    }
+    alert(`${userName} 님 요청 승인 완료`);
+    closeAdminModal();
+  }
+
+  window.rejectRequest = async function(docId, userName){
+    await updateDoc(doc(db,"depositRequests",docId), { approved:false, rejected:true });
+    alert(`${userName} 님 요청 거절 처리됨`);
+    closeAdminModal();
   }
 
   // UI
@@ -245,12 +300,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     log("🚪 로그아웃 되었습니다.");
   }
 
-  window.checkAdminCode = async function(){
-    const code=document.getElementById("adminCode").value.trim();
-    if(code==="APPROVE123"){ await approveMyDeposits(); }
-    else { alert("잘못된 코드입니다."); }
-  }
-
   // 초기 실행
   document.addEventListener("DOMContentLoaded",()=>{
     const ctx=document.getElementById('chart').getContext('2d');
@@ -261,7 +310,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       options:{ responsive:true, scales:{ x:{title:{display:true,text:'틱'}}, y:{title:{display:true,text:'가격(KRW)'}}}}
     });
 
-    // 시작 버튼
     document.getElementById('startBtn').addEventListener("click", async ()=>{
       const userId=document.getElementById('userId').value.trim();
       const userName=document.getElementById('userName').value.trim();
@@ -270,7 +318,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       document.getElementById('loginModal').style.display="none";
     });
 
-    // ✅ 추가 요청 버튼 이벤트 연결
     document.getElementById("depositBtn").addEventListener("click", ()=>{
       const acc=document.getElementById("accountNumber").value.trim();
       const amt=parseInt(document.getElementById("depositAmount").value,10);
