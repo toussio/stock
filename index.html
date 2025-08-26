@@ -64,8 +64,9 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
     <h2>입금 요청 관리</h2>
     <div id="requestsList"></div>
     <hr>
-    <button onclick="startAutoGraph()">📈 자동 그래프 시작</button>
-    <button onclick="stopAutoGraph()">⏹ 자동 멈춤</button>
+    <h3>관리자 명령어</h3>
+    <input type="text" id="adminCommand" placeholder="예: start / stop / speed 2000 / range 2">
+    <button onclick="runAdminCommand()">명령 실행</button>
   </div>
 </div>
 
@@ -92,7 +93,6 @@ const db  = getFirestore(app);
 let player = { holdings:{}, cash:5000000 };
 let currentUser = null;
 let chart;
-let autoInterval = null;
 
 let companies = [
   { name:"떡잎방범대", price:1000, history:[1000] },
@@ -104,6 +104,11 @@ let companies = [
   { name:"올드보이", price:500, history:[500] },
   { name:"작두", price:800, history:[800] }
 ];
+
+// 🔥 자동 그래프 제어 변수
+let autoInterval = null;
+let updateSpeed = 3000;   // 기본 3초
+let changeRange = 0.05;   // 기본 ±5%
 
 // 로그인
 async function loginUser(userId,userName){
@@ -282,7 +287,7 @@ async function autoUpdatePrice(companyName) {
   const snap = await getDoc(ref);
   if(snap.exists()){
     const data = snap.data();
-    const changeRate = (Math.random() * 0.1 - 0.05); // -5% ~ +5%
+    const changeRate = (Math.random() * (2*changeRange) - changeRange); 
     const newPrice = Math.max(100, Math.round(data.price * (1 + changeRate)));
     const newHistory = [...data.history, newPrice];
     await updateDoc(ref, { price:newPrice, history:newHistory });
@@ -295,15 +300,50 @@ window.startAutoGraph=function(){
     companies.forEach(c=>{
       autoUpdatePrice(c.name);
     });
-  }, 3000); // 3초마다 변동
-  log("⚡ 자동 그래프 시작됨");
+  }, updateSpeed);
 };
 
 window.stopAutoGraph=function(){
   if(autoInterval){
     clearInterval(autoInterval);
     autoInterval = null;
-    log("⏹ 자동 그래프 멈춤");
+  }
+};
+
+// 🔑 관리자 명령어 실행
+window.runAdminCommand = function(){
+  const cmd = document.getElementById("adminCommand").value.trim().toLowerCase();
+  const parts = cmd.split(" ");
+
+  if(parts[0] === "start"){
+    startAutoGraph();
+    log("⚡ 관리자 명령어: 자동 그래프 시작");
+  } 
+  else if(parts[0] === "stop"){
+    stopAutoGraph();
+    log("⏹ 관리자 명령어: 자동 그래프 중단");
+  }
+  else if(parts[0] === "speed" && parts[1]){
+    const val = parseInt(parts[1],10);
+    if(!isNaN(val) && val > 500){
+      updateSpeed = val;
+      if(autoInterval){ stopAutoGraph(); startAutoGraph(); }
+      log(`⏱ 주기 변경됨 → ${updateSpeed}ms`);
+    } else {
+      alert("speed 값은 500 이상 숫자를 입력하세요.");
+    }
+  }
+  else if(parts[0] === "range" && parts[1]){
+    const val = parseFloat(parts[1]);
+    if(!isNaN(val) && val > 0){
+      changeRange = val / 100;
+      log(`📊 변동폭 변경됨 → ±${val}%`);
+    } else {
+      alert("range 값은 숫자로 입력하세요.");
+    }
+  }
+  else {
+    alert("알 수 없는 명령어입니다. (start / stop / speed 숫자 / range 숫자)");
   }
 };
 
