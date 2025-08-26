@@ -71,7 +71,7 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
-  collection, addDoc, getDocs, onSnapshot, serverTimestamp
+  collection, addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -221,7 +221,6 @@ document.getElementById("depositBtn").addEventListener("click",()=>{
     userId:currentUser.id,
     userName:currentUser.name,
     account:acc, amount:amt,
-    approved:false,
     createdAt:serverTimestamp()
   });
 });
@@ -242,18 +241,19 @@ async function loadDepositRequests(){
     const r=docSnap.data();
     const div=document.createElement("div");
     div.className="requestBox";
-    div.id="req-"+docSnap.id;   // ✅ 요청 박스 ID
+    div.id="req-"+docSnap.id;
     div.innerHTML=`
       <strong>${r.userName}(${r.userId})</strong><br>
       계좌: ${r.account}<br>
       금액: ${r.amount.toLocaleString()} KRW<br>
-      상태: ${r.approved?"✅ 승인됨":"⏳ 대기중"}<br>
       <button onclick="approveRequest('${docSnap.id}','${r.userId}',${r.amount})">승인</button>
       <button onclick="rejectRequest('${docSnap.id}')">거절</button>
     `;
     list.appendChild(div);
   });
 }
+
+// ✅ 승인 처리 → 현금 추가 + 기록 남기고 삭제
 window.approveRequest=async function(reqId,userId,amount){
   const userRef=doc(db,"users",userId);
   const snap=await getDoc(userRef);
@@ -261,17 +261,24 @@ window.approveRequest=async function(reqId,userId,amount){
     const data=snap.data();
     await updateDoc(userRef,{ cash:(data.cash||0)+amount });
   }
-  await updateDoc(doc(db,"depositRequests",reqId),{ approved:true });
-  // ✅ 해당 요청 박스만 제거
+  await addDoc(collection(db,"depositHistory"),{
+    userId:userId, amount:amount, status:"approved", processedAt:serverTimestamp()
+  });
+  await deleteDoc(doc(db,"depositRequests",reqId));
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
+
+// ✅ 거절 처리 → 기록 남기고 삭제
 window.rejectRequest=async function(reqId){
-  await updateDoc(doc(db,"depositRequests",reqId),{ approved:false });
-  // ✅ 해당 요청 박스만 제거
+  await addDoc(collection(db,"depositHistory"),{
+    requestId:reqId, status:"rejected", processedAt:serverTimestamp()
+  });
+  await deleteDoc(doc(db,"depositRequests",reqId));
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
+
 window.closeAdminModal=function(){ document.getElementById("adminModal").style.display="none"; }
 
 // 초기화
