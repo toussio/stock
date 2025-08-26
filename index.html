@@ -94,11 +94,6 @@ let companies = [
   { name:"떡잎방범대", price:1000, history:[1000] },
   { name:"카스틸로", price:500, history:[500] },
   { name:"사쿠라", price:500, history:[500] },
-  { name:"청룡", price:500, history:[500] },
-  { name:"경찰청", price:500, history:[500] },
-  { name:"EMS", price:500, history:[500] },
-  { name:"올드보이", price:500, history:[500] },
-  { name:"작두", price:800, history:[800] }
 ];
 
 // 로그인
@@ -115,7 +110,7 @@ async function loginUser(userId,userName){
   currentUser={ id:userId, name:userName };
   renderUserInfo(); renderCompanies();
 
-  // ✅ Firestore 구독 (로그인 후 자동 적용)
+  // Firestore 구독
   companies.forEach(c=>{
     onSnapshot(doc(db,"companies",c.name),(snap)=>{
       if(snap.exists()){
@@ -130,7 +125,6 @@ async function loginUser(userId,userName){
   });
 }
 
-// 사용자 데이터 동기화
 async function syncUserData(){
   if(!currentUser) return;
   await updateDoc(doc(db,"users",currentUser.id),{
@@ -243,6 +237,7 @@ async function loadDepositRequests(){
     const r=docSnap.data();
     const div=document.createElement("div");
     div.className="requestBox";
+    div.id="req-"+docSnap.id;   // ✅ 요청 박스 ID
     div.innerHTML=`
       <strong>${r.userName}(${r.userId})</strong><br>
       계좌: ${r.account}<br>
@@ -262,11 +257,15 @@ window.approveRequest=async function(reqId,userId,amount){
     await updateDoc(userRef,{ cash:(data.cash||0)+amount });
   }
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:true });
-  loadDepositRequests();
+  // ✅ DOM에서 제거
+  const el=document.getElementById("req-"+reqId);
+  if(el) el.remove();
 }
 window.rejectRequest=async function(reqId){
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:false });
-  loadDepositRequests();
+  // ✅ DOM에서 제거
+  const el=document.getElementById("req-"+reqId);
+  if(el) el.remove();
 }
 window.closeAdminModal=function(){ document.getElementById("adminModal").style.display="none"; }
 
