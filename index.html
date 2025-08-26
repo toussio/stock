@@ -89,6 +89,11 @@ th { background:#374151; }
       <tbody id="companySettingsBody"></tbody>
     </table>
     <button onclick="applyCompanySettings()">저장 & 적용</button>
+
+    <hr style="margin:20px 0;" />
+
+    <h3>데이터 정리</h3>
+    <button onclick="cleanupHistories()">기업별 히스토리 정리 (최근 80개만 유지)</button>
   </div>
 </div>
 
@@ -168,12 +173,20 @@ window.loginUser = async function(userId,userName){
     }
   });
 
-  // 회사 실시간 구독
+  // 회사 실시간 구독 + DB 정리
   for(const c of companies){
     const ref=doc(db,"companies",c.name);
     const compSnap=await getDoc(ref);
     if(!compSnap.exists()){
       await setDoc(ref,{ price:c.price, history:[c.price], range:c.range });
+    } else {
+      const d=compSnap.data();
+      let newHistory = d.history || [d.price];
+      if(newHistory.length > MAX_HISTORY){
+        newHistory = newHistory.slice(-MAX_HISTORY);
+        await setDoc(ref,{ price:newHistory[newHistory.length-1], history:newHistory, range:d.range ?? 0.05 });
+        log(`🧹 ${c.name} 히스토리 정리 완료 (최근 ${MAX_HISTORY}개 유지)`);
+      }
     }
     onSnapshot(ref,(s)=>{
       if(s.exists()){
@@ -226,7 +239,6 @@ window.buy=async function(name){
   player.cash-=c.price*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
 
-  // 대량 매수 → 가격 상승
   let impactRate=(qty/BASE_VOLUME)*IMPACT;
   const newPrice=Math.max(1, Math.round(c.price*(1+impactRate)));
 
@@ -247,7 +259,6 @@ window.sell=async function(name){
   player.cash+=c.price*qty;
   player.holdings[name]-=qty;
 
-  // 대량 매도 → 가격 하락
   let impactRate=(qty/BASE_VOLUME)*IMPACT;
   const newPrice=Math.max(1, Math.round(c.price*(1-impactRate)));
 
@@ -370,12 +381,15 @@ window.startAutoGraph=function(){
         const range=d.range ?? 0.05;
         const change=(Math.random()*2*range - range);
         const newPrice=Math.max(1, Math.round(d.price*(1+change)));
+
+        // 🔥 최근 80개까지만 저장
         const newHistory=[...d.history,newPrice].slice(-MAX_HISTORY);
+
         await updateDoc(ref,{ price:newPrice, history:newHistory, range:range });
       }
     }
   }, updateSpeed);
-  log(`⚡ 자동 그래프 시작 (속도:${updateSpeed}ms, 기업별 변동폭 적용, 최근 ${MAX_HISTORY}개 유지)`);
+  log(`⚡ 자동 그래프 시작 (속도:${updateSpeed}ms, 최근 ${MAX_HISTORY}개 유지)`);
 };
 window.stopAutoGraph=function(){
   if(autoInterval){ clearInterval(autoInterval); autoInterval=null; }
@@ -403,6 +417,29 @@ window.resetGraphAndPrice=async function(){
   }
   log("🔄 그래프+가격이 기업별 시작가 기준으로 초기화되었습니다.");
   updateChart(); renderCompanies();
+};
+
+/* ✅ 수동 데이터 정리 버튼 */
+window.cleanupHistories = async function(){
+  for(const c of companies){
+    const ref = doc(db,"companies",c.name);
+    const snap = await getDoc(ref);
+    if(snap.exists()){
+      const d = snap.data();
+      let newHistory = d.history || [d.price];
+      if(newHistory.length > MAX_HISTORY){
+        newHistory = newHistory.slice(-MAX_HISTORY);
+        await setDoc(ref,{
+          price: newHistory[newHistory.length-1],
+          history: newHistory,
+          range: d.range ?? 0.05
+        });
+        log(`🧹 ${c.name} 히스토리 정리 완료 (최근 ${MAX_HISTORY}개 유지)`);
+      }
+    }
+  }
+  updateChart(); renderCompanies();
+  alert(`✅ 기업별 히스토리를 최근 ${MAX_HISTORY}개만 남기고 정리했습니다.`);
 };
 
 /* 차트 */
