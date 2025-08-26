@@ -207,7 +207,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     const code=document.getElementById("adminCode").value.trim();
 
     if(code==="ADMIN123"){
-      // 엑셀 다운로드
       if(tradeLog.length===0){ alert("거래 기록이 없습니다."); return; }
       const sortedLog = [...tradeLog].sort((a,b)=> new Date(b.date)-new Date(a.date));
       let csv = "날짜,고유번호,이름,타입,기업,가격,수량,현금\n";
@@ -229,6 +228,15 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
       updateChart(); renderCompanies();
       alert("기업 가격/그래프가 초기화 되었습니다.");
+    }
+
+    else if(code==="RESETALL"){
+      player={ holdings:{}, cash:5000000 };
+      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+      currentUser=null;
+      document.getElementById('loginModal').style.display="flex";
+      updateChart(); renderCompanies();
+      alert("모든 데이터가 초기화 되었습니다. (다시 로그인 필요)");
     }
 
     else {
