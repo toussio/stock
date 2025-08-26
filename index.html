@@ -262,13 +262,13 @@ window.approveRequest=async function(reqId,userId,amount){
     await updateDoc(userRef,{ cash:(data.cash||0)+amount });
   }
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:true });
-  // ✅ DOM에서 제거
+  // ✅ 해당 요청 박스만 제거
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
 window.rejectRequest=async function(reqId){
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:false });
-  // ✅ DOM에서 제거
+  // ✅ 해당 요청 박스만 제거
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
