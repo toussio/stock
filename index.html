@@ -76,16 +76,24 @@ let tradeLog = [];
 let autoOn = true;
 let autoTimer = null;
 
-/* 종목 */
+/* 종목 + 기본 변동 규칙 */
 const companies = [
-  { name: "떡잎방범대", price: 1000, history: [1000] },
-  { name: "카스틸로", price: 500, history: [500] },
-  { name: "사쿠라", price: 500, history: [500] },
-  { name: "청룡", price: 500, history: [500] },
-  { name: "경찰청", price: 500, history: [500] },
-  { name: "EMS", price: 500, history: [500] },
-  { name: "올드보이", price: 500, history: [500] },
-  { name: "작두", price: 800, history: [800] }
+  { name: "떡잎방범대", price: 10000000, history: [1000],
+    cfg: { vol: 0.03, drift: 0.002, jumpProb: 0.01, jumpVol: 0.10, min: 1 } },
+  { name: "카스틸로", price: 5000000, history: [500],
+    cfg: { vol: 0.06, drift: -0.001, jumpProb: 0.02, jumpVol: 0.20, min: 1 } },
+  { name: "사쿠라", price: 6500000, history: [500],
+    cfg: { vol: 0.04, drift: 0.000, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
+  { name: "청룡", price: 5000000, history: [500],
+    cfg: { vol: 0.08, drift: 0.003, jumpProb: 0.03, jumpVol: 0.25, min: 1 } },
+  { name: "경찰청", price: 4000000, history: [500],
+    cfg: { vol: 0.02, drift: 0.001, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
+  { name: "EMS", price: 5000000, history: [500],
+    cfg: { vol: 0.05, drift: -0.002, jumpProb: 0.01, jumpVol: 0.15, min: 1 } },
+  { name: "올드보이", price: 5000000, history: [500],
+    cfg: { vol: 0.07, drift: 0.000, jumpProb: 0.02, jumpVol: 0.30, min: 1 } },
+  { name: "작두", price: 8000000, history: [800],
+    cfg: { vol: 0.10, drift: 0.004, jumpProb: 0.05, jumpVol: 0.40, min: 1 } }
 ];
 
 /* ===== LocalStorage 저장/불러오기 ===== */
@@ -239,3 +247,4 @@ function downloadExcel(){
 </script>
 </body>
 </html>
+
