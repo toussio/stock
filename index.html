@@ -31,7 +31,11 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <h1>인게임 주식 시뮬레이터</h1>
 
 <div id="userInfo"></div>
-<div id="depositSection"></div> <!-- 분리된 입금 요청 UI -->
+<div id="depositSection">
+  <input type="text" id="accountNumber" placeholder="계좌번호 입력">
+  <input type="number" id="depositAmount" placeholder="금액 입력">
+  <button id="depositBtn">추가 요청</button>
+</div>
 <div id="companies"></div>
 <canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
@@ -60,6 +64,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     collection, addDoc, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  // Firebase 설정
   const firebaseConfig = {
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
@@ -102,7 +107,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     }
     currentUser = { id: userId, name: userName };
     renderUserInfo();
-    renderDepositSection();
     renderCompanies();
   }
 
@@ -125,17 +129,25 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     });
   }
 
-  // 입금 요청
+  // ✅ 입금 요청 (팝업 수정)
   function requestDepositToDB(account, amount){
     if(!currentUser) { alert("먼저 로그인하세요."); return; }
     if(!account || !amount || amount<=0) { alert("계좌번호/금액을 확인하세요."); return; }
-    alert("입금 요청이 접수되었습니다. (관리자 승인 대기)");
+
+    // 안내 문구 수정
+    alert("현금추가 요청이 완료되었습니다. 인게임 머니 지불 후 변동됩니다");
 
     addDoc(collection(db, "depositRequests"), {
-      userId: currentUser.id, userName: currentUser.name,
-      account, amount, approved: false,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      account,
+      amount,
+      approved: false,
       createdAt: serverTimestamp()
     }).catch(err=>console.error("입금 요청 실패:",err));
+
+    document.getElementById("accountNumber").value = "";
+    document.getElementById("depositAmount").value = "";
   }
 
   async function approveMyDeposits(){
@@ -163,18 +175,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
       현금: ${player.cash.toLocaleString()} KRW
       <button style="margin-left:8px" onclick="logout()">로그아웃</button>
-    `;
-  }
-
-  function renderDepositSection(){
-    document.getElementById('depositSection').innerHTML = `
-      <input type="text" id="accountNumber" placeholder="계좌번호 입력">
-      <input type="number" id="depositAmount" placeholder="금액 입력">
-      <button onclick="(function(){
-        const acc=document.getElementById('accountNumber').value.trim();
-        const amt=parseInt(document.getElementById('depositAmount').value,10);
-        requestDepositToDB(acc, amt);
-      })()">추가 요청</button>
     `;
   }
 
@@ -247,13 +247,11 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 
   window.checkAdminCode = async function(){
     const code=document.getElementById("adminCode").value.trim();
-    if(code==="ADMIN123"){ alert("엑셀 다운로드 (생략)"); }
-    else if(code==="RESET123"){ companies.forEach(c=>{ c.price=1000; c.history=[1000]; }); updateChart(); renderCompanies(); }
-    else if(code==="RESETALL"){ currentUser=null; player={ holdings:{}, cash:5000000 }; companies.forEach(c=>{ c.price=1000; c.history=[1000]; }); document.getElementById('loginModal').style.display="flex"; updateChart(); renderCompanies(); }
-    else if(code==="APPROVE123"){ await approveMyDeposits(); }
+    if(code==="APPROVE123"){ await approveMyDeposits(); }
     else { alert("잘못된 코드입니다."); }
   }
 
+  // 초기 실행
   document.addEventListener("DOMContentLoaded",()=>{
     const ctx=document.getElementById('chart').getContext('2d');
     chart=new Chart(ctx,{ type:'line',
@@ -262,12 +260,21 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
           borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false }))},
       options:{ responsive:true, scales:{ x:{title:{display:true,text:'틱'}}, y:{title:{display:true,text:'가격(KRW)'}}}}
     });
+
+    // 시작 버튼
     document.getElementById('startBtn').addEventListener("click", async ()=>{
       const userId=document.getElementById('userId').value.trim();
       const userName=document.getElementById('userName').value.trim();
       if(!userId||!userName){ alert("고유번호와 이름을 모두 입력해주세요."); return; }
       await loginUser(userId,userName);
       document.getElementById('loginModal').style.display="none";
+    });
+
+    // ✅ 추가 요청 버튼 이벤트 연결
+    document.getElementById("depositBtn").addEventListener("click", ()=>{
+      const acc=document.getElementById("accountNumber").value.trim();
+      const amt=parseInt(document.getElementById("depositAmount").value,10);
+      requestDepositToDB(acc, amt);
     });
   });
 </script>
