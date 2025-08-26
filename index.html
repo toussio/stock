@@ -11,7 +11,7 @@ h1 { text-align: center; }
 #userInfo, #log { margin: 20px auto; max-width: 800px; }
 #companies {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr); /* 2열 */
   gap: 10px;
   margin: 20px auto;
   max-width: 800px;
@@ -75,14 +75,14 @@ let autoTimer = null;
 
 /* 종목 */
 const companies = [
-  { name: "떡잎방범대", price: 90000000, history: [90000000] },
-  { name: "카스틸로", price: 5000000, history: [500] },
-  { name: "사쿠라", price: 6000000, history: [500] },
-  { name: "청룡", price: 5500000, history: [500] },
-  { name: "경찰청", price: 4500000, history: [500] },
-  { name: "EMS", price: 5300000, history: [500] },
-  { name: "올드보이", price: 5500000, history: [500] },
-  { name: "작두", price: 6500000, history: [800] }
+  { name: "떡잎방범대", price: 1000, history: [1000] },
+  { name: "카스틸로", price: 500, history: [500] },
+  { name: "사쿠라", price: 500, history: [500] },
+  { name: "청룡", price: 500, history: [500] },
+  { name: "경찰청", price: 500, history: [500] },
+  { name: "EMS", price: 500, history: [500] },
+  { name: "올드보이", price: 500, history: [500] },
+  { name: "작두", price: 800, history: [800] }
 ];
 
 /* ===== LocalStorage 저장/불러오기 ===== */
@@ -218,13 +218,9 @@ function handleAdminAction() {
   const code = document.getElementById('adminCode').value.trim();
   if(code === 'ADMIN123') {
     downloadExcel();
-  } else if(code === 'RESET123') {
+  } else if(code === 'RESET123') { // 초기화 코드
     if(confirm("⚠ 기업 가격과 그래프를 초기화하시겠습니까? (현금/보유주식은 유지됩니다)")) {
       resetCompaniesOnly();
-    }
-  } else if(code === 'RESETALL') {
-    if(confirm("⚠ 모든 데이터(현금/보유주식/기업가격/거래기록)를 초기화하시겠습니까?")) {
-      resetAll();
     }
   } else {
     alert('잘못된 코드입니다.');
@@ -234,38 +230,19 @@ function handleAdminAction() {
 /* 기업 가격/그래프만 초기화 */
 function resetCompaniesOnly() {
   companies.forEach(c => {
-    if(c.name === "떡잎방범대") { c.price = 1000; c.history = [1000]; }
-    else if(c.name === "카스틸로") { c.price = 500; c.history = [500]; }
-    else if(c.name === "사쿠라") { c.price = 500; c.history = [500]; }
-    else if(c.name === "청룡") { c.price = 500; c.history = [500]; }
-    else if(c.name === "경찰청") { c.price = 500; c.history = [500]; }
-    else if(c.name === "EMS") { c.price = 500; c.history = [500]; }
-    else if(c.name === "올드보이") { c.price = 500; c.history = [500]; }
-    else if(c.name === "작두") { c.price = 800; c.history = [800]; }
+    if(c.name === "떡잎방범대") { c.price = 10000000; c.history = [1000]; }
+    else if(c.name === "카스틸로") { c.price = 5000000; c.history = [500]; }
+    else if(c.name === "사쿠라") { c.price = 6500000; c.history = [500]; }
+    else if(c.name === "청룡") { c.price = 6500000; c.history = [500]; }
+    else if(c.name === "경찰청") { c.price = 4000000; c.history = [500]; }
+    else if(c.name === "EMS") { c.price = 5000000; c.history = [500]; }
+    else if(c.name === "올드보이") { c.price = 5000000; c.history = [500]; }
+    else if(c.name === "작두") { c.price = 8000000; c.history = [800]; }
   });
-  tradeLog = [];
+  tradeLog = []; // 거래 기록 초기화 여부는 필요에 따라 유지/삭제 선택
   saveState();
   renderCompanies(); updateChart();
-  log("🛑 기업 가격과 그래프가 초기화되었습니다. (현금/보유주식은 유지)");
-}
-
-/* 모든 데이터 초기화 */
-function resetAll() {
-  player = { holdings: {}, cash: 5000000 };
-  tradeLog = [];
-  companies.forEach(c => {
-    if(c.name === "떡잎방범대") { c.price = 1000; c.history = [1000]; }
-    else if(c.name === "카스틸로") { c.price = 500; c.history = [500]; }
-    else if(c.name === "사쿠라") { c.price = 500; c.history = [500]; }
-    else if(c.name === "청룡") { c.price = 500; c.history = [500]; }
-    else if(c.name === "경찰청") { c.price = 500; c.history = [500]; }
-    else if(c.name === "EMS") { c.price = 500; c.history = [500]; }
-    else if(c.name === "올드보이") { c.price = 500; c.history = [500]; }
-    else if(c.name === "작두") { c.price = 800; c.history = [800]; }
-  });
-  localStorage.clear();
-  renderUserInfo(); renderCompanies(); updateChart();
-  log("🛑 전체 데이터가 초기화되었습니다. (현금/보유주식 포함)");
+  log("🛑 관리자에 의해 기업 가격과 그래프가 초기화되었습니다. (현금/보유주식은 유지)");
 }
 
 /* 엑셀 다운로드 */
@@ -289,5 +266,3 @@ function downloadExcel(){
 </script>
 </body>
 </html>
-
-
