@@ -63,6 +63,9 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
     <button class="closeBtn" onclick="closeAdminModal()">✖</button>
     <h2>입금 요청 관리</h2>
     <div id="requestsList"></div>
+    <hr>
+    <button onclick="startAutoGraph()">📈 자동 그래프 시작</button>
+    <button onclick="stopAutoGraph()">⏹ 자동 멈춤</button>
   </div>
 </div>
 
@@ -89,6 +92,7 @@ const db  = getFirestore(app);
 let player = { holdings:{}, cash:5000000 };
 let currentUser = null;
 let chart;
+let autoInterval = null;
 
 let companies = [
   { name:"떡잎방범대", price:1000, history:[1000] },
@@ -242,7 +246,7 @@ async function loadDepositRequests(){
     const r=docSnap.data();
     const div=document.createElement("div");
     div.className="requestBox";
-    div.id="req-"+docSnap.id;   // ✅ 요청 박스 ID
+    div.id="req-"+docSnap.id;
     div.innerHTML=`
       <strong>${r.userName}(${r.userId})</strong><br>
       계좌: ${r.account}<br>
@@ -262,17 +266,46 @@ window.approveRequest=async function(reqId,userId,amount){
     await updateDoc(userRef,{ cash:(data.cash||0)+amount });
   }
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:true });
-  // ✅ DOM에서 제거
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
 window.rejectRequest=async function(reqId){
   await updateDoc(doc(db,"depositRequests",reqId),{ approved:false });
-  // ✅ DOM에서 제거
   const el=document.getElementById("req-"+reqId);
   if(el) el.remove();
 }
 window.closeAdminModal=function(){ document.getElementById("adminModal").style.display="none"; }
+
+// 🔥 자동 그래프 기능
+async function autoUpdatePrice(companyName) {
+  const ref = doc(db,"companies",companyName);
+  const snap = await getDoc(ref);
+  if(snap.exists()){
+    const data = snap.data();
+    const changeRate = (Math.random() * 0.1 - 0.05); // -5% ~ +5%
+    const newPrice = Math.max(100, Math.round(data.price * (1 + changeRate)));
+    const newHistory = [...data.history, newPrice];
+    await updateDoc(ref, { price:newPrice, history:newHistory });
+  }
+}
+
+window.startAutoGraph=function(){
+  if(autoInterval) return;
+  autoInterval = setInterval(()=>{
+    companies.forEach(c=>{
+      autoUpdatePrice(c.name);
+    });
+  }, 3000); // 3초마다 변동
+  log("⚡ 자동 그래프 시작됨");
+};
+
+window.stopAutoGraph=function(){
+  if(autoInterval){
+    clearInterval(autoInterval);
+    autoInterval = null;
+    log("⏹ 자동 그래프 멈춤");
+  }
+};
 
 // 초기화
 document.addEventListener("DOMContentLoaded",()=>{
