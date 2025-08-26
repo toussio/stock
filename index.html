@@ -85,7 +85,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     collection, addDoc, query, where, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // Firebase 설정
   const firebaseConfig = {
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
@@ -115,7 +114,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     { name: "작두", price: 800, history: [800] }
   ];
 
-  // 로그인
   async function loginUser(userId, userName){
     const userRef = doc(db, "users", userId);
     const snap = await getDoc(userRef);
@@ -150,7 +148,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     });
   }
 
-  // 입금 요청
   function requestDepositToDB(account, amount){
     if(!currentUser) { alert("먼저 로그인하세요."); return; }
     if(!account || !amount || amount<=0) { alert("계좌번호/금액을 확인하세요."); return; }
@@ -169,18 +166,16 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     document.getElementById("depositAmount").value = "";
   }
 
-  // 관리자 코드 입력 → 모달 열기
-  window.checkAdminCode = async function(){
+  async function checkAdminCode(){
     const code = document.getElementById("adminCode").value.trim();
     if(code === "APPROVE123"){ await loadDepositRequests(); }
     else { alert("잘못된 코드입니다."); }
   }
+  window.checkAdminCode = checkAdminCode;
 
   async function loadDepositRequests(){
-    const q = query(collection(db, "depositRequests"),
-      where("approved","==",false), where("rejected","!=",true));
+    const q = query(collection(db, "depositRequests"), where("approved","==",false));
     const snap = await getDocs(q);
-
     if(snap.empty){ alert("승인 대기중인 요청이 없습니다."); return; }
 
     let html = "";
@@ -202,12 +197,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     document.getElementById("adminModal").style.display = "flex";
   }
 
-  // 닫기
   window.closeAdminModal = function(){
     document.getElementById("adminModal").style.display = "none";
   }
 
-  // 승인
   window.approveRequest = async function(docId, amount, userId, userName){
     await updateDoc(doc(db,"depositRequests",docId), { approved:true });
     const userRef = doc(db,"users",userId);
@@ -217,17 +210,15 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       await updateDoc(userRef, { cash:(u.cash||0)+amount });
     }
     alert(`${userName} 님 요청 승인 완료`);
-    document.getElementById(`req-${docId}`).remove(); // ✅ 화면에서 제거
+    document.getElementById(`req-${docId}`).remove();
   }
 
-  // 거절
   window.rejectRequest = async function(docId, userName){
     await updateDoc(doc(db,"depositRequests",docId), { approved:false, rejected:true });
     alert(`${userName} 님 요청 거절 처리됨`);
-    document.getElementById(`req-${docId}`).remove(); // ✅ 화면에서 제거
+    document.getElementById(`req-${docId}`).remove();
   }
 
-  // UI
   function renderUserInfo(){
     document.getElementById('userInfo').innerHTML = `
       <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
@@ -246,8 +237,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       div.innerHTML=`
         <div><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
         <div>
-          <button onclick="buy('${c.name}',1)">매수</button>
-          <button onclick="sell('${c.name}',1)">매도</button>
+          <input type="number" id="qty-${c.name}" value="1" min="1"
+                 style="min-width:60px; max-width:100px; text-align:right;">
+          <button onclick="buy('${c.name}')">매수</button>
+          <button onclick="sell('${c.name}')">매도</button>
         </div>`;
       container.appendChild(div);
     });
@@ -257,7 +250,8 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 
   function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
 
-  window.buy = async function(name, qty){
+  window.buy = async function(name){
+    const qty = parseInt(document.getElementById(`qty-${name}`).value, 10) || 1;
     const c=companies.find(x=>x.name===name);
     if(player.cash<c.price*qty){ alert('현금 부족'); return; }
     player.cash-=c.price*qty;
@@ -268,7 +262,8 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     renderCompanies();
   }
 
-  window.sell = async function(name, qty){
+  window.sell = async function(name){
+    const qty = parseInt(document.getElementById(`qty-${name}`).value, 10) || 1;
     const c=companies.find(x=>x.name===name);
     if((player.holdings[name]||0)<qty){ alert('보유 주식 부족'); return; }
     player.cash+=c.price*qty;
@@ -303,7 +298,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     log("🚪 로그아웃 되었습니다.");
   }
 
-  // 초기 실행
   document.addEventListener("DOMContentLoaded",()=>{
     const ctx=document.getElementById('chart').getContext('2d');
     chart=new Chart(ctx,{ type:'line',
