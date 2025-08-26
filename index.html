@@ -7,37 +7,22 @@
 <style>
 body { font-family: Arial, sans-serif; background: #0f172a; color: #e5e7eb; margin: 0; padding: 20px; }
 h1 { text-align: center; }
-
 #userInfo, #log { margin: 20px auto; max-width: 800px; }
 #companies {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 2열 */
-  gap: 10px;
-  margin: 20px auto;
-  max-width: 800px;
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 10px; margin: 20px auto; max-width: 800px;
 }
 .company {
-  padding: 10px;
-  background: #1f2937;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+  padding: 10px; background: #1f2937; border-radius: 8px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
-.company .left { display:flex; flex-direction:column; gap:6px; }
-.company .actions { display:flex; gap:6px; align-items:center; }
-
 button { padding: 5px 10px; cursor: pointer; }
 #log { max-height: 220px; overflow-y: auto; background: #111827; padding: 10px; border-radius: 8px; }
 canvas { background: #111827; border-radius: 8px; display: block; margin: 20px auto; }
-
-#loginModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+#loginModal { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
 #loginModalContent { background: #1f2937; padding: 20px; border-radius: 10px; text-align: center; }
 #loginModal input { margin: 10px 0; padding: 5px; width: 80%; }
-
-#downloadSection { text-align: center; margin-top: 20px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-#downloadSection input { padding: 5px; }
 </style>
 </head>
 <body>
@@ -58,22 +43,38 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   </div>
 </div>
 
-<!-- 관리자 영역 -->
-<div id="downloadSection">
-  <input type="text" id="adminCode" placeholder="관리자 코드 입력" />
-  <button onclick="handleAdminAction()">실행</button>
-</div>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// ==== Firebase 연결 ====
+// 발급받은 firebaseConfig
+const firebaseConfig = {
+  apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
+  authDomain: "cotyledons-of-stock.firebaseapp.com",
+  projectId: "cotyledons-of-stock",
+  storageBucket: "cotyledons-of-stock.firebasestorage.app",
+  messagingSenderId: "343488842605",
+  appId: "1:343488842605:web:f4c1205568f5994d55e864",
+  measurementId: "G-YB960D84W4"
+};
+
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// 플레이어는 익명 로그인
+auth.signInAnonymously()
+  .then(() => console.log("익명 로그인 성공"))
+  .catch(err => console.error("Firebase 로그인 실패:", err));
+
+// ==== 게임 로직 ====
 let player = { holdings: {}, cash: 5000000 };
 let currentUser = null;
-let tradeLog = [];
 
-let autoOn = true;
-let autoTimer = null;
-
-/* 종목 */
 const companies = [
   { name: "떡잎방범대", price: 1000, history: [1000] },
   { name: "카스틸로", price: 500, history: [500] },
@@ -85,67 +86,41 @@ const companies = [
   { name: "작두", price: 800, history: [800] }
 ];
 
-/* ===== LocalStorage 저장/불러오기 ===== */
-function saveState() {
-  localStorage.setItem("stockPlayer", JSON.stringify(player));
-  localStorage.setItem("stockCompanies", JSON.stringify(companies));
-  localStorage.setItem("stockTradeLog", JSON.stringify(tradeLog));
-}
-function loadState() {
-  const p = localStorage.getItem("stockPlayer");
-  const c = localStorage.getItem("stockCompanies");
-  const t = localStorage.getItem("stockTradeLog");
-  if(p) player = JSON.parse(p);
-  if(c) {
-    const parsed = JSON.parse(c);
-    parsed.forEach((pc, i) => {
-      if(companies[i]) {
-        companies[i].price = pc.price;
-        companies[i].history = pc.history;
-      }
-    });
-  }
-  if(t) tradeLog = JSON.parse(t);
-}
+const loginModal = document.getElementById('loginModal');
+const startBtn = document.getElementById('startBtn');
 
-/* 사용자 저장 */
-function saveUser(u){ localStorage.setItem('stockUser', JSON.stringify(u)); }
-function loadUser(){
-  const raw = localStorage.getItem('stockUser');
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
+// DOM 로딩 후 모달 띄우기
+document.addEventListener("DOMContentLoaded", () => {
+  loginModal.style.display = 'flex';
+});
 
-/* 페이지 로드 */
-window.onload = () => {
-  loadState();
-  const saved = loadUser();
-  if(saved && saved.id && saved.name){
-    currentUser = saved;
-    loginModal.style.display = 'none';
-    renderUserInfo(); renderCompanies(); startAuto();
-  } else {
-    loginModal.style.display = 'flex';
-  }
-};
-
-/* 로그인 */
-document.getElementById('startBtn').onclick = () => {
+// 시작 버튼 이벤트
+startBtn.addEventListener("click", () => {
   const userId = document.getElementById('userId').value.trim();
   const userName = document.getElementById('userName').value.trim();
-  if(userId && userName){
-    currentUser = { id: userId, name: userName };
-    saveUser(currentUser);
-    loginModal.style.display = 'none';
-    renderUserInfo(); renderCompanies(); startAuto();
-  } else { alert('고유번호와 이름을 모두 입력해주세요.'); }
-};
 
-/* 렌더링 */
+  if (!userId || !userName) {
+    alert("고유번호와 이름을 모두 입력해주세요.");
+    return;
+  }
+
+  currentUser = { id: userId, name: userName };
+
+  // 모달 숨기기
+  loginModal.style.display = "none";
+
+  // 사용자 정보 표시 + 기업 렌더링
+  renderUserInfo();
+  renderCompanies();
+
+  console.log("로그인 성공:", currentUser);
+});
+
 function renderUserInfo(){
   document.getElementById('userInfo').innerHTML =
     `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${player.cash.toLocaleString()} KRW`;
 }
+
 function renderCompanies() {
   const container = document.getElementById('companies');
   container.innerHTML = '';
@@ -154,114 +129,72 @@ function renderCompanies() {
     const div = document.createElement('div');
     div.className = 'company';
     div.innerHTML = `
-      <div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
-      <div class="actions">
+      <div><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
+      <div>
         <button onclick="buy('${c.name}',1)">매수</button>
         <button onclick="sell('${c.name}',1)">매도</button>
       </div>
     `;
     container.appendChild(div);
   });
-  updateChart();
-  renderUserInfo();
+  updateChart(); renderUserInfo();
 }
 
-/* 거래 */
 function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
+
+// Firestore 거래 기록 저장 함수
+async function saveTrade(type, company, qty, price, cashAfter) {
+  await db.collection("trades").add({
+    userId: currentUser.id,
+    userName: currentUser.name,
+    type, company, qty, price,
+    cashAfter,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
 function buy(name, qty){
   const c = companies.find(x=>x.name===name);
   if(player.cash < c.price*qty){ alert('현금 부족'); return; }
   player.cash -= c.price*qty;
   player.holdings[name] = (player.holdings[name]||0)+qty;
-  const now=new Date().toLocaleString();
-  log(`✅ ${currentUser.name}(${currentUser.id}) ${name} ${qty}주 매수 @ ${c.price}`);
-  tradeLog.push({ date:now,userId:currentUser.id,userName:currentUser.name,type:'매수',company:name,qty,price:c.price,cash:player.cash });
-  renderCompanies(); saveState();
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
+  saveTrade("매수", name, qty, c.price, player.cash);
+  renderCompanies();
 }
+
 function sell(name, qty){
   const c = companies.find(x=>x.name===name);
   if((player.holdings[name]||0)<qty){ alert('보유 주식 부족'); return; }
   player.cash += c.price*qty;
   player.holdings[name]-=qty;
-  const now=new Date().toLocaleString();
-  log(`✅ ${currentUser.name}(${currentUser.id}) ${name} ${qty}주 매도 @ ${c.price}`);
-  tradeLog.push({ date:now,userId:currentUser.id,userName:currentUser.name,type:'매도',company:name,qty,price:c.price,cash:player.cash });
-  renderCompanies(); saveState();
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
+  saveTrade("매도", name, qty, c.price, player.cash);
+  renderCompanies();
 }
 
-/* 자동 변동 */
 function updatePrices(){
-  if(!autoOn) return;
   companies.forEach(c=>{
     const shock = (Math.random()-0.5)*0.1;
     c.price = Math.max(1, Math.floor(c.price*(1+shock)));
     c.history.push(c.price);
   });
-  renderCompanies(); saveState();
+  renderCompanies();
 }
-function startAuto(){ stopAuto(); autoOn=true; autoTimer=setInterval(updatePrices,5000); }
-function stopAuto(){ if(autoTimer) clearInterval(autoTimer); autoTimer=null; }
+setInterval(updatePrices,5000);
 
-/* 차트 */
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx,{ type:'line', data:{ labels:Array.from({length:companies[0].history.length},(_,i)=>i),
-  datasets:companies.map(c=>({ label:c.name, data:c.history, borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false }))
-}, options:{ responsive:true, scales:{ x:{ display:true,title:{ display:true,text:'틱'} }, y:{ display:true,title:{ display:true,text:'가격(KRW)'}}}}});
+// 차트
+const ctx=document.getElementById('chart').getContext('2d');
+const chart=new Chart(ctx,{ type:'line',
+  data:{ labels:Array.from({length:companies[0].history.length},(_,i)=>i),
+    datasets:companies.map(c=>({ label:c.name, data:c.history, borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false }))
+  },
+  options:{ responsive:true, scales:{ x:{ title:{display:true,text:'틱'} }, y:{ title:{display:true,text:'가격(KRW)'}}}}
+});
 function updateChart(){
-  chart.data.labels = Array.from({length:companies[0].history.length},(_,i)=>i);
+  chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
   chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
   chart.update();
-}
-
-/* 관리자 실행 */
-function handleAdminAction() {
-  const code = document.getElementById('adminCode').value.trim();
-  if(code === 'ADMIN123') {
-    downloadExcel();
-  } else if(code === 'RESET123') { // 초기화 코드
-    if(confirm("⚠ 기업 가격과 그래프를 초기화하시겠습니까? (현금/보유주식은 유지됩니다)")) {
-      resetCompaniesOnly();
-    }
-  } else {
-    alert('잘못된 코드입니다.');
-  }
-}
-
-/* 기업 가격/그래프만 초기화 */
-function resetCompaniesOnly() {
-  companies.forEach(c => {
-    if(c.name === "떡잎방범대") { c.price = 10000000; c.history = [1000]; }
-    else if(c.name === "카스틸로") { c.price = 5000000; c.history = [500]; }
-    else if(c.name === "사쿠라") { c.price = 6500000; c.history = [500]; }
-    else if(c.name === "청룡") { c.price = 6500000; c.history = [500]; }
-    else if(c.name === "경찰청") { c.price = 4000000; c.history = [500]; }
-    else if(c.name === "EMS") { c.price = 5000000; c.history = [500]; }
-    else if(c.name === "올드보이") { c.price = 5000000; c.history = [500]; }
-    else if(c.name === "작두") { c.price = 8000000; c.history = [800]; }
-  });
-  tradeLog = []; // 거래 기록 초기화 여부는 필요에 따라 유지/삭제 선택
-  saveState();
-  renderCompanies(); updateChart();
-  log("🛑 관리자에 의해 기업 가격과 그래프가 초기화되었습니다. (현금/보유주식은 유지)");
-}
-
-/* 엑셀 다운로드 */
-function downloadExcel(){
-  if(tradeLog.length===0){ alert('거래 기록이 없습니다.'); return; }
-  const sortedLog=[...tradeLog].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  let csv='날짜,고유번호,이름,타입,기업,가격,수량,현금,총자산\n';
-  sortedLog.forEach(t=>{
-    const evalQty = t.company && t.company!=='현금' ? (player.holdings[t.company]||0) : 0;
-    const totalAsset = t.cash + evalQty*t.price;
-    csv += `${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash},${totalAsset}\n`;
-  });
-  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
-  const blob=new Blob([bom,csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`trade_log_${Date.now()}.csv`;
-  document.body.appendChild(a);
-  a.click(); document.body.removeChild(a);
 }
 </script>
 </body>
