@@ -19,7 +19,7 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 /* 관리자 */
 #adminSection { text-align:center; margin-top:20px; }
 #adminModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#adminModal .panel { background:#1f2937; padding:20px; border-radius:10px; width:600px; max-height:90%; overflow:auto; position:relative; }
+#adminModal .panel { background:#1f2937; padding:20px; border-radius:10px; width:650px; max-height:90%; overflow:auto; position:relative; }
 #adminModal .panel .close { position:absolute; top:10px; right:10px; }
 table { width:100%; border-collapse:collapse; margin-top:10px; }
 th, td { border:1px solid #444; padding:6px; text-align:center; }
@@ -73,6 +73,7 @@ th { background:#374151; }
     <h3>그래프 제어</h3>
     <button onclick="startAutoGraph()">자동 시작</button>
     <button onclick="stopAutoGraph()">자동 멈춤</button>
+    <button onclick="resetGraphAndPrice()">그래프+가격 초기화</button>
     <div style="margin-top:10px;">
       <label>속도(ms): <input type="number" id="graphSpeed" value="5000" style="width:100px;" /></label>
       <button onclick="applyGraphConfig()">적용</button>
@@ -128,7 +129,7 @@ let companies = [
   { name:"작두", price:800, history:[800], range:0.05 }
 ];
 
-/* 유틸 */
+/* 로그 */
 function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
 
 /* 로그인 */
@@ -164,7 +165,7 @@ window.loginUser = async function(userId,userName){
   log(`👤 로그인: ${userName}(${userId})`);
 };
 
-/* 렌더링 */
+/* UI */
 function renderUserInfo(){
   document.getElementById('userInfo').innerHTML=
     `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 
@@ -250,8 +251,8 @@ async function loadDepositRequests(){
     const r=docSnap.data();
     if(r.approved !== null) return;
     const div=document.createElement("div");
-    div.style.background="#111827";
-    div.style.padding="10px"; div.style.marginBottom="8px"; div.style.borderRadius="6px";
+    div.style.background="#111827"; div.style.padding="10px";
+    div.style.marginBottom="8px"; div.style.borderRadius="6px";
     div.id="req-"+docSnap.id;
     div.innerHTML=`
       <strong>${r.userName}(${r.userId})</strong><br/>
@@ -282,7 +283,7 @@ window.rejectRequest=async function(reqId){
   loadDepositRequests();
 };
 
-/* 기업별 설정 UI */
+/* 기업별 설정 */
 function renderCompanySettings(){
   const body=document.getElementById("companySettingsBody");
   body.innerHTML="";
@@ -311,7 +312,7 @@ window.applyCompanySettings=async function(){
   updateChart(); renderCompanies();
 };
 
-/* 그래프 */
+/* 그래프 제어 */
 let autoInterval=null; let updateSpeed=5000;
 window.startAutoGraph=function(){
   if(autoInterval) return;
@@ -340,6 +341,23 @@ window.applyGraphConfig=function(){
   if(!isNaN(speedVal)&&speedVal>=500){ updateSpeed=speedVal; }
   log(`⚙️ 설정 적용됨 → 속도:${updateSpeed}ms`);
   if(autoInterval){ stopAutoGraph(); startAutoGraph(); }
+};
+
+/* 그래프+가격 초기화 (기업별 시작가 기준) */
+window.resetGraphAndPrice=async function(){
+  for(const c of companies){
+    const priceVal=parseInt(document.getElementById(`set-price-${c.name}`).value,10);
+    const newPrice=(!isNaN(priceVal)&&priceVal>0)?priceVal:c.price;
+    const rangeVal=parseFloat(document.getElementById(`set-range-${c.name}`).value)/100;
+    const newRange=(!isNaN(rangeVal)&&rangeVal>0)?rangeVal:(c.range??0.05);
+
+    const ref=doc(db,"companies",c.name);
+    await setDoc(ref,{ price:newPrice, history:[newPrice], range:newRange });
+
+    c.price=newPrice; c.history=[newPrice]; c.range=newRange;
+  }
+  log("🔄 그래프+가격이 기업별 시작가 기준으로 초기화되었습니다.");
+  updateChart(); renderCompanies();
 };
 
 /* 차트 */
