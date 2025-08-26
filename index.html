@@ -23,6 +23,8 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
 #loginModalContent { background: #1f2937; padding: 20px; border-radius: 10px; text-align: center; }
 #loginModal input { margin: 10px 0; padding: 5px; width: 80%; }
+#adminSection { text-align:center; margin-top:20px; }
+#adminSection input { padding:5px; }
 </style>
 </head>
 <body>
@@ -43,6 +45,12 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   </div>
 </div>
 
+<!-- 관리자 초기화 섹션 -->
+<div id="adminSection">
+  <input type="text" id="adminCode" placeholder="관리자 코드 입력">
+  <button onclick="checkAdminCode()">실행</button>
+</div>
+
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js"></script>
@@ -51,7 +59,6 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // ==== Firebase 연결 ====
-// 발급받은 firebaseConfig
 const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
@@ -66,10 +73,7 @@ const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// 플레이어는 익명 로그인
-auth.signInAnonymously()
-  .then(() => console.log("익명 로그인 성공"))
-  .catch(err => console.error("Firebase 로그인 실패:", err));
+auth.signInAnonymously().then(()=>console.log("익명 로그인 성공"));
 
 // ==== 게임 로직 ====
 let player = { holdings: {}, cash: 5000000 };
@@ -86,39 +90,33 @@ const companies = [
   { name: "작두", price: 800, history: [800] }
 ];
 
-const loginModal = document.getElementById('loginModal');
-const startBtn = document.getElementById('startBtn');
-
-// DOM 로딩 후 모달 띄우기
 document.addEventListener("DOMContentLoaded", () => {
+  const loginModal = document.getElementById('loginModal');
+  const startBtn = document.getElementById('startBtn');
+
+  // 모달 표시
   loginModal.style.display = 'flex';
-});
 
-// 시작 버튼 이벤트
-startBtn.addEventListener("click", () => {
-  const userId = document.getElementById('userId').value.trim();
-  const userName = document.getElementById('userName').value.trim();
+  // 버튼 이벤트
+  startBtn.addEventListener("click", () => {
+    const userId = document.getElementById('userId').value.trim();
+    const userName = document.getElementById('userName').value.trim();
 
-  if (!userId || !userName) {
-    alert("고유번호와 이름을 모두 입력해주세요.");
-    return;
-  }
+    if (!userId || !userName) {
+      alert("고유번호와 이름을 모두 입력해주세요.");
+      return;
+    }
 
-  currentUser = { id: userId, name: userName };
-
-  // 모달 숨기기
-  loginModal.style.display = "none";
-
-  // 사용자 정보 표시 + 기업 렌더링
-  renderUserInfo();
-  renderCompanies();
-
-  console.log("로그인 성공:", currentUser);
+    currentUser = { id: userId, name: userName };
+    loginModal.style.display = "none"; // 모달 닫기
+    renderUserInfo();
+    renderCompanies();
+  });
 });
 
 function renderUserInfo(){
   document.getElementById('userInfo').innerHTML =
-    `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${player.cash.toLocaleString()} KRW`;
+    `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 현금: ${player.cash.toLocaleString()} KRW`;
 }
 
 function renderCompanies() {
@@ -142,8 +140,8 @@ function renderCompanies() {
 
 function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
 
-// Firestore 거래 기록 저장 함수
 async function saveTrade(type, company, qty, price, cashAfter) {
+  if(!currentUser) return;
   await db.collection("trades").add({
     userId: currentUser.id,
     userName: currentUser.name,
@@ -195,6 +193,28 @@ function updateChart(){
   chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
   chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
   chart.update();
+}
+
+// 관리자 코드 실행
+function checkAdminCode(){
+  const code=document.getElementById("adminCode").value.trim();
+
+  if(code==="RESETGRAPH"){
+    companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+    updateChart(); renderCompanies();
+    alert("기업 가격/그래프 초기화 완료");
+  }
+  else if(code==="RESETALL"){
+    player={ holdings:{}, cash:5000000 };
+    companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
+    currentUser=null;
+    document.getElementById('loginModal').style.display="flex";
+    updateChart(); renderCompanies();
+    alert("모든 데이터 초기화 완료 (다시 로그인 필요)");
+  }
+  else{
+    alert("잘못된 코드입니다.");
+  }
 }
 </script>
 </body>
