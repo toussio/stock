@@ -28,7 +28,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 </style>
 </head>
 <body>
-<h1>떡잎방범대 주식 센터</h1>
+<h1>인게임 주식 시뮬레이터</h1>
 
 <div id="userInfo"></div>
 <div id="companies"></div>
@@ -45,49 +45,41 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   </div>
 </div>
 
-<!-- 관리자 초기화 섹션 -->
+<!-- 관리자 섹션 -->
 <div id="adminSection">
   <input type="text" id="adminCode" placeholder="관리자 코드 입력">
   <button onclick="checkAdminCode()">실행</button>
 </div>
 
-<!-- Chart.js (차트용 라이브러리) -->
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <!-- Firebase (ES Module) -->
 <script type="module">
-  // Firebase SDK import
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
 
-  // Firebase Config
   const firebaseConfig = {
     apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
     authDomain: "cotyledons-of-stock.firebaseapp.com",
     projectId: "cotyledons-of-stock",
-    storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ appspot.com으로 수정
+    storageBucket: "cotyledons-of-stock.appspot.com",
     messagingSenderId: "343488842605",
     appId: "1:343488842605:web:f4c1205568f5994d55e864",
     measurementId: "G-YB960D84W4"
   };
 
-  // Firebase 초기화
   const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // 익명 로그인
-  signInAnonymously(auth)
-    .then(() => console.log("익명 로그인 성공"))
-    .catch(err => console.error("로그인 실패:", err));
+  signInAnonymously(auth).then(()=>console.log("익명 로그인 성공"));
 
-  // ==== 게임 로직 ====
   let player = { holdings: {}, cash: 5000000 };
   let currentUser = null;
-  let chart; // 전역 차트 객체
+  let chart;
+  let tradeLog = [];
 
   const companies = [
     { name: "떡잎방범대", price: 1000, history: [1000] },
@@ -105,11 +97,10 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
     const startBtn = document.getElementById('startBtn');
     const ctx = document.getElementById('chart').getContext('2d');
 
-    // 차트 초기화
     chart = new Chart(ctx,{
       type:'line',
       data:{
-        labels:Array.from({length:companies[0].history.length},(_,i)=>i),
+        labels:[0],
         datasets:companies.map(c=>({
           label:c.name,
           data:c.history,
@@ -117,25 +108,19 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
           fill:false
         }))
       },
-      options:{
-        responsive:true,
-        scales:{
-          x:{ title:{display:true,text:'틱'} },
-          y:{ title:{display:true,text:'가격(KRW)'}}
-        }
-      }
+      options:{responsive:true,scales:{
+        x:{ title:{display:true,text:'틱'} },
+        y:{ title:{display:true,text:'가격(KRW)'}}
+      }}
     });
 
     loginModal.style.display = 'flex';
     startBtn.addEventListener("click", () => {
       const userId = document.getElementById('userId').value.trim();
       const userName = document.getElementById('userName').value.trim();
-
       if (!userId || !userName) {
-        alert("고유번호와 이름을 모두 입력해주세요.");
-        return;
+        alert("고유번호와 이름을 모두 입력해주세요."); return;
       }
-
       currentUser = { id: userId, name: userName };
       loginModal.style.display = "none";
       renderUserInfo();
@@ -171,12 +156,12 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
 
   async function saveTrade(type, company, qty, price, cashAfter) {
     if(!currentUser) return;
+    const now = new Date().toLocaleString();
+    tradeLog.push({date: now, userId: currentUser.id, userName: currentUser.name,
+                   type, company, qty, price, cash: cashAfter});
     await addDoc(collection(db, "trades"), {
-      userId: currentUser.id,
-      userName: currentUser.name,
-      type, company, qty, price,
-      cashAfter,
-      createdAt: serverTimestamp()
+      userId: currentUser.id, userName: currentUser.name,
+      type, company, qty, price, cashAfter, createdAt: serverTimestamp()
     });
   }
 
@@ -221,24 +206,35 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   window.checkAdminCode = function(){
     const code=document.getElementById("adminCode").value.trim();
 
-    if(code==="RESETGRAPH"){
+    if(code==="ADMIN123"){
+      // 엑셀 다운로드
+      if(tradeLog.length===0){ alert("거래 기록이 없습니다."); return; }
+      const sortedLog = [...tradeLog].sort((a,b)=> new Date(b.date)-new Date(a.date));
+      let csv = "날짜,고유번호,이름,타입,기업,가격,수량,현금\n";
+      sortedLog.forEach(t=>{
+        csv += `${t.date},${t.userId},${t.userName},${t.type},${t.company},${t.price},${t.qty},${t.cash}\n`;
+      });
+      const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+      const blob=new Blob([bom,csv],{type:"text/csv;charset=utf-8"});
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(blob);
+      a.download=`trade_log_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      alert("엑셀 파일이 다운로드 되었습니다.");
+    }
+
+    else if(code==="RESET123"){
       companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
       updateChart(); renderCompanies();
-      alert("기업 가격/그래프 초기화 완료");
+      alert("기업 가격/그래프가 초기화 되었습니다.");
     }
-    else if(code==="RESETALL"){
-      player={ holdings:{}, cash:5000000 };
-      companies.forEach(c=>{ c.price=1000; c.history=[1000]; });
-      currentUser=null;
-      document.getElementById('loginModal').style.display="flex";
-      updateChart(); renderCompanies();
-      alert("모든 데이터 초기화 완료 (다시 로그인 필요)");
-    }
-    else{
+
+    else {
       alert("잘못된 코드입니다.");
     }
   }
 </script>
 </body>
 </html>
-
