@@ -80,6 +80,7 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   let currentUser = null;
   let chart;
   let tradeLog = [];
+  let depositRequests = []; // 보류중인 입금 요청
 
   const companies = [
     { name: "떡잎방범대", price: 1000, history: [1000] },
@@ -129,27 +130,27 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
   });
 
   function renderUserInfo(){
-    document.getElementById('userInfo').innerHTML =
-      `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 현금: ${player.cash.toLocaleString()} KRW`;
+    document.getElementById('userInfo').innerHTML = `
+      <strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 
+      현금: ${player.cash.toLocaleString()} KRW
+      <div style="margin-top:10px;">
+        <input type="text" id="accountNumber" placeholder="계좌번호 입력">
+        <input type="number" id="depositAmount" placeholder="금액 입력">
+        <button onclick="requestDeposit()">추가 요청</button>
+      </div>
+    `;
   }
 
-  function renderCompanies() {
-    const container = document.getElementById('companies');
-    container.innerHTML = '';
-    companies.forEach(c => {
-      const held = player.holdings[c.name] || 0;
-      const div = document.createElement('div');
-      div.className = 'company';
-      div.innerHTML = `
-        <div><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div>
-        <div>
-          <button onclick="buy('${c.name}',1)">매수</button>
-          <button onclick="sell('${c.name}',1)">매도</button>
-        </div>
-      `;
-      container.appendChild(div);
-    });
-    updateChart(); renderUserInfo();
+  function requestDeposit(){
+    const acc = document.getElementById("accountNumber").value.trim();
+    const amt = parseInt(document.getElementById("depositAmount").value.trim());
+    if(!acc || !amt || amt<=0){
+      alert("계좌번호와 금액을 올바르게 입력해주세요."); return;
+    }
+    depositRequests.push({userId: currentUser.id, userName: currentUser.name, account: acc, amount: amt});
+    alert("추가 요청이 접수되었습니다. 관리자의 승인을 기다려주세요.");
+    document.getElementById("accountNumber").value="";
+    document.getElementById("depositAmount").value="";
   }
 
   function log(msg){ const l=document.getElementById('log'); l.innerHTML = `<div>${msg}</div>`+l.innerHTML; }
@@ -237,6 +238,19 @@ canvas { background: #111827; border-radius: 8px; display: block; margin: 20px a
       document.getElementById('loginModal').style.display="flex";
       updateChart(); renderCompanies();
       alert("모든 데이터가 초기화 되었습니다. (다시 로그인 필요)");
+    }
+
+    else if(code==="APPROVE123"){
+      if(depositRequests.length===0){ alert("승인 대기중인 요청이 없습니다."); return; }
+      depositRequests.forEach(req=>{
+        if(currentUser && req.userId===currentUser.id){
+          player.cash += req.amount;
+          log(`💰 관리자 승인: ${req.userName}(${req.userId}) 계좌 ${req.account} → ${req.amount} KRW 입금 완료`);
+        }
+      });
+      depositRequests = [];
+      renderUserInfo();
+      alert("요청된 금액이 승인되었습니다.");
     }
 
     else {
