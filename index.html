@@ -456,7 +456,7 @@
     const memo=withdrawMemo.value.trim();
     if(amount<=0) return alert('금액 오류');
 
-    const feeRate = 0.2;
+    const feeRate = 0.3;
     const fee = Math.round(amount * feeRate);
     const receive = amount - fee; // ✅ DB에는 실제 수령액 저장
 
@@ -972,5 +972,6 @@
 </script>
 </body>
 </html>
+
 
 
