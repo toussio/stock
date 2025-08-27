@@ -107,7 +107,7 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Firebase (CDN 모듈) -->
+<!-- Firebase (CDN 모듈) + 앱 초기화 -->
 <script type="module">
   /**************************************************************
    * Firebase 초기화 (Auth 없이 Firestore만 사용)
@@ -118,13 +118,15 @@
     updateDoc, onSnapshot, query, where, orderBy, serverTimestamp, increment
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  // ⚠️ 실제 프로젝트 값으로 이미 교체됨
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_MSG_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
+    authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
+    projectId: "cotyledons-of-stock-a1241",
+    storageBucket: "cotyledons-of-stock-a1241.appspot.com",
+    messagingSenderId: "962984742513",
+    appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
+    measurementId: "G-NRPT075Q3X"
   };
   const app = initializeApp(firebaseConfig);
   // 400 Listen 에러 회피 옵션(로컬/일부 호스팅 환경)
@@ -357,11 +359,9 @@
    **************************************************************/
   function openAdminModal(){
     adminModal.style.display = 'flex';
-    // 모달을 열 때 최신 상태 반영
     renderAdminQueue();
   }
   function closeAdminModal(){ adminModal.style.display = 'none'; }
-
   function checkAdmin(){
     const code = document.getElementById('adminCode').value.trim();
     if(code !== 'ADMIN123'){ alert('관리자 코드가 올바르지 않습니다.'); return; }
@@ -388,13 +388,11 @@
   }
 
   function renderAdminQueue(){
-    if(adminModal.style.display !== 'flex') return; // 모달 열렸을 때만 그림
-    const code = document.getElementById('adminCode').value.trim();
+    if(adminModal.style.display !== 'flex') return; // 모달 열렸을 때만 렌더
     const container = adminQueue;
     container.innerHTML = '';
 
     const list = [...deposits, ...withdrawals].sort((a,b)=>{
-      // createdAt 타임스탬프 우선, 없으면 date 문자열로 비교
       const ta = a.createdAt?.toMillis?.() ?? Date.parse(a.date) ?? 0;
       const tb = b.createdAt?.toMillis?.() ?? Date.parse(b.date) ?? 0;
       return tb - ta;
@@ -404,6 +402,8 @@
       container.innerHTML = `<div class="req-card">대기 중인 요청이 없습니다.</div>`;
       return;
     }
+
+    const codeOk = document.getElementById('adminCode').value.trim() === 'ADMIN123';
 
     list.forEach(req=>{
       const badgeClass = req.status==='대기' ? 'wait' : (req.status==='승인' ? 'approved' : 'rejected');
@@ -421,14 +421,14 @@
         </div>
         <div style="margin-top:8px;">
           ${req.status==='대기' ? `
-            <button onclick="approveRequest('${req.id}','${req.type}')">승인</button>
-            <button onclick="rejectRequest('${req.id}','${req.type}')">거절</button>
+            <button ${codeOk?'':'disabled'} onclick="approveRequest('${req.id}','${req.type}')">승인</button>
+            <button ${codeOk?'':'disabled'} onclick="rejectRequest('${req.id}','${req.type}')">거절</button>
           ` : `<em>처리됨</em>`}
         </div>`;
       container.appendChild(div);
     });
 
-    if(code !== 'ADMIN123'){
+    if(!codeOk){
       const tip = document.createElement('div');
       tip.style.marginTop = '10px';
       tip.style.opacity = '.9';
@@ -441,7 +441,6 @@
     const code = document.getElementById('adminCode').value.trim();
     if(code !== 'ADMIN123'){ alert('관리자 코드 필요'); return; }
 
-    // 해당 요청 찾기
     const arr = type === '입금' ? deposits : withdrawals;
     const req = arr.find(r => r.id === reqId);
     if(!req || req.status !== '대기'){ alert('요청을 찾을 수 없거나 이미 처리되었습니다.'); return; }
@@ -563,7 +562,7 @@
   }
 
   /**************************************************************
-   * 전역 바인딩 (onclick 핸들러에서 접근)
+   * 전역 바인딩 (onclick에서 접근)
    **************************************************************/
   window.buy = buy;
   window.sell = sell;
@@ -583,3 +582,4 @@
 </script>
 </body>
 </html>
+
