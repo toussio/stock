@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>떡잎방범대 주식 센터</title>
 <style>
 body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
@@ -16,7 +16,6 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 #loginModal { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
 #loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
 #loginModal input { margin:10px 0; padding:5px; width:80%; }
-/* 관리자 */
 #adminSection { text-align:center; margin-top:20px; }
 #requestsList div { background:#1f2937; margin:8px 0; padding:10px; border-radius:6px; }
 </style>
@@ -57,31 +56,32 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
+/* Firebase SDK */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
   collection, addDoc, getDocs, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* Firebase */
+/* Firebase 설정 */
 const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
   projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",
+  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 수정됨
   messagingSenderId: "343488842605",
-  appId: "1:343488842605:web:f4c1205568f5994d55e864",
-  measurementId: "G-YB960D84W4"
+  appId: "1:343488842605:web:c5dcbfcd64dacf9955e864",
+  measurementId: "G-QWBTK3MQG8"
 };
 const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 const db  = getFirestore(app);
 
 /* 상태 */
 let player = { holdings:{}, cash:5000000 };
 let currentUser = null;
 let chart;
-
-/* 기업 목록 */
 let companies = [
   { name:"떡잎방범대", price:1000, history:[1000] },
   { name:"카스틸로", price:500, history:[500] },
@@ -105,16 +105,15 @@ async function loginUser(userId,userName){
   }
   currentUser={ id:userId, name:userName };
 
-  // 유저 현금 실시간 반영
+  // 유저 실시간
   onSnapshot(userRef,(docSnap)=>{
     if(docSnap.exists()){
-      player.cash=docSnap.data().cash;
-      player.holdings=docSnap.data().holdings;
+      player=docSnap.data();
       renderUserInfo(); renderCompanies();
     }
   });
 
-  // 회사 데이터 실시간 반영
+  // 회사 실시간
   companies.forEach(async (c)=>{
     const ref=doc(db,"companies",c.name);
     const compSnap=await getDoc(ref);
@@ -145,20 +144,19 @@ function renderCompanies(){
   container.innerHTML='';
   companies.forEach(c=>{
     const held=player.holdings[c.name]||0;
-    const div=document.createElement('div');
-    div.className='company';
-    div.innerHTML=`
-      <div>
-        <strong>${c.name}</strong><br/>
-        가격: <span id="price-${c.name}">${c.price}</span> KRW<br/>
-        보유: ${held}주
-      </div>
-      <div>
-        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
-        <button onclick="buy('${c.name}')">매수</button>
-        <button onclick="sell('${c.name}')">매도</button>
+    container.innerHTML+=`
+      <div class="company">
+        <div>
+          <strong>${c.name}</strong><br/>
+          가격: <span>${c.price}</span> KRW<br/>
+          보유: ${held}주
+        </div>
+        <div>
+          <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
+          <button onclick="buy('${c.name}')">매수</button>
+          <button onclick="sell('${c.name}')">매도</button>
+        </div>
       </div>`;
-    container.appendChild(div);
   });
 }
 
@@ -169,10 +167,8 @@ window.buy=async function(name){
   if(player.cash<c.price*qty){ alert("현금 부족"); return; }
   player.cash-=c.price*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
-
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
 
-  // 주가 반영 (단순히 +1% 변동 예시)
   const newPrice=Math.max(1, Math.round(c.price*(1+0.01*qty)));
   await updateDoc(doc(db,"companies",c.name),{
     price:newPrice,
@@ -186,7 +182,6 @@ window.sell=async function(name){
   if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
   player.cash+=c.price*qty;
   player.holdings[name]-=qty;
-
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
 
   const newPrice=Math.max(1, Math.round(c.price*(1-0.01*qty)));
