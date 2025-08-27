@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>떡잎방범대 주식 센터</title>
 <style>
 body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
@@ -14,8 +14,8 @@ button { padding:5px 10px; cursor:pointer; }
 #log { max-height:220px; overflow-y:auto; background:#111827; padding:10px; border-radius:8px; }
 canvas { background:#111827; border-radius:8px; display:block; margin:20px auto; }
 #loginModal { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
-#loginModal input { margin:10px 0; padding:5px; width:80%; }
+#loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; width:320px; }
+#loginModal input { margin:10px 0; padding:8px; width:100%; box-sizing:border-box; }
 </style>
 </head>
 <body>
@@ -47,12 +47,12 @@ import {
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* Firebase 설정 */
+/* ✅ 올바른 firebaseConfig */
 const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
   projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 수정됨
+  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 수정 완료
   messagingSenderId: "343488842605",
   appId: "1:343488842605:web:c5dcbfcd64dacf9955e864",
   measurementId: "G-QWBTK3MQG8"
@@ -86,7 +86,7 @@ async function loginUser(userId,userName){
     }
     currentUser={ id:userId, name:userName };
 
-    // 실시간 업데이트
+    // 유저 실시간 업데이트
     onSnapshot(userRef,(docSnap)=>{
       if(docSnap.exists()){
         player=docSnap.data();
@@ -97,12 +97,10 @@ async function loginUser(userId,userName){
     renderUserInfo(); renderCompanies();
     log(`👤 로그인: ${userName}(${userId})`);
 
-    // ✅ 로그인 성공하면 모달 닫기
     document.getElementById("loginModal").style.display="none";
-
   } catch(e){
-    console.error("❌ loginUser 오류:", e);
-    alert("로그인 중 오류: " + e.message);
+    console.error("❌ Firestore 연결/로그인 에러:", e);
+    alert("Firestore 연결 실패: " + e.message);
   }
 }
 
@@ -132,7 +130,7 @@ function renderCompanies(){
   });
 }
 
-/* 거래 예시 */
+/* 거래 */
 window.buy=async function(name){
   const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
   const c=companies.find(x=>x.name===name);
