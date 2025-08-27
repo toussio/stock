@@ -14,23 +14,21 @@
 
   /* ✅ 입금 요청 폼 중앙 정렬 (수정됨) */
   #depositForm {
-    display:flex;
-    flex-direction:column;   /* 세로 배치 */
-    align-items:center;      /* 가운데 정렬 */
-    gap:10px;
-    margin:20px auto;
-    max-width:400px;         /* 폼 전체 폭 제한 */
-  }
-  #depositForm input,
-  #depositForm button {
-    width:100%;              /* 입력창, 버튼 폭 맞추기 */
-    padding:8px;
-    border-radius:8px;
-    border:1px solid #374151;
-    background:#0b1220;
-    color:var(--ink);
-  }
-  #depositForm .memo { min-width:220px; }
+  display:flex;
+  justify-content:center;   /* ✅ 가로 가운데 정렬 */
+  align-items:center;
+  gap:10px;
+  margin:20px auto;
+  max-width:1100px;
+}
+#depositForm input {
+  padding:8px;
+  border-radius:8px;
+  border:1px solid #374151;
+  background:#0b1220;
+  color:var(--ink);
+}
+#depositForm .memo { min-width:220px; }
 
   button { padding:8px 12px; cursor:pointer; border-radius:8px; background:var(--accent); color:var(--ink); border:none; }
   button:hover { background:var(--accentH); }
@@ -984,6 +982,7 @@
 </script>
 </body>
 </html>
+
 
 
 
