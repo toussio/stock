@@ -43,7 +43,6 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
 
 <div id="downloadSection">
   <input type="text" id="adminCode" placeholder="관리자 코드 (ADMIN123)" />
-  <button onclick="downloadExcel()">엑셀 다운로드</button>
   <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
 </div>
 
@@ -54,12 +53,13 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- ✅ Firebase 초기화 & Firestore + Auth -->
+<!-- ✅ Firebase 초기화 + Firestore + Auth -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, setDoc } 
-    from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged, signOut } 
+  import { 
+    initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, setDoc 
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } 
     from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -73,7 +73,12 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+
+  // ✅ longPolling 옵션으로 안정화
+  const db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    useFetchStreams: false
+  });
   const auth = getAuth(app);
 
   let player = { holdings: {}, cash: 5000000 };
@@ -86,7 +91,6 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
   onAuthStateChanged(auth, async (user) => {
     if(user){
       currentUser = { id: user.uid, name: "익명유저", cash: player.cash };
-      // users 컬렉션에 저장
       await setDoc(doc(db,"users",user.uid),{
         id: user.uid, name:"익명유저", cash: player.cash, createdAt:new Date()
       });
@@ -116,7 +120,12 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
     log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
     acctNo.value=""; cashAmount.value=""; cashMemo.value="";
   }
-  function listenDeposits(){ onSnapshot(collection(db,"pendingDeposits"), snap=>{ pendingDeposits=[]; snap.forEach(d=>pendingDeposits.push(d.data())); renderQueue(); }); }
+
+  function listenDeposits(){ 
+    onSnapshot(collection(db,"pendingDeposits"), snap=>{
+      pendingDeposits=[]; snap.forEach(d=>pendingDeposits.push(d.data())); renderQueue();
+    }); 
+  }
 
   async function approveDeposit(id){
     const q=await getDocs(collection(db,"pendingDeposits"));
@@ -154,7 +163,7 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
     saveTradeLog(entry); log(`✅ 매도: ${name} ${qty}주 @ ${c.price}`); renderCompanies();
   }
 
-  /* ===== 종목/차트 ===== */
+  /* ===== 종목/자동 변동 ===== */
   const companies=[
     {name:"떡잎방범대",price:10000000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
     {name:"카스틸로",price:5000000,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
@@ -162,6 +171,34 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
   ];
   function renderCompanies(){ const ctn=document.getElementById("companies"); ctn.innerHTML=""; companies.forEach(c=>{const held=player.holdings[c.name]||0; const div=document.createElement("div"); div.className="company"; div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div><div class="actions"><button onclick="buy('${c.name}',1)">매수</button><button onclick="sell('${c.name}',1)">매도</button></div>`; ctn.appendChild(div);}); renderUserInfo();}
   function startAuto(){ setInterval(()=>{companies.forEach(c=>{let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift; if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol; c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock))); c.history.push(c.price);}); renderCompanies();},5000);}
+  
+  /* ===== 관리자 대기열 렌더링 ===== */
+  function toggleAdminQueue(){
+    const code=document.getElementById("adminCode").value.trim();
+    if(code!=="ADMIN123"){alert("관리자 코드 필요");return;}
+    document.getElementById("adminQueue").classList.toggle("active");
+    renderQueue();
+  }
+  function renderQueue(){
+    const list=document.getElementById("queueList");
+    list.innerHTML="";
+    if(pendingDeposits.length===0){ list.innerHTML="<div class='req-card'>대기 중인 요청이 없습니다.</div>"; return; }
+    pendingDeposits.forEach(req=>{
+      const badgeClass=req.status==="대기"?"wait":(req.status==="승인"?"approved":"rejected");
+      const div=document.createElement("div");
+      div.className="req-card";
+      div.innerHTML=`
+        <div>
+          <div><strong>${req.userName}(${req.userId})</strong> - ${req.amount.toLocaleString()} KRW <span class="badge ${badgeClass}">${req.status}</span></div>
+          <div class="req-meta">요청ID: ${req.id} | 계좌: ${req.acct} | 시간: ${req.date} | 메모: ${req.memo||"-"}</div>
+        </div>
+        <div class="req-actions">
+          <button onclick="approveDeposit('${req.id}')">승인</button>
+          <button onclick="rejectDeposit('${req.id}')">거절</button>
+        </div>`;
+      list.appendChild(div);
+    });
+  }
 </script>
 </body>
 </html>
