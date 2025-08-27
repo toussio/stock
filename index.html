@@ -13,17 +13,9 @@ h1 { text-align:center; }
 button { padding:5px 10px; cursor:pointer; }
 #log { max-height:220px; overflow-y:auto; background:#111827; padding:10px; border-radius:8px; }
 canvas { background:#111827; border-radius:8px; display:block; margin:20px auto; }
-#loginModal { display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
+#loginModal { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
 #loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
 #loginModal input { margin:10px 0; padding:5px; width:80%; }
-/* 관리자 */
-#adminSection { text-align:center; margin-top:20px; }
-#adminModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#adminModal .panel { background:#1f2937; padding:20px; border-radius:10px; width:650px; max-height:90%; overflow:auto; position:relative; }
-#adminModal .panel .close { position:absolute; top:10px; right:10px; }
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th, td { border:1px solid #444; padding:6px; text-align:center; }
-th { background:#374151; }
 </style>
 </head>
 <body>
@@ -31,12 +23,6 @@ th { background:#374151; }
 
 <div id="userRow">
   <div id="userInfo"></div>
-  <div>
-    <input id="acctNo" type="text" placeholder="계좌번호" />
-    <input id="cashAmount" type="number" placeholder="금액" />
-    <input id="cashMemo" type="text" placeholder="메모(선택)" />
-    <button onclick="requestDeposit()">입금 요청</button>
-  </div>
 </div>
 
 <div id="companies"></div>
@@ -53,51 +39,12 @@ th { background:#374151; }
   </div>
 </div>
 
-<!-- 관리자 섹션 -->
-<div id="adminSection">
-  <input type="text" id="adminCode" placeholder="관리자 코드 입력" />
-  <button onclick="openAdminPanel()">실행</button>
-</div>
-
-<!-- 관리자 모달 -->
-<div id="adminModal">
-  <div class="panel">
-    <button class="close" onclick="closeAdminPanel()">✖</button>
-    <h2>관리자 메뉴</h2>
-
-    <h3>입금 요청 관리</h3>
-    <div id="requestsList"></div>
-
-    <hr style="margin:20px 0;" />
-
-    <h3>그래프 제어</h3>
-    <button onclick="startAutoGraph()">자동 시작</button>
-    <button onclick="stopAutoGraph()">자동 멈춤</button>
-    <button onclick="resetGraphAndPrice()">그래프+가격 초기화</button>
-    <div style="margin-top:10px;">
-      <label>속도(ms): <input type="number" id="graphSpeed" value="5000" style="width:100px;" /></label>
-      <button onclick="applyGraphConfig()">적용</button>
-    </div>
-
-    <hr style="margin:20px 0;" />
-
-    <h3>기업별 시작가 & 변동폭 설정</h3>
-    <table>
-      <thead>
-        <tr><th>기업명</th><th>시작가</th><th>변동폭(%)</th></tr>
-      </thead>
-      <tbody id="companySettingsBody"></tbody>
-    </table>
-    <button onclick="applyCompanySettings()">저장 & 적용</button>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
-  collection, addDoc, getDocs, onSnapshot, query, serverTimestamp
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 /* Firebase */
@@ -105,7 +52,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
   projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",
+  storageBucket: "cotyledons-of-stock.appspot.com",  /* 반드시 appspot.com */
   messagingSenderId: "343488842605",
   appId: "1:343488842605:web:f4c1205568f5994d55e864"
 };
@@ -119,81 +66,60 @@ let chart;
 
 /* 기업 기본값 */
 let companies = [
-  { name:"떡잎방범대", price:1000, history:[1000], range:0.05 },
-  { name:"카스틸로", price:500, history:[500], range:0.05 },
-  { name:"사쿠라", price:500, history:[500], range:0.05 },
-  { name:"청룡", price:500, history:[500], range:0.05 },
-  { name:"경찰청", price:500, history:[500], range:0.05 },
-  { name:"EMS", price:500, history:[500], range:0.05 },
-  { name:"올드보이", price:500, history:[500], range:0.05 },
-  { name:"작두", price:800, history:[800], range:0.05 }
+  { name:"떡잎방범대", price:1000, history:[1000] },
+  { name:"카스틸로", price:500, history:[500] },
+  { name:"사쿠라", price:500, history:[500] },
+  { name:"청룡", price:500, history:[500] }
 ];
 
-/* 설정 */
-const BASE_VOLUME = 1000;    // 거래량 기준치
-const IMPACT = 0.02;         // 거래 영향 계수
-const MAX_HISTORY = 80;      // ✅ 최근 80개만 저장
-
-/* localStorage */
-function saveUser(u){ localStorage.setItem("stockUser", JSON.stringify(u)); }
-function loadUser(){ try { return JSON.parse(localStorage.getItem("stockUser")); } catch(e){ return null; } }
-function clearUser(){ localStorage.removeItem("stockUser"); }
-
 /* 로그 */
-function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
+function log(msg){ 
+  const l=document.getElementById('log'); 
+  l.innerHTML=`<div>${msg}</div>`+l.innerHTML; 
+  console.log(msg); // 콘솔에도 출력
+}
 
 /* 로그인 */
-window.loginUser = async function(userId,userName){
-  const userRef=doc(db,"users",userId);
-  const snap=await getDoc(userRef);
-  if(snap.exists()){
-    const data=snap.data();
-    player={ cash:data.cash??5000000, holdings:data.holdings??{} };
-  } else {
-    await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
-    player={ cash:5000000, holdings:{} };
-  }
-  currentUser={ id:userId, name:userName };
-  saveUser(currentUser);
-
-  renderUserInfo(); renderCompanies();
-
-  // ✅ 유저 계좌 실시간 구독
-  onSnapshot(userRef,(docSnap)=>{
-    if(docSnap.exists()){
-      const data=docSnap.data();
-      player.cash=data.cash ?? player.cash;
-      player.holdings=data.holdings ?? player.holdings;
-      renderUserInfo();
+async function loginUser(userId,userName){
+  try {
+    const userRef=doc(db,"users",userId);
+    const snap=await getDoc(userRef);
+    if(snap.exists()){
+      const data=snap.data();
+      player={ cash:data.cash??5000000, holdings:data.holdings??{} };
+      console.log("기존 유저 불러옴:", data);
+    } else {
+      await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
+      player={ cash:5000000, holdings:{} };
+      console.log("신규 유저 생성:", userId);
     }
-  });
+    currentUser={ id:userId, name:userName };
 
-  // 회사 실시간 구독
-  for(const c of companies){
-    const ref=doc(db,"companies",c.name);
-    const compSnap=await getDoc(ref);
-    if(!compSnap.exists()){
-      await setDoc(ref,{ price:c.price, history:[c.price], range:c.range });
-    }
-    onSnapshot(ref,(s)=>{
-      if(s.exists()){
-        const d=s.data();
-        c.price=d.price; c.history=d.history; c.range=d.range ?? 0.05;
-        const priceSpan=document.getElementById(`price-${c.name}`);
-        if(priceSpan) priceSpan.textContent=c.price.toLocaleString();
-        updateChart();
+    // 실시간 반영
+    onSnapshot(userRef,(docSnap)=>{
+      if(docSnap.exists()){
+        const d=docSnap.data();
+        player.cash=d.cash ?? player.cash;
+        player.holdings=d.holdings ?? player.holdings;
+        renderUserInfo();
       }
     });
+
+    renderUserInfo();
+    renderCompanies();
+    log(`👤 로그인 성공: ${userName} (${userId})`);
+
+  } catch(e){
+    console.error("로그인 에러:", e);
+    alert("로그인 중 문제가 발생했습니다. 콘솔 로그 확인.");
   }
-  log(`👤 로그인: ${userName}(${userId})`);
-};
+}
 
 /* UI */
 function renderUserInfo(){
   document.getElementById('userInfo').innerHTML=
-    `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> | 
-     현금: ${player.cash.toLocaleString()} KRW 
-     <button onclick="logout()">로그아웃</button>`;
+    `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
+     현금: ${player.cash.toLocaleString()} KRW`;
 }
 function renderCompanies(){
   const container=document.getElementById('companies');
@@ -205,17 +131,16 @@ function renderCompanies(){
     div.innerHTML=`
       <div>
         <strong>${c.name}</strong><br/>
-        가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br/>
+        가격: <span id="price-${c.name}">${c.price}</span> KRW<br/>
         보유: ${held}주
       </div>
       <div>
-        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px; text-align:right; margin-right:5px;">
+        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
         <button onclick="buy('${c.name}')">매수</button>
-        <button onclick="sell('${c.name}')">매도</button>
       </div>`;
     container.appendChild(div);
   });
-  updateChart(); renderUserInfo();
+  updateChart();
 }
 
 /* 거래 */
@@ -225,184 +150,9 @@ window.buy=async function(name){
   if(player.cash<c.price*qty){ alert("현금 부족"); return; }
   player.cash-=c.price*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
-
-  // 대량 매수 → 가격 상승
-  let impactRate=(qty/BASE_VOLUME)*IMPACT;
-  const newPrice=Math.max(1, Math.round(c.price*(1+impactRate)));
-
-  const ref=doc(db,"companies",c.name);
-  await updateDoc(ref,{
-    price:newPrice,
-    history:[...c.history,newPrice].slice(-MAX_HISTORY)
-  });
-
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price} → 새 가격 ${newPrice}`);
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
   renderCompanies();
-};
-window.sell=async function(name){
-  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
-  const c=companies.find(x=>x.name===name);
-  if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
-  player.cash+=c.price*qty;
-  player.holdings[name]-=qty;
-
-  // 대량 매도 → 가격 하락
-  let impactRate=(qty/BASE_VOLUME)*IMPACT;
-  const newPrice=Math.max(1, Math.round(c.price*(1-impactRate)));
-
-  const ref=doc(db,"companies",c.name);
-  await updateDoc(ref,{
-    price:newPrice,
-    history:[...c.history,newPrice].slice(-MAX_HISTORY)
-  });
-
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price} → 새 가격 ${newPrice}`);
-  await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
-  renderCompanies();
-};
-window.logout=function(){ clearUser(); currentUser=null; document.getElementById("loginModal").style.display="flex"; };
-
-/* 입금 요청 */
-window.requestDeposit=async function(){
-  const acct=document.getElementById("acctNo").value.trim();
-  const amt=parseInt(document.getElementById("cashAmount").value,10);
-  const memo=document.getElementById("cashMemo").value.trim();
-  if(!currentUser){ alert("로그인 필요"); return; }
-  if(!acct||!amt||amt<=0){ alert("계좌/금액 확인"); return; }
-  await addDoc(collection(db,"depositRequests"),{
-    userId:currentUser.id, userName:currentUser.name,
-    account:acct, amount:amt, memo:memo,
-    approved:null, createdAt:serverTimestamp()
-  });
-  log(`📨 입금요청 ${amt.toLocaleString()} KRW / 계좌:${acct}`);
-};
-
-/* 관리자 */
-window.openAdminPanel = async function(){
-  const code=document.getElementById("adminCode").value.trim();
-  if(code!=="ADMIN123"){ alert("관리자 코드가 틀렸습니다."); return; }
-  document.getElementById("adminModal").style.display="flex";
-  loadDepositRequests();
-  renderCompanySettings();
-};
-window.closeAdminPanel=function(){ document.getElementById("adminModal").style.display="none"; };
-
-async function loadDepositRequests(){
-  const q=await getDocs(query(collection(db,"depositRequests")));
-  const list=document.getElementById("requestsList");
-  list.innerHTML="";
-  q.forEach(docSnap=>{
-    const r=docSnap.data();
-    if(r.approved !== null) return;
-    const div=document.createElement("div");
-    div.style.background="#111827"; div.style.padding="10px";
-    div.style.marginBottom="8px"; div.style.borderRadius="6px";
-    div.id="req-"+docSnap.id;
-    div.innerHTML=`
-      <strong>${r.userName}(${r.userId})</strong><br/>
-      계좌: ${r.account}<br/>
-      금액: ${r.amount.toLocaleString()} KRW<br/>
-      상태: ⏳ 대기중<br/>
-      <button onclick="approveRequest('${docSnap.id}','${r.userId}',${r.amount})">승인</button>
-      <button onclick="rejectRequest('${docSnap.id}')">거절</button>
-    `;
-    list.appendChild(div);
-  });
-  if(!list.innerHTML){ list.innerHTML="<div>대기 중인 요청이 없습니다.</div>"; }
-}
-window.approveRequest=async function(reqId,userId,amount){
-  const userRef=doc(db,"users",userId);
-  const snap=await getDoc(userRef);
-  if(snap.exists()){
-    const data=snap.data();
-    await updateDoc(userRef,{ cash:(data.cash||0)+amount });
-  }
-  await updateDoc(doc(db,"depositRequests",reqId),{ approved:true });
-  log(`✅ 요청 ${reqId} 승인됨 (+${amount})`);
-  loadDepositRequests();
-};
-window.rejectRequest=async function(reqId){
-  await updateDoc(doc(db,"depositRequests",reqId),{ approved:false });
-  log(`⛔ 요청 ${reqId} 거절됨`);
-  loadDepositRequests();
-};
-
-/* 기업별 설정 */
-function renderCompanySettings(){
-  const body=document.getElementById("companySettingsBody");
-  body.innerHTML="";
-  companies.forEach(c=>{
-    const currentRange=c.range?(c.range*100):5;
-    body.innerHTML+=`
-      <tr>
-        <td>${c.name}</td>
-        <td><input type="number" id="set-price-${c.name}" value="${c.price}" style="width:100px;"></td>
-        <td><input type="number" id="set-range-${c.name}" value="${currentRange}" style="width:60px;"></td>
-      </tr>
-    `;
-  });
-}
-window.applyCompanySettings=async function(){
-  for(const c of companies){
-    const priceVal=parseInt(document.getElementById(`set-price-${c.name}`).value,10);
-    const rangeVal=parseFloat(document.getElementById(`set-range-${c.name}`).value)/100;
-    const newPrice=(!isNaN(priceVal)&&priceVal>0)?priceVal:c.price;
-    const newRange=(!isNaN(rangeVal)&&rangeVal>0)?rangeVal:0.05;
-    const ref=doc(db,"companies",c.name);
-    await setDoc(ref,{ price:newPrice, history:[newPrice], range:newRange });
-    c.price=newPrice; c.history=[newPrice]; c.range=newRange;
-  }
-  log("✅ 기업별 시작가/변동폭 설정이 저장되었습니다.");
-  updateChart(); renderCompanies();
-};
-
-/* 그래프 제어 */
-let autoInterval=null; let updateSpeed=5000;
-window.startAutoGraph=function(){
-  if(autoInterval) return;
-  autoInterval=setInterval(async()=>{
-    for(const c of companies){
-      const ref=doc(db,"companies",c.name);
-      const s=await getDoc(ref);
-      if(s.exists()){
-        const d=s.data();
-        const range=d.range ?? 0.05;
-        const change=(Math.random()*2*range - range);
-        const newPrice=Math.max(1, Math.round(d.price*(1+change)));
-        const newHistory=[...d.history,newPrice].slice(-MAX_HISTORY);
-        await updateDoc(ref,{ price:newPrice, history:newHistory, range:range });
-      }
-    }
-  }, updateSpeed);
-  log(`⚡ 자동 그래프 시작 (속도:${updateSpeed}ms, 기업별 변동폭 적용, 최근 ${MAX_HISTORY}개 유지)`);
-};
-window.stopAutoGraph=function(){
-  if(autoInterval){ clearInterval(autoInterval); autoInterval=null; }
-  log("⏹ 자동 그래프 멈춤");
-};
-window.applyGraphConfig=function(){
-  const speedVal=parseInt(document.getElementById("graphSpeed").value,10);
-  if(!isNaN(speedVal)&&speedVal>=500){ updateSpeed=speedVal; }
-  log(`⚙️ 설정 적용됨 → 속도:${updateSpeed}ms`);
-  if(autoInterval){ stopAutoGraph(); startAutoGraph(); }
-};
-
-/* 그래프+가격 초기화 */
-window.resetGraphAndPrice=async function(){
-  for(const c of companies){
-    const priceVal=parseInt(document.getElementById(`set-price-${c.name}`).value,10);
-    const newPrice=(!isNaN(priceVal)&&priceVal>0)?priceVal:c.price;
-    const rangeVal=parseFloat(document.getElementById(`set-range-${c.name}`).value)/100;
-    const newRange=(!isNaN(rangeVal)&&rangeVal>0)?rangeVal:(c.range??0.05);
-
-    const ref=doc(db,"companies",c.name);
-    await setDoc(ref,{ price:newPrice, history:[newPrice], range:newRange });
-
-    c.price=newPrice; c.history=[newPrice]; c.range=newRange;
-  }
-  log("🔄 그래프+가격이 기업별 시작가 기준으로 초기화되었습니다.");
-  updateChart(); renderCompanies();
 };
 
 /* 차트 */
@@ -410,31 +160,20 @@ const ctx=document.getElementById('chart').getContext('2d');
 chart=new Chart(ctx,{ type:'line',
   data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
     borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
-  options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격"}}}}
+  options:{ responsive:true }
 });
 function updateChart(){
   chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
-  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
   chart.update();
 }
 
-/* 시작 버튼 + 자동 로그인 유지 */
+/* 시작 버튼 */
 document.getElementById("startBtn").addEventListener("click", async ()=>{
   const uid=document.getElementById("userId").value.trim();
   const uname=document.getElementById("userName").value.trim();
   if(!uid||!uname){ alert("입력필요"); return; }
   await loginUser(uid,uname);
   document.getElementById("loginModal").style.display="none";
-});
-document.addEventListener("DOMContentLoaded", async ()=>{
-  const saved = loadUser();
-  if(saved && saved.id && saved.name){
-    await loginUser(saved.id, saved.name);
-    document.getElementById("loginModal").style.display="none";
-    log("🔓 자동 로그인되었습니다.");
-  } else {
-    document.getElementById("loginModal").style.display="flex";
-  }
 });
 </script>
 </body>
