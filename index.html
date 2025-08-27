@@ -147,11 +147,6 @@
   </div>
 </div>
 
-<!-- 뉴스 버튼 -->
-<div id="newsSection" style="text-align:center; margin:20px 0;">
-  <button onclick="openNewsModal()">📰 뉴스 보기</button>
-</div>
-
 <!-- 뉴스 모달 -->
 <div id="newsModal" class="modal">
   <div class="modal-content">
@@ -185,6 +180,16 @@
   <div id="depositRequests"></div>
   <h4>출금 요청</h4>
   <div id="withdrawRequests"></div>
+</div>
+
+<div id="userRow">
+  <div id="userInfo">⏳ 로그인 대기중...</div>
+  <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+    <button onclick="logout()">로그아웃</button>
+    <button onclick="openWithdrawModal()">출금 요청</button>
+    <!-- ✅ 뉴스 보기 버튼 추가 -->
+    <button onclick="openNewsModal()">📰 뉴스 보기</button>
+  </div>
 </div>
 
 <!-- 📊 그래프/금액 제어 패널 (graph123) -->
@@ -999,6 +1004,7 @@
 </script>
 </body>
 </html>
+
 
 
 
