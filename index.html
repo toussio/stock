@@ -991,9 +991,24 @@
   window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
   window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices;
 
+function openNewsModal(){
+  document.getElementById("newsModal").style.display = "flex";
+}
+
+function closeNewsModal(){
+  document.getElementById("newsModal").style.display = "none";
+}
+
+function addNews(text){
+  const div = document.createElement("div");
+  div.innerHTML = `<p>📰 ${new Date().toLocaleString()} - ${text}</p>`;
+  document.getElementById("newsContent").prepend(div);
+}
+
 </script>
 </body>
 </html>
+
 
 
 
