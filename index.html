@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>떡잎방범대 주식 센터</title>
 <style>
 body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
@@ -13,9 +13,9 @@ h1 { text-align:center; }
 button { padding:5px 10px; cursor:pointer; }
 #log { max-height:220px; overflow-y:auto; background:#111827; padding:10px; border-radius:8px; }
 canvas { background:#111827; border-radius:8px; display:block; margin:20px auto; }
-#loginModal { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; width:320px; }
-#loginModal input { margin:10px 0; padding:8px; width:100%; box-sizing:border-box; }
+#loginModal { display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
+#loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
+#loginModal input { margin:10px 0; padding:5px; width:80%; }
 </style>
 </head>
 <body>
@@ -43,91 +43,105 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc,
-  onSnapshot
+  initializeFirestore, doc, getDoc, setDoc, updateDoc,
+  collection, addDoc, getDocs, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* ✅ 올바른 firebaseConfig */
+/* 🔑 Firebase 설정 (console에서 CDN 값 복사) */
 const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
   projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 수정 완료
+  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 꼭 appspot.com
   messagingSenderId: "343488842605",
   appId: "1:343488842605:web:c5dcbfcd64dacf9955e864",
   measurementId: "G-QWBTK3MQG8"
 };
+
 const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+
+/* ✅ WebChannel 400 에러 방지 */
+const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  useFetchStreams: false
+});
 
 /* 상태 */
 let player = { holdings:{}, cash:5000000 };
 let currentUser = null;
 let chart;
+
+/* 기업 초기값 */
 let companies = [
-  { name:"떡잎방범대", price:1000, history:[1000] },
-  { name:"카스틸로", price:500, history:[500] }
+  { name:"떡잎방범대", price:1000, history:[1000], range:0.05 },
+  { name:"카스틸로", price:500, history:[500], range:0.05 },
+  { name:"사쿠라", price:500, history:[500], range:0.05 },
+  { name:"청룡", price:500, history:[500], range:0.05 }
 ];
-const MAX_HISTORY=80;
 
 /* 로그 */
-function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
+function log(msg){ const l=document.getElementById("log"); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
+
+/* Firestore 연결 테스트 */
+async function testFirestore(){
+  try {
+    const ref = doc(db, "_health", "ping");
+    await setDoc(ref, { last: serverTimestamp() }, { merge:true });
+    const snap = await getDoc(ref);
+    if(snap.exists()){
+      log("✅ Firestore 연결 성공: " + JSON.stringify(snap.data()));
+    } else {
+      log("❌ Firestore 연결 실패 (문서 없음)");
+    }
+  } catch(e){
+    log("❌ Firestore 오류: " + e.message);
+    console.error(e);
+  }
+}
+testFirestore();
 
 /* 로그인 */
 async function loginUser(userId,userName){
-  try {
-    const userRef=doc(db,"users",userId);
-    const snap=await getDoc(userRef);
-    if(snap.exists()){
-      player=snap.data();
-    } else {
-      await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
-      player={ cash:5000000, holdings:{} };
-    }
-    currentUser={ id:userId, name:userName };
-
-    // 유저 실시간 업데이트
-    onSnapshot(userRef,(docSnap)=>{
-      if(docSnap.exists()){
-        player=docSnap.data();
-        renderUserInfo(); renderCompanies();
-      }
-    });
-
-    renderUserInfo(); renderCompanies();
-    log(`👤 로그인: ${userName}(${userId})`);
-
-    document.getElementById("loginModal").style.display="none";
-  } catch(e){
-    console.error("❌ Firestore 연결/로그인 에러:", e);
-    alert("Firestore 연결 실패: " + e.message);
+  const userRef=doc(db,"users",userId);
+  const snap=await getDoc(userRef);
+  if(snap.exists()){
+    const data=snap.data();
+    player={ cash:data.cash??5000000, holdings:data.holdings??{} };
+  } else {
+    await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
   }
+  currentUser={ id:userId, name:userName };
+  renderUserInfo(); renderCompanies();
+  log(`👤 로그인: ${userName}(${userId})`);
 }
 
 /* UI */
 function renderUserInfo(){
-  document.getElementById('userInfo').innerHTML=
+  document.getElementById("userInfo").innerHTML =
     `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
      현금: ${player.cash.toLocaleString()} KRW`;
 }
 function renderCompanies(){
-  const container=document.getElementById('companies');
-  container.innerHTML='';
+  const container=document.getElementById("companies");
+  container.innerHTML="";
   companies.forEach(c=>{
     const held=player.holdings[c.name]||0;
-    container.innerHTML+=`
-      <div class="company">
-        <div>
-          <strong>${c.name}</strong><br/>
-          가격: ${c.price} KRW<br/>
-          보유: ${held}주
-        </div>
-        <div>
-          <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
-          <button onclick="buy('${c.name}')">매수</button>
-        </div>
+    const div=document.createElement("div");
+    div.className="company";
+    div.innerHTML=`
+      <div>
+        <strong>${c.name}</strong><br/>
+        가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br/>
+        보유: ${held}주
+      </div>
+      <div>
+        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
+        <button onclick="buy('${c.name}')">매수</button>
+        <button onclick="sell('${c.name}')">매도</button>
       </div>`;
+    container.appendChild(div);
   });
+  updateChart();
 }
 
 /* 거래 */
@@ -137,16 +151,28 @@ window.buy=async function(name){
   if(player.cash<c.price*qty){ alert("현금 부족"); return; }
   player.cash-=c.price*qty;
   player.holdings[name]=(player.holdings[name]||0)+qty;
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
   await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수`);
+  renderCompanies();
+};
+window.sell=async function(name){
+  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
+  const c=companies.find(x=>x.name===name);
+  if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
+  player.cash+=c.price*qty;
+  player.holdings[name]-=qty;
+  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
+  await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
+  renderCompanies();
 };
 
 /* 차트 */
-const ctx=document.getElementById('chart').getContext('2d');
-chart=new Chart(ctx,{ type:'line',
+const ctx=document.getElementById("chart").getContext("2d");
+chart=new Chart(ctx,{
+  type:"line",
   data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
-    borderColor:'#'+Math.floor(Math.random()*16777215).toString(16), fill:false}))},
-  options:{ responsive:true }
+    borderColor:"#"+Math.floor(Math.random()*16777215).toString(16), fill:false})) },
+  options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격"}} } }
 });
 function updateChart(){
   chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
@@ -158,8 +184,9 @@ function updateChart(){
 document.getElementById("startBtn").addEventListener("click", async ()=>{
   const uid=document.getElementById("userId").value.trim();
   const uname=document.getElementById("userName").value.trim();
-  if(!uid||!uname){ alert("입력필요"); return; }
+  if(!uid||!uname){ alert("입력 필요"); return; }
   await loginUser(uid,uname);
+  document.getElementById("loginModal").style.display="none";
 });
 </script>
 </body>
