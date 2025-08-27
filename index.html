@@ -438,7 +438,7 @@
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
 
   function updateWithdrawFee(){
-    const feeRate = 0.2;
+    const feeRate = 0.3;
     const amount = parseInt(document.getElementById("withdrawAmount").value) || 0;
     if(amount > 0){
       const fee = Math.round(amount * feeRate);
@@ -972,4 +972,5 @@
 </script>
 </body>
 </html>
+
 
