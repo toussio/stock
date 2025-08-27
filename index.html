@@ -349,20 +349,40 @@
   }
 
   async function impactPrice(name, qty, type){
-    const c = findCompanyById(name);
-    if(!c) return;
-    let impact = Math.round(c.basePrice * IMPACT_K * Math.abs(qty));
-    if(type === 'sell') impact = -impact;
-    const nextPrice = Math.max(1, (c.livePrice || c.basePrice) + impact);
-    try {
-      await setDoc(doc(db,"companyPrices", name),
-        { current: nextPrice, updatedAt: Date.now() }, { merge:true });
-      c.livePrice = nextPrice;
-      scheduleGraphUpdate();
-      log(`📊 ${name} ${type==="buy"?"매수":"매도"} 영향: ${qty}주 → ${nextPrice.toLocaleString()} KRW`);
-    } catch(e){ console.error("가격 영향 반영 실패:", e); }
+  const c = findCompanyById(name);
+  if(!c) return;
+
+  const price = c.livePrice || c.basePrice;
+
+  // ✅ 퍼센티지 계산
+  let percent = 0;
+  if(type === 'buy'){
+    const invest = price * qty;                  // 이번 매수 총액
+    percent = invest / Math.max(1, player.cash + invest);  
+    // 내 자산 대비 비율
+  } else if(type === 'sell'){
+    const held = player.holdings[name]||0;
+    percent = qty / Math.max(1, held);           // 보유량 대비 비율
   }
 
+  // ✅ 변동폭 (퍼센티지만큼 가격 반영)
+  let impact = Math.round(price * percent * 0.01 * 100); 
+  // percent=1 → ±1% 변동
+  // percent=0.5 → ±0.5% 변동
+
+  if(type === 'sell') impact = -impact;
+
+  const nextPrice = Math.max(1, price + impact);
+
+  try {
+    await setDoc(doc(db,"companyPrices", name),
+      { current: nextPrice, updatedAt: Date.now() }, { merge:true });
+    c.livePrice = nextPrice;
+    scheduleGraphUpdate();
+    log(`📊 ${name} ${type==="buy"?"매수":"매도"} 영향: ${qty}주 → 변동 ${impact>=0?"+":""}${impact} (${nextPrice.toLocaleString()} KRW)`);
+  } catch(e){ console.error("가격 영향 반영 실패:", e); }
+}
+  
   function buy(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     const c = findCompanyById(name); if(!c) return;
@@ -952,3 +972,4 @@
 </script>
 </body>
 </html>
+
