@@ -138,7 +138,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  /* === Firebase 설정 (사용 중인 실제 프로젝트 값) === */
+  /* === Firebase 설정 === */
   const firebaseConfig = {
     apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
     authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
@@ -169,13 +169,14 @@
   /* === 상태 === */
   let player = { holdings:{}, cash:5000000 };
   let currentUser = null;
+  let unsubscribeUser = null;
 
   /* === 유틸 === */
   function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
 
-  /* === 회사 데이터 (price × multiplier) === */
+  /* === 회사 데이터 (현재가 = price × multiplier) === */
   const companies=[
     {name:"떡잎방범대",price:1000,multiplier:1},
     {name:"카스틸로",price:500,multiplier:1},
@@ -188,7 +189,7 @@
   ];
   const getCurrentPrice = (c)=> Math.max(1, Math.floor((c.price||0) * (c.multiplier||1)));
 
-  /* === 기업 카드 렌더 (배율 텍스트 제거 + 2열) === */
+  /* === 기업 카드 렌더 (배율 텍스트 제거 + 2열 카드) === */
   function renderCompanies(){
     companiesDiv.innerHTML='';
     companies.forEach(c=>{
@@ -215,16 +216,14 @@
   /* === 거래 === */
   async function saveTradeLog(entry){
     if(!currentUser) return;
-    try {
+    try{
       await addDoc(collection(db,"tradeLogs"),{
         date:new Date().toLocaleString(),
         userId:currentUser.id,
         userName:currentUser.name,
         ...entry
       });
-    } catch (e) {
-      console.warn("⚠️ 거래 로그 DB 저장 실패:",e);
-    }
+    }catch(e){ console.warn("⚠️ 거래 로그 DB 저장 실패:",e); }
   }
   function buy(name,qty){
     const c=companies.find(x=>x.name===name); const p=getCurrentPrice(c);
@@ -265,12 +264,33 @@
     log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal();
   }
 
-  /* === 로그인 === */
+  /* === 로그인 + 현재 유저 실시간 구독 === */
+  function subscribeCurrentUser(uid){
+    if(unsubscribeUser) { unsubscribeUser(); unsubscribeUser=null; }
+    const uref=doc(db,"users",uid);
+    unsubscribeUser = onSnapshot(uref,(snap)=>{
+      if(snap.exists()){
+        const data=snap.data();
+        // cash 변경 자동 반영
+        if(typeof data.cash==='number') player.cash=data.cash;
+        renderUserInfo();
+      }
+    });
+  }
+
   window.onload=()=>{ 
     const saved=localStorage.getItem('stockUser');
-    if(saved){ try{ currentUser=JSON.parse(saved);}catch(e){ localStorage.removeItem('stockUser'); } }
-    if(currentUser){ loginModal.style.display='none'; renderUserInfo(); renderCompanies(); log(`🔄 자동 로그인: ${currentUser.name}`); }
-    else { loginModal.style.display='flex'; }
+    if(saved){
+      try{ currentUser=JSON.parse(saved); }catch(e){ localStorage.removeItem('stockUser'); }
+    }
+    if(currentUser){
+      loginModal.style.display='none';
+      renderUserInfo(); renderCompanies();
+      subscribeCurrentUser(currentUser.id); // ⬅ 자동 로그인 시에도 구독
+      log(`🔄 자동 로그인: ${currentUser.name}`);
+    }else{
+      loginModal.style.display='flex';
+    }
     subscribeCompanySettings(); // 회사 설정 실시간 반영
   };
 
@@ -281,17 +301,34 @@
     try {
       const userRef = doc(db, "users", cid);
       const snap = await getDoc(userRef);
+
+      // 이미 로그인 중이면 막기
       if (snap.exists() && snap.data().active) { alert("이미 로그인된 사용자입니다."); return; }
-      currentUser = { id: cid, name: cname, cash: player.cash, active: true };
-      await setDoc(userRef, currentUser);
+
+      // 기존 유저면 cash 보존 + active=true, 신규는 초기값
+      let nextCash = player.cash;
+      if (snap.exists() && typeof snap.data().cash === 'number') {
+        nextCash = snap.data().cash;
+      }
+
+      currentUser = { id: cid, name: cname, cash: nextCash, active: true };
+      await setDoc(userRef, currentUser, { merge:true });
+
       localStorage.setItem("stockUser", JSON.stringify(currentUser));
-      loginModal.style.display = "none"; renderUserInfo(); renderCompanies(); log(`✅ 로그인: ${cname}`);
+      loginModal.style.display = "none";
+      renderUserInfo(); renderCompanies();
+      subscribeCurrentUser(cid); // ⬅ 실시간 구독 시작
+      log(`✅ 로그인: ${cname}`);
     } catch (e) { console.warn("⚠️ Firestore 오류:", e); }
   };
 
   async function logout() {
-    if (currentUser) { try { await updateDoc(doc(db, "users", currentUser.id), { active: false }); } catch (e) {} }
-    localStorage.removeItem('stockUser'); location.reload();
+    if (currentUser) {
+      try { await updateDoc(doc(db, "users", currentUser.id), { active: false }); } catch (e) {}
+    }
+    if(unsubscribeUser){ unsubscribeUser(); unsubscribeUser=null; }
+    localStorage.removeItem('stockUser');
+    location.reload();
   }
 
   /* === 관리자 분기 === */
@@ -326,7 +363,7 @@
       snap.forEach(docu => {
         const u = docu.data();
         html += `<div class="req-card">
-          <div><strong>${u.name}</strong> (${u.id}) | 현금: ${u.cash?.toLocaleString() || 0} | 상태: ${u.active ? "🟢 로그인중" : "⚪ 로그아웃"}</div>
+          <div><strong>${u.name}</strong> (${u.id}) | 현금: ${ (u.cash ?? 0).toLocaleString() } | 상태: ${u.active ? "🟢 로그인중" : "⚪ 로그아웃"}</div>
           <div><button onclick="forceLogout('${u.id}')">강제 로그아웃</button></div>
         </div>`;
       });
@@ -347,9 +384,9 @@
       snap.forEach(docu => {
         const d = docu.data();
         depHtml += `<div class="req-card">
-          <div><strong>${d.userName}</strong> (${d.userId}) | ${d.amount.toLocaleString()}원 | 메모: ${d.memo || ""}</div>
+          <div><strong>${d.userName}</strong> (${d.userId}) | ${Number(d.amount||0).toLocaleString()}원 | 메모: ${d.memo || ""}</div>
           <div>
-            <button onclick="approveDeposit('${docu.id}','${d.userId}',${d.amount})">승인</button>
+            <button onclick="approveDeposit('${docu.id}','${d.userId}',${Number(d.amount||0)})">승인</button>
             <button onclick="rejectRequest('pendingDeposits','${docu.id}')">거절</button>
           </div>
         </div>`;
@@ -364,9 +401,9 @@
       snap.forEach(docu => {
         const w = docu.data();
         witHtml += `<div class="req-card">
-          <div><strong>${w.userName}</strong> (${w.userId}) | ${w.amount.toLocaleString()}원 | 메모: ${w.memo || ""}</div>
+          <div><strong>${w.userName}</strong> (${w.userId}) | ${Number(w.amount||0).toLocaleString()}원 | 메모: ${w.memo || ""}</div>
           <div>
-            <button onclick="approveWithdraw('${docu.id}','${w.userId}',${w.amount})">승인</button>
+            <button onclick="approveWithdraw('${docu.id}','${w.userId}',${Number(w.amount||0)})">승인</button>
             <button onclick="rejectRequest('pendingWithdrawals','${docu.id}')">거절</button>
           </div>
         </div>`;
@@ -374,31 +411,34 @@
       witDiv.innerHTML = witHtml || "대기중인 출금 요청 없음";
     });
   }
+
   async function approveDeposit(reqId, userId, amount) {
     try {
       const uref = doc(db, "users", userId);
       const usnap = await getDoc(uref);
-      if (usnap.exists()) {
-        const newCash = (usnap.data().cash || 0) + amount;
-        await updateDoc(uref, { cash: newCash });
-      }
+      const prev = usnap.exists() ? (usnap.data().cash || 0) : 0;
+      const newCash = prev + Number(amount||0);
+      await updateDoc(uref, { cash: newCash });
       await updateDoc(doc(db, "pendingDeposits", reqId), { status: "승인" });
-      log(`✅ 입금 승인: ${userId} +${amount.toLocaleString()}원`);
+      log(`✅ 입금 승인: ${userId} +${Number(amount||0).toLocaleString()}원`);
+      // 화면 갱신은 해당 사용자의 onSnapshot이 처리
     } catch (e) { console.error("입금 승인 실패:", e); }
   }
+
   async function approveWithdraw(reqId, userId, amount) {
     try {
       const uref = doc(db, "users", userId);
       const usnap = await getDoc(uref);
-      if (usnap.exists()) {
-        const newCash = (usnap.data().cash || 0) - amount;
-        if (newCash < 0) { alert("현금 부족으로 승인 불가"); return; }
-        await updateDoc(uref, { cash: newCash });
-      }
+      const prev = usnap.exists() ? (usnap.data().cash || 0) : 0;
+      const newCash = prev - Number(amount||0);
+      if (newCash < 0) { alert("현금 부족으로 승인 불가"); return; }
+      await updateDoc(uref, { cash: newCash });
       await updateDoc(doc(db, "pendingWithdrawals", reqId), { status: "승인" });
-      log(`✅ 출금 승인: ${userId} -${amount.toLocaleString()}원`);
+      log(`✅ 출금 승인: ${userId} -${Number(amount||0).toLocaleString()}원`);
+      // 화면 갱신은 해당 사용자의 onSnapshot이 처리
     } catch (e) { console.error("출금 승인 실패:", e); }
   }
+
   async function rejectRequest(col, reqId) {
     try { await updateDoc(doc(db, col, reqId), { status: "거절" }); log(`❌ 요청 거절 (${col} - ${reqId})`); }
     catch (e) { console.error("거절 실패:", e); }
