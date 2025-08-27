@@ -6,22 +6,33 @@
 <title>떡잎방범대 주식 센터</title>
 <style>
   :root{
-    --bg:#0f172a; --card:#1f2937; --ink:#e5e7eb; --ink2:#cbd5e1; --accent:#334155; --accentH:#475569; --danger:#7f1d1d; --ok:#065f46;
+    --bg:#0f172a; --card:#1f2937; --ink:#e5e7eb; --ink2:#cbd5e1;
+    --accent:#334155; --accentH:#475569; --danger:#7f1d1d; --ok:#065f46;
   }
   *{box-sizing:border-box}
   body { font-family: Arial, sans-serif; background:var(--bg); color:var(--ink); margin:0; padding:20px; }
   h1 { text-align:center; margin:4px 0 16px }
+
+  /* 상단 사용자/입출금 */
   #userRow,#log { margin:20px auto; max-width:1100px; }
   #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
   #userInfo { font-size:16px; }
   #depositForm { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin:20px auto; }
-  #depositForm input { padding:6px; }
+  #depositForm input { padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
   #depositForm .memo { min-width:220px; }
-  button { padding:6px 12px; cursor:pointer; border-radius:6px; background:var(--accent); color:var(--ink); border:none; }
+  button { padding:8px 12px; cursor:pointer; border-radius:8px; background:var(--accent); color:var(--ink); border:none; }
   button:hover { background:var(--accentH); }
 
-  /* 그래프 */
-  canvas { background:#111827; border-radius:10px; display:block; margin:20px auto; max-width:1100px; width:100%; height:420px; }
+  /* ✅ 그래프 고정 높이 (버그 방지) */
+  canvas#chart {
+    display:block;
+    margin:20px auto;
+    background:#111827;
+    border-radius:10px;
+    max-width:1100px;
+    width:100%;
+    height:400px; /* 고정 높이 */
+  }
 
   /* 기업 카드 3열 */
   #companies {
@@ -39,23 +50,12 @@
     flex-direction:column;
     gap:10px;
   }
-  .company .info {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    font-size:15px;
-    font-weight:600;
-  }
+  .company .info { display:flex; justify-content:space-between; align-items:center; font-weight:600; }
   .company .info small{ color:var(--ink2); font-weight:400 }
-  .company .actions {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:6px;
-  }
+  .company .actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .company .actions input[type="number"] {
-    grid-column:span 2;
-    padding:6px;
-    border-radius:6px; border:1px solid #374151; background:#0b1220; color:var(--ink);
+    grid-column:span 2; padding:8px;
+    border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink);
   }
 
   /* 로그 */
@@ -69,23 +69,19 @@
   .modal-content input { margin:8px 0; padding:8px; width:85%; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
   .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; }
 
-  /* 관리자 패널 */
+  /* 관리자 패널 컨테이너 */
   .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
   #adminLogin{ text-align:center; margin-top:20px }
   #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
 
-  @media (max-width:900px){
-    #companies{ grid-template-columns:repeat(2,1fr) }
-  }
-  @media (max-width:600px){
-    #companies{ grid-template-columns:1fr }
-  }
+  @media (max-width:900px){ #companies{ grid-template-columns:repeat(2,1fr) } }
+  @media (max-width:600px){ #companies{ grid-template-columns:1fr } }
 </style>
 </head>
 <body>
 <h1>인게임 주식 시뮬레이터</h1>
 
-<!-- 상단: 유저 상태/버튼 -->
+<!-- 상단: 유저/버튼 -->
 <div id="userRow">
   <div id="userInfo">⏳ 로그인 대기중...</div>
   <div>
@@ -102,7 +98,7 @@
   <button onclick="requestDeposit()">입금 요청</button>
 </div>
 
-<!-- ✅ 그래프 먼저 -->
+<!-- ✅ 그래프 -->
 <canvas id="chart"></canvas>
 
 <!-- ✅ 기업 카드 (3열) -->
@@ -178,7 +174,7 @@
     <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
     <button onclick="applyGraphInterval()">적용</button>
   </div>
-  <p style="color:#9ca3af; margin-top:8px;">※ 이 패널에서 시작하면 Firestore의 <code>companyPrices</code>에 중앙 시세가 기록되고, 모든 유저는 실시간 구독으로 동일 그래프를 보게 됩니다.</p>
+  <p style="color:#9ca3af; margin-top:8px;">※ 시작을 누르면 Firestore의 <code>companyPrices</code>에 중앙 시세가 기록되고, 모든 유저는 실시간 구독으로 동일 그래프를 보게 됩니다.</p>
 </div>
 
 <!-- 외부 라이브러리 -->
@@ -188,7 +184,10 @@
    *  Firebase & Firestore
    * ========================= */
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import {
+    getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc,
+    onSnapshot, query, where
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
@@ -203,7 +202,7 @@
   const db = getFirestore(app);
 
   /* =========================
-   *  엘리먼트 & 상태
+   *  상태/참조
    * ========================= */
   const userInfo = document.getElementById("userInfo");
   const companiesDiv = document.getElementById("companies");
@@ -222,11 +221,11 @@
   let currentUser = null;
   let unsubscribeUser = null;
 
-  // 그래프
-  let chart = null;
+  // 그래프 / 타이머
+  let chart = null;               // ✅ 한 번만 생성
   let priceTimer = null;
-  let updateInterval = 5000; // ms
-  let graphUpdateTimer = null; // 스냅샷 잦은 호출 동기화용
+  let updateInterval = 5000;      // ms
+  let graphUpdateTimer = null;    // onSnapshot 디바운스용
 
   /* =========================
    *  유틸
@@ -234,10 +233,11 @@
   function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML = `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
+  const ci = s => String(s||'').toLowerCase();
 
   /* =========================
    *  기업 데이터 (11개)
-   *  basePrice: 기준가 / multiplier: 배율 / livePrice: 중앙(구독) 시세
+   *  basePrice: 기준가 / multiplier: 배율 / livePrice: 중앙 시세
    * ========================= */
   const companies = [
     {name:"떡잎방범대", basePrice:1000, multiplier:1, livePrice:1000},
@@ -255,6 +255,9 @@
   function getDisplayPrice(c){
     const base = (typeof c.livePrice === 'number') ? c.livePrice : c.basePrice;
     return Math.max(1, Math.floor(base * (c.multiplier || 1)));
+  }
+  function findCompanyById(id){
+    return companies.find(x => ci(x.name)===ci(id));
   }
 
   /* =========================
@@ -284,33 +287,40 @@
   }
 
   /* =========================
-   *  거래
+   *  거래 (현금 Firestore 동기화 포함)
    * ========================= */
   async function saveTradeLog(entry){
     if(!currentUser) return;
     try{
       await addDoc(collection(db,"tradeLogs"),{
         date:new Date().toLocaleString(),
-        userId:currentUser.id,
-        userName:currentUser.name,
-        ...entry
+        userId:currentUser.id, userName:currentUser.name, ...entry
       });
     }catch(e){ console.warn("⚠️ 거래 로그 DB 저장 실패:",e); }
   }
+  async function syncCashToServer(){
+    if(!currentUser) return;
+    try{ await setDoc(doc(db,"users",currentUser.id), { cash: player.cash }, { merge:true }); }
+    catch(e){ console.warn("⚠️ 현금 동기화 실패:", e); }
+  }
   function buy(name, qty){
-    const c=companies.find(x=>x.name===name); const p=getDisplayPrice(c);
+    if(!currentUser) return alert('로그인 후 이용해주세요.');
+    const c = companies.find(x=>x.name===name); const p = getDisplayPrice(c);
     if(player.cash<p*qty) return alert('현금 부족');
-    player.cash-=p*qty; player.holdings[name]=(player.holdings[name]||0)+qty;
+    player.cash -= p*qty; player.holdings[name]=(player.holdings[name]||0)+qty;
     saveTradeLog({type:'매수',company:name,qty,price:p,cash:player.cash});
-    log(`✅ ${currentUser?.name||'게스트'} ${name} ${qty}주 매수 @ ${p.toLocaleString()} KRW`);
+    syncCashToServer();
+    log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${p.toLocaleString()} KRW`);
     renderCompanies();
   }
   function sell(name, qty){
-    const c=companies.find(x=>x.name===name); const p=getDisplayPrice(c);
+    if(!currentUser) return alert('로그인 후 이용해주세요.');
+    const c = companies.find(x=>x.name===name); const p = getDisplayPrice(c);
     if((player.holdings[name]||0)<qty) return alert('보유 부족');
-    player.cash+=p*qty; player.holdings[name]-=qty;
+    player.cash += p*qty; player.holdings[name] -= qty;
     saveTradeLog({type:'매도',company:name,qty,price:p,cash:player.cash});
-    log(`✅ ${currentUser?.name||'게스트'} ${name} ${qty}주 매도 @ ${p.toLocaleString()} KRW`);
+    syncCashToServer();
+    log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${p.toLocaleString()} KRW`);
     renderCompanies();
   }
 
@@ -355,16 +365,15 @@
   }
 
   window.onload=()=>{
-    // 로컬 세션
     const saved=localStorage.getItem('stockUser');
-    if(saved){ try{ currentUser=JSON.parse(saved); }catch(e){ localStorage.removeItem('stockUser'); } }
+    if(saved){ try{ currentUser=JSON.parse(saved);}catch(e){ localStorage.removeItem('stockUser'); } }
     if(currentUser){
       loginModal.style.display='none'; renderUserInfo(); renderCompanies(); subscribeCurrentUser(currentUser.id);
       log(`🔄 자동 로그인: ${currentUser.name}`);
     } else {
       loginModal.style.display='flex';
     }
-    // 그래프 초기화 + 중앙 시세 구독 + 회사 설정 구독
+    // 그래프 + 중앙시세/회사설정 구독
     initChart();
     subscribeCompanyPrices();
     subscribeCompanySettings();
@@ -486,7 +495,6 @@
       await setDoc(uref,{cash:updated},{merge:true});
       await updateDoc(doc(db,"pendingDeposits",reqId),{status:"승인"});
       log(`✅ 입금 승인: ${userId} +${Number(amount||0).toLocaleString()}원`);
-      // 내 세션이면 즉시 반영(스냅샷 오기 전)
       if(currentUser?.id===userId){ player.cash=updated; renderUserInfo(); }
     }catch(e){ console.error("입금 승인 실패:",e); }
   }
@@ -508,7 +516,7 @@
 
   /* =========================
    *  관리자: 주가 조정(기준가·배율)
-   *  - Firestore: companySettings/{name} => { basePrice, multiplier }
+   *  Firestore: companySettings/{name} => { basePrice, multiplier }
    * ========================= */
   function renderStockTuner(){
     const wrap=document.getElementById('stockTuner'); let html='';
@@ -536,16 +544,14 @@
     if(basePrice<=0 || multiplier<0){ alert('값을 확인하세요.'); return; }
     try{
       await setDoc(doc(db,'companySettings', name), { basePrice, multiplier, updatedAt: Date.now() }, { merge:true });
-      // 로컬 반영
-      const c=companies.find(x=>x.name===name);
+      const c=findCompanyById(name);
       if(c){ c.basePrice=basePrice; c.multiplier=multiplier; renderCompanies(); }
       log(`🛠️ ${name} 설정 적용: 기준가 ${basePrice}, 배율 x${multiplier}`);
     }catch(e){ console.error('회사 설정 저장 실패:',e); }
   }
   async function bumpCompany(name, factor){
-    const c = companies.find(x=>x.name===name);
-    if(!c) return;
-    const newMultiplier = parseFloat(((c.multiplier||1)*factor).toFixed(4));
+    const c=findCompanyById(name); if(!c) return;
+    const newMultiplier=parseFloat(((c.multiplier||1)*factor).toFixed(4));
     try{
       await setDoc(doc(db,'companySettings', name), { basePrice:c.basePrice, multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
       c.multiplier=newMultiplier; renderCompanies();
@@ -557,7 +563,7 @@
       let changed=false;
       snap.forEach(d=>{
         const data=d.data();
-        let c = companies.find(x=>x.name===d.id) || companies.find(x=>x.name.toLowerCase()===d.id.toLowerCase());
+        const c=findCompanyById(d.id);
         if(!c) return;
         if(typeof data.basePrice==='number') c.basePrice=data.basePrice;
         if(typeof data.multiplier==='number') c.multiplier=data.multiplier;
@@ -571,48 +577,33 @@
   }
 
   /* =========================
-   *  중앙 시세 구독(모든 클라 공통)
-   *  - Firestore: companyPrices/{name} => { current }
-   *  - 스냅샷이 기업별로 여러 번 올 수 있어 debounce로 그래프 1틱만 추가
+   *  중앙 시세 구독 (모든 클라)
+   *  Firestore: companyPrices/{name} => { current }
    * ========================= */
   function subscribeCompanyPrices(){
     onSnapshot(collection(db,"companyPrices"), (snap)=>{
       let any=false;
       snap.forEach(docu=>{
         const data=docu.data();
-        const c=companies.find(x=>x.name===docu.id) || companies.find(x=>x.name.toLowerCase()===docu.id.toLowerCase());
+        const c=findCompanyById(docu.id);
         if(c && typeof data.current==='number'){ c.livePrice=data.current; any=true; }
       });
       if(any){
         renderCompanies();
-        scheduleGraphUpdate(); // 그래프 라벨 1개만 추가
+        scheduleGraphUpdate(); // 디바운스 후 그래프 1틱만 추가
       }
     });
   }
   function scheduleGraphUpdate(){
     if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); }
-    graphUpdateTimer=setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, 250);
-  }
-  function appendChartPoint(){
-    const now=new Date().toLocaleTimeString();
-    chart.data.labels.push(now);
-    companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
-    // 길이 제한
-    const MAX=60;
-    if(chart.data.labels.length>MAX){
-      chart.data.labels.splice(0, chart.data.labels.length-MAX);
-      chart.data.datasets.forEach(d=>{
-        if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX);
-      });
-    }
-    chart.update();
+    graphUpdateTimer=setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, 200);
   }
 
   /* =========================
-   *  그래프(Chart.js)
-   *  - graph123 패널에서 중앙 시뮬레이션 제어
+   *  그래프(Chart.js) — 버그 방지 포함
    * ========================= */
   function initChart(){
+    if(chart) return; // ✅ 중복 생성 방지
     const ctx=document.getElementById("chart").getContext("2d");
     chart = new Chart(ctx, {
       type:"line",
@@ -625,6 +616,7 @@
       options:{
         responsive:true,
         maintainAspectRatio:false,
+        animation:false,
         plugins:{ legend:{position:"bottom"} },
         scales:{
           x:{ title:{display:true, text:"시간"} },
@@ -633,44 +625,61 @@
       }
     });
   }
+  function appendChartPoint(){
+    if(!chart) return;
+    const now=new Date().toLocaleTimeString();
+    chart.data.labels.push(now);
+    companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
+    const MAX=120; // 최대 포인트
+    if(chart.data.labels.length>MAX){
+      chart.data.labels.splice(0, chart.data.labels.length-MAX);
+      chart.data.datasets.forEach(d=>{
+        if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX);
+      });
+    }
+    chart.update("none"); // ✅ 애니메이션 제거 → 높이 변동/흔들림 방지
+  }
 
-  // 중앙 시세 갱신(관리자에서만 실행 권장)
+  /* =========================
+   *  그래프 중앙 시뮬레이션 제어 (graph123)
+   *  - 관리자에서만 실행 권장
+   * ========================= */
   async function updatePrices(){
-    // livePrice를 기준으로 랜덤 진동
+    // 중앙값(livePrice) 기반 랜덤 변동 → Firestore 기록
     for(const c of companies){
       const base = (typeof c.livePrice==='number') ? c.livePrice : c.basePrice;
-      const change = (Math.random()-0.5)*20; // ±10 정도 폭
+      const change = (Math.random()-0.5)*20; // ±10
       const nextBase = Math.max(50, Math.round(base + change));
-      // 중앙 기록
       await setDoc(doc(db,"companyPrices", c.name), { current: nextBase, updatedAt: Date.now() }, { merge:true });
-      // 로컬도 즉시 반영(관리자 클라)
-      c.livePrice = nextBase;
+      c.livePrice = nextBase; // 로컬(관리자 클라)도 즉시 갱신
     }
+    scheduleGraphUpdate();
   }
   function startPriceSimulation(){
     if(priceTimer) return;
-    priceTimer = setInterval(updatePrices, updateInterval);
+    priceTimer=setInterval(updatePrices, updateInterval);
     log(`▶️ 그래프 시뮬레이션 시작 (주기: ${Math.round(updateInterval/1000)}초)`);
   }
   function stopPriceSimulation(){
     if(priceTimer){ clearInterval(priceTimer); priceTimer=null; log("⏸️ 그래프 시뮬레이션 정지"); }
   }
   async function resetGraph(){
-    // 중앙 시세를 기준가로 되돌림
     for(const c of companies){
+      c.livePrice=c.basePrice;
       await setDoc(doc(db,"companyPrices", c.name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
-      c.livePrice = c.basePrice;
     }
     // 클라 그래프 리셋
-    chart.data.labels = [];
-    chart.data.datasets.forEach(d=> d.data = []);
-    chart.update();
+    if(chart){
+      chart.data.labels = [];
+      chart.data.datasets.forEach(d=> d.data = []);
+      chart.update();
+    }
     renderCompanies();
     log("🔄 그래프 초기화 완료");
   }
   function applyGraphInterval(){
     const sec = parseInt(document.getElementById("intervalInput").value)||5;
-    updateInterval = Math.max(1, sec)*1000;
+    updateInterval = Math.max(1, sec) * 1000;
     if(priceTimer){
       clearInterval(priceTimer);
       priceTimer = setInterval(updatePrices, updateInterval);
