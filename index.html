@@ -23,15 +23,21 @@
   button { padding:8px 12px; cursor:pointer; border-radius:8px; background:var(--accent); color:var(--ink); border:none; }
   button:hover { background:var(--accentH); }
 
-  /* ✅ 그래프 고정 높이 (버그 방지) */
-  canvas#chart {
-    display:block;
+  /* ✅ 차트 전용 컨테이너 (흰 여백/내려감 방지) */
+  #chartWrap {
+    position:relative;
     margin:20px auto;
+    max-width:1100px;
+    height:400px;   /* 여기서 고정 */
     background:#111827;
     border-radius:10px;
-    max-width:1100px;
-    width:100%;
-    height:400px; /* 고정 높이 */
+    overflow:hidden;
+  }
+  #chart {
+    position:absolute;
+    inset:0;
+    width:100% !important;
+    height:100% !important;
   }
 
   /* 기업 카드 3열 */
@@ -98,8 +104,8 @@
   <button onclick="requestDeposit()">입금 요청</button>
 </div>
 
-<!-- ✅ 그래프 -->
-<canvas id="chart"></canvas>
+<!-- ✅ 그래프 (컨테이너 + 캔버스) -->
+<div id="chartWrap"><canvas id="chart"></canvas></div>
 
 <!-- ✅ 기업 카드 (3열) -->
 <div id="companies"></div>
@@ -600,7 +606,7 @@
   }
 
   /* =========================
-   *  그래프(Chart.js) — 버그 방지 포함
+   *  그래프(Chart.js) — 컨테이너 방식
    * ========================= */
   function initChart(){
     if(chart) return; // ✅ 중복 생성 방지
@@ -615,7 +621,7 @@
       },
       options:{
         responsive:true,
-        maintainAspectRatio:false,
+        maintainAspectRatio:false,   // ✅ 부모(#chartWrap) 크기에 맞춤
         animation:false,
         plugins:{ legend:{position:"bottom"} },
         scales:{
