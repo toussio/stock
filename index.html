@@ -11,11 +11,7 @@
   #userRow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between;}
   #userInfo{font-size:16px;}
 
-  /* ✅ 입금 요청 중앙 정렬 */
-  #depositForm{
-    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    justify-content:center; margin:20px auto;
-  }
+  #depositForm{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin:20px auto;}
   #depositForm input{padding:6px;} 
   #depositForm .memo{min-width:200px;}
 
@@ -30,15 +26,14 @@
   #log{max-height:220px;overflow-y:auto;background:#111827;padding:10px;border-radius:8px;}
   canvas{background:#111827;border-radius:8px;display:block;margin:20px auto;}
 
-  /* 모달 */
   .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:50;}
   .modal-content{background:#1f2937;padding:20px;border-radius:10px;text-align:center;width:min(90%,420px);}
   .modal-content input{margin:8px 0;padding:6px;width:80%;}
 
-  /* 관리자 승인 대기함 */
   #adminQueue{max-width:800px;margin:14px auto 0;display:none;}
   #adminQueue.active{display:block;}
-  .req-card{background:#1f2937;border-radius:8px;padding:10px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .req-card{background:#1f2937;border-radius:8px;padding:10px;margin:8px 0;
+            display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
   .req-meta{font-size:12px;opacity:.9;}
   .badge{padding:2px 6px;border-radius:6px;font-size:12px;}
   .badge.wait{background:#374151;} .badge.approved{background:#065f46;} .badge.rejected{background:#7f1d1d;}
@@ -55,7 +50,6 @@
   </div>
 </div>
 
-<!-- ✅ 입금 요청 -->
 <div id="depositForm">
   <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
   <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
@@ -68,22 +62,12 @@
 <div id="log"></div>
 
 <div style="text-align:center; margin-top:20px;">
-  <button onclick="openAdminModal()">승인 대기함 열기</button>
+  <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
 </div>
 
 <div id="adminQueue">
   <h3>승인 대기함</h3>
   <div id="queueList"></div>
-</div>
-
-<!-- 관리자 코드 모달 -->
-<div id="adminModal" class="modal">
-  <div class="modal-content">
-    <h2>관리자 코드 입력</h2>
-    <input type="password" id="adminCodeInput" placeholder="관리자 코드"><br>
-    <button onclick="checkAdminCode()">확인</button>
-    <button onclick="closeAdminModal()">취소</button>
-  </div>
 </div>
 
 <!-- 로그인 모달 -->
@@ -112,37 +96,25 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, setDoc, query, where, increment } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, query, where, increment, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
   import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
-    authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
-    projectId: "cotyledons-of-stock-a1241",
-    storageBucket: "cotyledons-of-stock-a1241.appspot.com",
-    messagingSenderId: "962984742513",
-    appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
-    measurementId: "G-NRPT075Q3X"
-  };
+  const firebaseConfig = { /* 🔑 Firebase 설정 */ };
   const app = initializeApp(firebaseConfig);
   const db = initializeFirestore(app,{experimentalForceLongPolling:true,useFetchStreams:false});
   const auth = getAuth(app);
 
   let player={holdings:{},cash:5000000};
   let currentUser=null;
-  let pendingDeposits=[];
-  let pendingWithdrawals=[];
   let chart=null;
+  let pendingDeposits=[], pendingWithdrawals=[];
 
-  /* ====== 유틸 ====== */
   function log(msg){ logDiv.innerHTML=`<div>${msg}</div>`+logDiv.innerHTML; }
   const logDiv=document.getElementById('log');
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${player.cash.toLocaleString()} KRW`; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
 
-  /* ====== 차트 ====== */
-  function updateChart(){ const ctx=document.getElementById('chart').getContext('2d'); const labels=companies[0].history.map((_,i)=>i); const datasets=companies.map(c=>({label:c.name,data:c.history,borderWidth:2,fill:false,tension:0.2})); if(!chart){ chart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true}});} else {chart.data.labels=labels; chart.data.datasets.forEach((d,i)=>d.data=companies[i].history); chart.update();} }
-
+  /* ===== 종목 ===== */
   const companies=[
     {name:"떡잎방범대",price:1000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
     {name:"카스틸로",price:500,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
@@ -153,52 +125,67 @@
     {name:"올드보이",price:500,history:[500],cfg:{vol:0.07,drift:0.000,jumpProb:0.02,jumpVol:0.30,min:1}},
     {name:"작두",price:800,history:[800],cfg:{vol:0.10,drift:0.004,jumpProb:0.05,jumpVol:0.40,min:1}}
   ];
-
-  function renderCompanies(){ companiesDiv.innerHTML=""; companies.forEach(c=>{const held=player.holdings[c.name]||0; const inputId=`qty-${c.name}`; const div=document.createElement("div"); div.className="company"; div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유:${held}주</div><div class="actions"><input type="number" id="${inputId}" value="1" min="1"><button onclick="buy('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매수</button><button onclick="sell('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매도</button></div>`; companiesDiv.appendChild(div);}); renderUserInfo(); updateChart();}
   const companiesDiv=document.getElementById('companies');
+  function renderCompanies(){ companiesDiv.innerHTML=""; companies.forEach(c=>{const held=player.holdings[c.name]||0; const inputId=`qty-${c.name}`; const div=document.createElement("div"); div.className="company"; div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유:${held}주</div><div class="actions"><input type="number" id="${inputId}" value="1" min="1"><button onclick="buy('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매수</button><button onclick="sell('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매도</button></div>`; companiesDiv.appendChild(div);}); renderUserInfo(); updateChart();}
   function startAuto(){ setInterval(()=>{companies.forEach(c=>{let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift;if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol;c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock)));c.history.push(c.price);});renderCompanies();},5000); }
+
+  function updateChart(){ const ctx=document.getElementById('chart').getContext('2d'); const labels=companies[0].history.map((_,i)=>i); const datasets=companies.map(c=>({label:c.name,data:c.history,borderWidth:2,fill:false,tension:0.2})); if(!chart){ chart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true}});} else {chart.data.labels=labels; chart.data.datasets.forEach((d,i)=>d.data=companies[i].history); chart.update();} }
 
   /* ===== 거래 ===== */
   async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"),entry); }
   function buy(name,qty){ if(!currentUser)return alert("로그인 필요"); const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty)return alert("현금 부족"); player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty; saveTradeLog({date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,type:"매수",company:name,qty,price:c.price,cash:player.cash}); log(`✅ 매수:${name} ${qty}주`); renderCompanies();}
   function sell(name,qty){ if(!currentUser)return alert("로그인 필요"); const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty)return alert("보유 부족"); player.cash+=c.price*qty; player.holdings[name]-=qty; saveTradeLog({date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,type:"매도",company:name,qty,price:c.price,cash:player.cash}); log(`✅ 매도:${name} ${qty}주`); renderCompanies(); }
 
-  /* ===== 입금 ===== */
+  /* ===== 입출금 요청 ===== */
   async function requestDeposit(){ if(!currentUser)return alert("로그인 필요"); const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); const memo=cashMemo.value.trim(); if(!acct||amount<=0)return alert("잘못된 입력"); const req={id:"REQ-"+Date.now(),date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,acct,amount,memo,status:"대기",type:"입금"}; await addDoc(collection(db,"pendingDeposits"),req); log(`📨 입금 요청:${amount.toLocaleString()} KRW`); acctNo.value=""; cashAmount.value=""; cashMemo.value=""; }
-
-  /* ===== 출금 ===== */
   function openWithdrawModal(){ withdrawModal.style.display="flex"; }
   function closeWithdrawModal(){ withdrawModal.style.display="none"; }
   async function submitWithdraw(){ if(!currentUser)return alert("로그인 필요"); const id=withdrawId.value.trim(); const name=withdrawName.value.trim(); const amount=parseInt(withdrawAmount.value)||0; const memo=withdrawMemo.value.trim(); if(!id||!name||amount<=0)return alert("입력 오류"); const req={id:"WREQ-"+Date.now(),date:new Date().toLocaleString(),uid:currentUser.uid,userId:id,userName:name,amount,memo,status:"대기",type:"출금"}; await addDoc(collection(db,"pendingWithdrawals"),req); log(`💸 출금 요청:${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
 
-  /* ===== 대기열 ===== */
+  /* ===== 관리자 대기열 ===== */
   function listenDeposits(){ onSnapshot(collection(db,"pendingDeposits"),snap=>{pendingDeposits=[];snap.forEach(d=>pendingDeposits.push(d.data()));renderQueue();}); }
   function listenWithdrawals(){ onSnapshot(collection(db,"pendingWithdrawals"),snap=>{pendingWithdrawals=[];snap.forEach(d=>pendingWithdrawals.push(d.data()));renderQueue();}); }
-
   function renderQueue(){ if(!adminQueue.classList.contains("active"))return; queueList.innerHTML=""; const combined=[...pendingDeposits,...pendingWithdrawals].sort((a,b)=>new Date(b.date)-new Date(a.date)); if(combined.length===0)return queueList.innerHTML='<div class="req-card">대기 없음</div>'; combined.forEach(req=>{const badgeClass=req.status==='대기'?'wait':(req.status==='승인'?'approved':'rejected'); const div=document.createElement("div"); div.className="req-card"; div.innerHTML=`<div><div><strong>${req.userName}(${req.userId})</strong> - ${req.amount.toLocaleString()} KRW <span class="badge ${badgeClass}">${req.status}</span> [${req.type}]</div><div class="req-meta">ID:${req.id} | ${req.date} | 메모:${req.memo||"-"}</div></div><div class="req-actions">${req.status==="대기"?(req.type==="출금"?`<button onclick="approveWithdrawal('${req.id}')">승인</button><button onclick="rejectWithdrawal('${req.id}')">거절</button>`:`<button onclick="approveDeposit('${req.id}')">승인</button><button onclick="rejectDeposit('${req.id}')">거절</button>`):`<span>처리됨</span>`}</div>`; queueList.appendChild(div); }); }
+  function toggleAdminQueue(){ adminQueue.classList.toggle("active"); renderQueue(); }
 
-  /* ===== 관리자 모달 ===== */
-  function openAdminModal(){ adminModal.style.display="flex"; }
-  function closeAdminModal(){ adminModal.style.display="none"; }
-  function checkAdminCode(){ if(adminCodeInput.value.trim()==="ADMIN123"){ closeAdminModal(); adminQueue.classList.add("active"); renderQueue(); } else alert("❌ 잘못된 코드"); }
+  /* ===== 승인/거절 ===== */
+  async function approveDeposit(id){ const snap=await getDocs(collection(db,"pendingDeposits")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingDeposits",d.id),{status:"승인"}); await updateDoc(doc(db,"users",data.uid),{cash:increment(data.amount)}); if(currentUser && currentUser.uid===data.uid){ player.cash+=data.amount; renderUserInfo(); } log(`✅ 입금 승인: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function rejectDeposit(id){ const snap=await getDocs(collection(db,"pendingDeposits")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingDeposits",d.id),{status:"거절"}); log(`⛔ 입금 거절: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function approveWithdrawal(id){ const snap=await getDocs(collection(db,"pendingWithdrawals")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingWithdrawals",d.id),{status:"승인"}); await updateDoc(doc(db,"users",data.uid),{cash:increment(-data.amount)}); if(currentUser && currentUser.uid===data.uid){ player.cash-=data.amount; renderUserInfo(); } log(`✅ 출금 승인: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function rejectWithdrawal(id){ const snap=await getDocs(collection(db,"pendingWithdrawals")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingWithdrawals",d.id),{status:"거절"}); log(`⛔ 출금 거절: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
 
-  /* ===== 로그인/로그아웃 ===== */
+  /* ===== 로그인 / 자동로그인 ===== */
   async function newAnonymousLogin(){ if(!auth.currentUser){return signInAnonymously(auth);} return auth.currentUser; }
   newAnonymousLogin();
-  onAuthStateChanged(auth,(user)=>{ if(user){ loginModal.style.display="flex"; startBtn.onclick=async()=>{const cid=customId.value.trim(); const cname=customName.value.trim(); if(!cid||!cname)return alert("입력필수"); const dupSnap=await getDocs(query(collection(db,"users"),where("id","==",cid))); let inUse=false; dupSnap.forEach(d=>{if(d.data().active===true)inUse=true;}); if(inUse)return alert("이미 사용중"); currentUser={uid:user.uid,id:cid,name:cname,cash:player.cash}; await setDoc(doc(db,"users",user.uid),{uid:user.uid,id:cid,name:cname,cash:player.cash,active:true,createdAt:new Date()}); loginModal.style.display="none"; renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals(); log(`✅ 로그인:${cname}`); }; }});
+  onAuthStateChanged(auth, async (user)=>{ 
+    if(user){ 
+      const ref=doc(db,"users",user.uid);
+      const snap=await getDoc(ref);
+      if(snap.exists() && snap.data().active){
+        const data=snap.data();
+        currentUser={uid:user.uid,id:data.id,name:data.name,cash:data.cash};
+        loginModal.style.display="none";
+        renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
+        log(`🔄 자동 로그인: ${data.name}`);
+      } else {
+        loginModal.style.display="flex";
+        startBtn.onclick=async()=>{ 
+          const cid=customId.value.trim(); const cname=customName.value.trim();
+          if(!cid||!cname)return alert("입력필수");
+          currentUser={uid:user.uid,id:cid,name:cname,cash:player.cash};
+          await setDoc(ref,{...currentUser,active:true,createdAt:new Date()});
+          loginModal.style.display="none"; renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
+          log(`✅ 로그인: ${cname}`);
+        };
+      }
+    }
+  });
+
   async function logout(){ if(currentUser)await updateDoc(doc(db,"users",currentUser.uid),{active:false}); if(auth.currentUser)await signOut(auth); location.reload(); }
 
-  /* ===== 승인/거절 함수 (단순 로그 기록만, 필요시 보완) ===== */
-  async function approveDeposit(id){ log("✅ 입금 승인:"+id); }
-  async function rejectDeposit(id){ log("⛔ 입금 거절:"+id); }
-  async function approveWithdrawal(id){ log("✅ 출금 승인:"+id); }
-  async function rejectWithdrawal(id){ log("⛔ 출금 거절:"+id); }
-
-  /* ===== 전역 바인딩 ===== */
-  window.buy=buy; window.sell=sell; 
-  window.requestDeposit=requestDeposit;
+  window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
   window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw;
-  window.openAdminModal=openAdminModal; window.closeAdminModal=closeAdminModal; window.checkAdminCode=checkAdminCode; 
+  window.toggleAdminQueue=toggleAdminQueue; 
   window.logout=logout;
   window.approveDeposit=approveDeposit; window.rejectDeposit=rejectDeposit;
   window.approveWithdrawal=approveWithdrawal; window.rejectWithdrawal=rejectWithdrawal;
