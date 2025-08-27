@@ -101,19 +101,21 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  // ✅ 실제 firebaseConfig (storageBucket 수정)
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_MSG_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
+    authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
+    projectId: "cotyledons-of-stock-a1241",
+    storageBucket: "cotyledons-of-stock-a1241.appspot.com",
+    messagingSenderId: "962984742513",
+    appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
+    measurementId: "G-NRPT075Q3X"
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // ✅ DOM 요소 캐싱
+  // ✅ DOM 요소
   const userInfo = document.getElementById("userInfo");
   const companiesDiv = document.getElementById("companies");
   const acctNo = document.getElementById("acctNo");
@@ -130,11 +132,13 @@
 
   let player = { holdings:{}, cash:5000000 };
   let currentUser = null;
+  let chart = null;
 
   function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
 
+  // ✅ 회사 목록
   const companies=[{name:"떡잎방범대",price:1000,history:[1000]},{name:"카스틸로",price:500,history:[500]},{name:"사쿠라",price:500,history:[500]},{name:"청룡",price:500,history:[500]},{name:"경찰청",price:500,history:[500]},{name:"EMS",price:500,history:[500]},{name:"올드보이",price:500,history:[500]},{name:"작두",price:800,history:[800]}];
 
   function renderCompanies(){
@@ -156,18 +160,23 @@
     renderUserInfo();
   }
 
+  // ✅ 거래 내역 저장
   async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"),{date:new Date().toLocaleString(),userId:currentUser.id,userName:currentUser.name,...entry}); }
   function buy(name,qty){ const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty) return alert('현금 부족'); player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty; saveTradeLog({type:'매수',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매수`); renderCompanies(); }
   function sell(name,qty){ const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty) return alert('보유 부족'); player.cash+=c.price*qty; player.holdings[name]-=qty; saveTradeLog({type:'매도',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매도`); renderCompanies(); }
 
+  // ✅ 입금 요청
   async function requestDeposit(){ const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); if(!acct||amount<=0) return alert('입력 오류'); const req={id:'REQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,acct,amount,status:'대기',type:'입금'}; await addDoc(collection(db,'pendingDeposits'),req); log(`📨 입금 요청: ${amount.toLocaleString()} KRW`); }
 
+  // ✅ 출금 요청
   function openWithdrawModal(){ withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex'; }
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
   async function submitWithdraw(){ const amount=parseInt(withdrawAmount.value)||0; if(amount<=0) return alert('금액 오류'); const req={id:'WREQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,amount,status:'대기',type:'출금'}; await addDoc(collection(db,'pendingWithdrawals'),req); log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
 
+  // ✅ 관리자 대기함
   function toggleAdminQueue(){ adminQueue.classList.toggle('active'); }
 
+  // ✅ 로그인 처리
   window.onload=()=>{ 
     const saved=localStorage.getItem('stockUser');
     if(saved){ 
@@ -194,10 +203,10 @@
 
     try {
       await setDoc(doc(db, "users", cid), currentUser);
-      console.log("Firestore 저장 완료");
+      console.log("✅ Firestore 저장 완료:", currentUser);
     } catch (e) {
-      console.error("Firestore 저장 오류:", e);
-      alert("DB 저장 중 오류가 발생했습니다. (localStorage에는 저장됨)");
+      console.error("❌ Firestore 저장 오류:", e);
+      alert("DB 저장 오류: " + e.message);
     }
 
     localStorage.setItem("stockUser", JSON.stringify(currentUser));
@@ -210,6 +219,7 @@
 
   function logout(){ localStorage.removeItem('stockUser'); location.reload(); }
 
+  // ✅ 전역 바인딩
   window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit; window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw; window.toggleAdminQueue=toggleAdminQueue; window.logout=logout;
 </script>
 </body>
