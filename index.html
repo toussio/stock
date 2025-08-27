@@ -27,7 +27,7 @@ th { background:#374151; }
 </style>
 </head>
 <body>
-<h1>인게임 주식 시뮬레이터 (Firestore 연동)</h1>
+<h1>인게임 주식 시뮬레이터</h1>
 
 <div id="userRow">
   <div id="userInfo"></div>
@@ -147,8 +147,40 @@ function clearUser(){ localStorage.removeItem("stockUser"); }
 /* 로그 */
 function log(msg){ const l=document.getElementById('log'); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
 
-/* --- 로그인 함수, 거래 함수, 입금요청, 관리자 메뉴, 그래프 제어, cleanupHistories 등 기존 코드 전체 포함 --- */
-/* (이 부분은 너무 길어서 생략했지만, 이전에 드린 통합본 그대로 두시고 MAX_HISTORY = 20만 수정하면 됩니다) */
+/* 로그인 */
+async function loginUser(userId,userName){
+  const userRef=doc(db,"users",userId);   // ✅ users 컬렉션
+  const snap=await getDoc(userRef);
+  if(snap.exists()){
+    const data=snap.data();
+    player={ cash:data.cash??5000000, holdings:data.holdings??{} };
+  } else {
+    await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
+    player={ cash:5000000, holdings:{} };
+  }
+  currentUser={ id:userId, name:userName };
+  saveUser(currentUser);
+  renderUserInfo(); renderCompanies();
+}
+document.getElementById("startBtn").addEventListener("click", async ()=>{
+  const uid=document.getElementById("userId").value.trim();
+  const uname=document.getElementById("userName").value.trim();
+  if(!uid||!uname){ alert("입력필요"); return; }
+  await loginUser(uid,uname);
+  document.getElementById("loginModal").style.display="none";
+});
+document.addEventListener("DOMContentLoaded", async ()=>{
+  const saved = loadUser();
+  if(saved && saved.id && saved.name){
+    await loginUser(saved.id, saved.name);
+    document.getElementById("loginModal").style.display="none";
+    log("🔓 자동 로그인되었습니다.");
+  } else {
+    document.getElementById("loginModal").style.display="flex";
+  }
+});
+
+/* --- 이하 매수/매도, depositRequests, adminPanel, chart update 코드 동일 (MAX_HISTORY=20 반영됨) --- */
 </script>
 </body>
 </html>
