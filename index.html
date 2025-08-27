@@ -99,7 +99,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { initializeFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
@@ -111,18 +111,30 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = initializeFirestore(app,{experimentalForceLongPolling:true,useFetchStreams:false});
+  const db = getFirestore(app);
 
-  let player={ holdings:{}, cash:5000000 };
-  let currentUser=null;
-  let chart=null;
+  // ✅ DOM 요소 캐싱
+  const userInfo = document.getElementById("userInfo");
+  const companiesDiv = document.getElementById("companies");
+  const acctNo = document.getElementById("acctNo");
+  const cashAmount = document.getElementById("cashAmount");
+  const cashMemo = document.getElementById("cashMemo");
+  const logDiv = document.getElementById("log");
+  const loginModal = document.getElementById("loginModal");
+  const withdrawModal = document.getElementById("withdrawModal");
+  const withdrawId = document.getElementById("withdrawId");
+  const withdrawName = document.getElementById("withdrawName");
+  const withdrawAmount = document.getElementById("withdrawAmount");
+  const withdrawMemo = document.getElementById("withdrawMemo");
+  const adminQueue = document.getElementById("adminQueue");
 
-  const logDiv=document.getElementById('log');
-  function log(msg){ logDiv.innerHTML=`<div>${msg}</div>`+logDiv.innerHTML; }
+  let player = { holdings:{}, cash:5000000 };
+  let currentUser = null;
+
+  function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
 
-  /* 종목 */
   const companies=[{name:"떡잎방범대",price:1000,history:[1000]},{name:"카스틸로",price:500,history:[500]},{name:"사쿠라",price:500,history:[500]},{name:"청룡",price:500,history:[500]},{name:"경찰청",price:500,history:[500]},{name:"EMS",price:500,history:[500]},{name:"올드보이",price:500,history:[500]},{name:"작두",price:800,history:[800]}];
 
   function renderCompanies(){
@@ -144,23 +156,18 @@
     renderUserInfo();
   }
 
-  /* 거래 */
   async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"),{date:new Date().toLocaleString(),userId:currentUser.id,userName:currentUser.name,...entry}); }
   function buy(name,qty){ const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty) return alert('현금 부족'); player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty; saveTradeLog({type:'매수',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매수`); renderCompanies(); }
   function sell(name,qty){ const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty) return alert('보유 부족'); player.cash+=c.price*qty; player.holdings[name]-=qty; saveTradeLog({type:'매도',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매도`); renderCompanies(); }
 
-  /* 입금 */
   async function requestDeposit(){ const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); if(!acct||amount<=0) return alert('입력 오류'); const req={id:'REQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,acct,amount,status:'대기',type:'입금'}; await addDoc(collection(db,'pendingDeposits'),req); log(`📨 입금 요청: ${amount.toLocaleString()} KRW`); }
 
-  /* 출금 */
   function openWithdrawModal(){ withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex'; }
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
   async function submitWithdraw(){ const amount=parseInt(withdrawAmount.value)||0; if(amount<=0) return alert('금액 오류'); const req={id:'WREQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,amount,status:'대기',type:'출금'}; await addDoc(collection(db,'pendingWithdrawals'),req); log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
 
-  /* 관리자 대기함 */
   function toggleAdminQueue(){ adminQueue.classList.toggle('active'); }
 
-  /* 로그인 */
   window.onload=()=>{ 
     const saved=localStorage.getItem('stockUser');
     if(saved){ 
@@ -171,11 +178,9 @@
     } else { 
       loginModal.style.display='flex';
     }
-    // 안전장치
     setTimeout(()=>{ if(!currentUser){ loginModal.style.display='flex'; }},1000);
   };
 
-  // 시작 버튼 (수정된 부분)
   document.getElementById("startBtn").onclick = async () => {
     const cid = document.getElementById("customId").value.trim();
     const cname = document.getElementById("customName").value.trim();
@@ -196,7 +201,7 @@
     }
 
     localStorage.setItem("stockUser", JSON.stringify(currentUser));
-    document.getElementById("loginModal").style.display = "none";
+    loginModal.style.display = "none";
 
     renderUserInfo();
     renderCompanies();
@@ -205,7 +210,6 @@
 
   function logout(){ localStorage.removeItem('stockUser'); location.reload(); }
 
-  /* 전역 바인딩 */
   window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit; window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw; window.toggleAdminQueue=toggleAdminQueue; window.logout=logout;
 </script>
 </body>
