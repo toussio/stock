@@ -42,6 +42,7 @@ canvas { background:#111827; border-radius:8px; display:block; margin:20px auto;
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc,
   onSnapshot
@@ -52,11 +53,13 @@ const firebaseConfig = {
   apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
   authDomain: "cotyledons-of-stock.firebaseapp.com",
   projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",  /* 반드시 appspot.com */
+  storageBucket: "cotyledons-of-stock.appspot.com",  // ✅ 반드시 appspot.com
   messagingSenderId: "343488842605",
-  appId: "1:343488842605:web:f4c1205568f5994d55e864"
+  appId: "1:343488842605:web:f4c1205568f5994d55e864",
+  measurementId: "G-YB960D84W4"
 };
 const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 const db  = getFirestore(app);
 
 /* 상태 */
