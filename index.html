@@ -7,20 +7,20 @@
 <style>
   body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
   h1 { text-align:center; }
-  #userRow,#log { margin:20px auto; max-width:900px; }
+  #userRow,#log { margin:20px auto; max-width:1100px; }
   #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
   #userInfo { font-size:16px; }
   #depositForm { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin:20px auto; }
   #depositForm input { padding:6px; }
   #depositForm .memo { min-width:200px; }
 
-  /* 기업 카드 2열 */
+  /* 기업 카드 3열 */
   #companies {
     display:grid;
-    grid-template-columns:repeat(2,1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:12px;
     margin:20px auto;
-    max-width:900px;
+    max-width:1100px;
   }
   .company {
     background:#1f2937;
@@ -109,14 +109,15 @@
   <button onclick="checkAdmin()">관리자 로그인</button>
 </div>
 
-<!-- 관리자 패널들 -->
-<div id="adminPanelUsers" style="display:none; max-width:900px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
+<!-- 관리자 패널 : 유저 관리 (강제 로그아웃) -->
+<div id="adminPanelUsers" style="display:none; max-width:1100px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
   <button onclick="closeAdmin('adminPanelUsers')" style="position:absolute; top:8px; right:8px; background:#7f1d1d; border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer;">✕</button>
   <h3>👑 강제 로그아웃 패널</h3>
   <div id="userList"></div>
 </div>
 
-<div id="adminPanelFinance" style="display:none; max-width:900px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
+<!-- 관리자 패널 : 입출금 관리 -->
+<div id="adminPanelFinance" style="display:none; max-width:1100px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
   <button onclick="closeAdmin('adminPanelFinance')" style="position:absolute; top:8px; right:8px; background:#7f1d1d; border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer;">✕</button>
   <h3>💰 입출금 요청 패널</h3>
   <h4>입금 요청</h4>
@@ -125,7 +126,8 @@
   <div id="withdrawRequests"></div>
 </div>
 
-<div id="adminPanelStock" style="display:none; max-width:900px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
+<!-- 관리자 패널 : 주가 조정(가격/배율) -->
+<div id="adminPanelStock" style="display:none; max-width:1100px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px; position:relative;">
   <button onclick="closeAdmin('adminPanelStock')" style="position:absolute; top:8px; right:8px; background:#7f1d1d; border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer;">✕</button>
   <h3>📈 주가 조정 패널</h3>
   <div id="stockTuner"></div>
@@ -136,6 +138,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  /* Firebase 설정 */
   const firebaseConfig = {
     apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
     authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
@@ -149,6 +152,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
+  /* 엘리먼트 */
   const userInfo=document.getElementById("userInfo");
   const companiesDiv=document.getElementById("companies");
   const acctNo=document.getElementById("acctNo");
@@ -162,26 +166,33 @@
   const withdrawAmount=document.getElementById("withdrawAmount");
   const withdrawMemo=document.getElementById("withdrawMemo");
 
+  /* 상태 */
   let player={holdings:{},cash:5000000};
   let currentUser=null;
   let unsubscribeUser=null;
 
+  /* 유틸 */
   function log(msg){ logDiv.innerHTML=`<div>${msg}</div>`+logDiv.innerHTML; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
 
+  /* 회사 데이터 (11개) */
   const companies=[
     {name:"떡잎방범대",price:1000,multiplier:1},
     {name:"카스틸로",price:500,multiplier:1},
     {name:"사쿠라",price:500,multiplier:1},
     {name:"청룡",price:500,multiplier:1},
     {name:"경찰청",price:500,multiplier:1},
-    {name:"EMS",price:500,multiplier:1},
+    {name:"Ems",price:500,multiplier:1},       // ← 표기: Ems
     {name:"올드보이",price:500,multiplier:1},
     {name:"작두",price:800,multiplier:1},
+    {name:"빅딕",price:700,multiplier:1},
+    {name:"유토피아",price:600,multiplier:1},
+    {name:"inback",price:550,multiplier:1}     // ← 소문자 유지
   ];
-  const getCurrentPrice=(c)=>Math.max(1,Math.floor((c.price||0)*(c.multiplier||1)));
+  const getCurrentPrice = (c)=> Math.max(1, Math.floor((c.price||0) * (c.multiplier||1)));
 
+  /* 기업 카드 렌더 (3열, 배율표시 없음) */
   function renderCompanies(){
     companiesDiv.innerHTML='';
     companies.forEach(c=>{
@@ -205,6 +216,7 @@
     renderUserInfo();
   }
 
+  /* 거래 */
   async function saveTradeLog(entry){
     if(!currentUser) return;
     try{
@@ -233,7 +245,7 @@
     renderCompanies();
   }
 
-  /* ✅ 입금/출금 요청 (userId, userName 저장) */
+  /* 입금/출금 요청 */
   async function requestDeposit(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     const acct=acctNo.value.trim(); 
@@ -255,7 +267,6 @@
     catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
     log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
   }
-
   function openWithdrawModal(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex';
@@ -283,7 +294,7 @@
     closeWithdrawModal();
   }
 
-  /* === 로그인 + 현재 유저 실시간 구독 === */
+  /* 로그인 + 현재 유저 실시간 구독 */
   function subscribeCurrentUser(uid){
     if(unsubscribeUser) { unsubscribeUser(); unsubscribeUser=null; }
     const uref=doc(db,"users",uid);
@@ -309,7 +320,7 @@
     }else{
       loginModal.style.display='flex';
     }
-    subscribeCompanySettings();
+    subscribeCompanySettings(); // 회사 설정 실시간 반영
   };
 
   document.getElementById("startBtn").onclick = async () => {
@@ -347,7 +358,7 @@
     location.reload();
   }
 
-  /* === 관리자 (SECRET1234, ADMIN123, stock123) === */
+  /* 관리자 (SECRET1234, ADMIN123, stock123) */
   function checkAdmin() {
     const code = document.getElementById("adminCode").value.trim();
     if (code === "SECRET1234") {
@@ -371,6 +382,7 @@
     document.getElementById("adminLogin").style.display = "block";
   }
 
+  /* 관리자: 유저 실시간 목록 & 강제 로그아웃 */
   function subscribeUsers() {
     onSnapshot(collection(db, "users"), (snap) => {
       const userList = document.getElementById("userList");
@@ -390,6 +402,7 @@
     catch (e) { console.error("강제 로그아웃 실패:", e); }
   }
 
+  /* 관리자: 입/출금 요청 실시간 */
   function subscribeRequests() {
     const depQ = query(collection(db, "pendingDeposits"), where("status", "==", "대기"));
     onSnapshot(depQ, (snap) => {
@@ -456,6 +469,7 @@
     catch (e) { console.error("거절 실패:", e); }
   }
 
+  /* 주가 조정 패널 */
   function renderStockTuner(){
     const wrap=document.getElementById('stockTuner');
     let html='';
@@ -498,11 +512,16 @@
     }catch(e){ console.error('배율 변경 실패:',e); }
   }
 
+  /* 회사 설정 실시간 반영 (대소문자 무시 매칭 지원) */
   function subscribeCompanySettings(){
     onSnapshot(collection(db,'companySettings'), (snap)=>{
       let changed=false;
       snap.forEach(d=>{
-        const data=d.data(); const c=companies.find(x=>x.name===d.id);
+        const data=d.data();
+        let c = companies.find(x=>x.name===d.id);
+        if(!c){ // 이전 'EMS' 같은 대소문자 차이 대응
+          c = companies.find(x=>x.name.toLowerCase()===d.id.toLowerCase());
+        }
         if(c){
           if(typeof data.price==='number') c.price=data.price;
           if(typeof data.multiplier==='number') c.multiplier=data.multiplier;
@@ -518,6 +537,7 @@
     });
   }
 
+  /* 전역 바인딩 */
   window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
   window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal;
   window.submitWithdraw=submitWithdraw; window.logout=logout;
