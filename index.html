@@ -1,63 +1,59 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>떡잎방범대 주식 센터</title>
 <style>
-  /* ===== 기본 스타일 ===== */
   body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
   h1 { text-align:center; }
-  #userRow, #log { margin:20px auto; max-width:900px; }
+  #userRow,#log { margin:20px auto; max-width:800px; }
   #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
   #userInfo { font-size:16px; }
 
-  /* ===== 입금 요청 줄(가운데 정렬) ===== */
-  #depositForm { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin:20px auto; max-width:900px; }
+  #depositForm { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin:20px auto; }
   #depositForm input { padding:6px; }
   #depositForm .memo { min-width:200px; }
 
-  /* ===== 종목 카드 ===== */
-  #companies { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin:20px auto; max-width:900px; }
+  #companies { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:20px auto; max-width:800px; }
   .company { padding:10px; background:#1f2937; border-radius:8px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .company .left { display:flex; flex-direction:column; gap:6px; }
   .company .actions { display:flex; gap:6px; align-items:center; }
   .company .actions input[type="number"] { width:60px; padding:4px; }
 
-  /* ===== 버튼 / 로그 / 차트 ===== */
   button { padding:6px 12px; cursor:pointer; border-radius:6px; background:#334155; color:#e5e7eb; border:none; }
   button:hover { background:#475569; }
+
   #log { max-height:240px; overflow-y:auto; background:#111827; padding:10px; border-radius:8px; }
   canvas { background:#111827; border-radius:8px; display:block; margin:20px auto; }
 
-  /* ===== 모달 공통 ===== */
-  .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:50; }
-  .modal-content { background:#1f2937; padding:20px; border-radius:10px; text-align:center; width:min(90%, 520px); max-height:80vh; overflow-y:auto; }
-  .modal-content input { margin:8px 0; padding:6px; width:80%; }
-
-  /* ===== 관리자 승인 카드 ===== */
-  .req-card { background:#111827; border-radius:8px; padding:12px; margin:10px 0; text-align:left; }
-  .req-meta { font-size:12px; opacity:.9; margin-top:6px; }
-  .badge { padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
+  #adminToggleWrap { text-align:center; margin-top:20px; }
+  #adminQueue { max-width:800px; margin:14px auto 0; display:none; }
+  #adminQueue.active { display:block; }
+  .req-card { background:#1f2937; border-radius:8px; padding:10px; margin:8px 0;
+              display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+  .req-meta { font-size:12px; opacity:.9; }
+  .badge { padding:2px 6px; border-radius:6px; font-size:12px; }
   .badge.wait { background:#374151; }
   .badge.approved { background:#065f46; }
   .badge.rejected { background:#7f1d1d; }
+
+  .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:50; }
+  .modal-content { background:#1f2937; padding:20px; border-radius:10px; text-align:center; width:min(90%,420px); }
+  .modal-content input { margin:8px 0; padding:6px; width:80%; }
 </style>
 </head>
 <body>
 <h1>인게임 주식 시뮬레이터</h1>
 
-<!-- 상단 사용자 정보/버튼 -->
 <div id="userRow">
   <div id="userInfo">⏳ 로그인 대기중...</div>
   <div>
-    <button onclick="openWithdrawModal()">출금 요청</button>
-    <button onclick="openAdminModal()">관리자 승인창</button>
     <button onclick="logout()">로그아웃</button>
+    <button onclick="openWithdrawModal()">출금 요청</button>
   </div>
 </div>
 
-<!-- 입금 요청 줄 (가운데 정렬) -->
 <div id="depositForm">
   <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
   <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
@@ -65,10 +61,17 @@
   <button onclick="requestDeposit()">입금 요청</button>
 </div>
 
-<!-- 종목/차트/로그 -->
 <div id="companies"></div>
-<canvas id="chart" width="900" height="400"></canvas>
+<canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
+
+<div id="adminToggleWrap">
+  <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
+</div>
+<div id="adminQueue">
+  <h3>승인 대기함</h3>
+  <div id="queueList"></div>
+</div>
 
 <!-- 로그인 모달 -->
 <div id="loginModal" class="modal">
@@ -93,493 +96,117 @@
   </div>
 </div>
 
-<!-- 관리자 승인 모달 -->
-<div id="adminModal" class="modal">
-  <div class="modal-content">
-    <h2>관리자 승인창</h2>
-    <input type="password" id="adminCode" placeholder="관리자 코드 입력 (ADMIN123)"><br>
-    <button onclick="checkAdmin()">확인</button>
-    <button onclick="closeAdminModal()">닫기</button>
-    <div id="adminQueue" style="margin-top:15px;"></div>
-  </div>
-</div>
-
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<!-- Firebase (CDN 모듈) + 앱 초기화 -->
 <script type="module">
-  /**************************************************************
-   * Firebase 초기화 (Auth 없이 Firestore만 사용)
-   **************************************************************/
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import {
-    initializeFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs,
-    updateDoc, onSnapshot, query, where, orderBy, serverTimestamp, increment
-  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { initializeFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // ⚠️ 실제 프로젝트 값으로 이미 교체됨
   const firebaseConfig = {
-    apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
-    authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
-    projectId: "cotyledons-of-stock-a1241",
-    storageBucket: "cotyledons-of-stock-a1241.appspot.com",
-    messagingSenderId: "962984742513",
-    appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
-    measurementId: "G-NRPT075Q3X"
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_MSG_ID",
+    appId: "YOUR_APP_ID"
   };
+
   const app = initializeApp(firebaseConfig);
-  // 400 Listen 에러 회피 옵션(로컬/일부 호스팅 환경)
-  const db  = initializeFirestore(app, { experimentalForceLongPolling:true, useFetchStreams:false });
+  const db = initializeFirestore(app,{experimentalForceLongPolling:true,useFetchStreams:false});
 
-  /**************************************************************
-   * 전역 상태 / DOM 참조
-   **************************************************************/
-  let player = { holdings:{}, cash: 5_000_000 };
-  let currentUser = null;
-  let chart = null;
-  let autoTimer = null;
+  let player={ holdings:{}, cash:5000000 };
+  let currentUser=null;
+  let chart=null;
 
-  // 관리자 대기열(실시간)
-  let deposits = [];       // Firestore pendingDeposits
-  let withdrawals = [];    // Firestore pendingWithdrawals
-  let unsubDeposits = null;
-  let unsubWithdrawals = null;
-  let unsubUserCash = null;
+  const logDiv=document.getElementById('log');
+  function log(msg){ logDiv.innerHTML=`<div>${msg}</div>`+logDiv.innerHTML; }
+  function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
+  function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`; }
 
-  // DOM
-  const userInfo     = document.getElementById('userInfo');
-  const companiesDiv = document.getElementById('companies');
-  const logDiv       = document.getElementById('log');
-  const loginModal   = document.getElementById('loginModal');
-
-  const acctNo    = document.getElementById('acctNo');
-  const cashAmount= document.getElementById('cashAmount');
-  const cashMemo  = document.getElementById('cashMemo');
-
-  const withdrawModal  = document.getElementById('withdrawModal');
-  const withdrawId     = document.getElementById('withdrawId');
-  const withdrawName   = document.getElementById('withdrawName');
-  const withdrawAmount = document.getElementById('withdrawAmount');
-  const withdrawMemo   = document.getElementById('withdrawMemo');
-
-  const adminModal = document.getElementById('adminModal');
-  const adminQueue = document.getElementById('adminQueue');
-
-  /**************************************************************
-   * 유틸
-   **************************************************************/
-  function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
-  function parseNumber(str){ const n = parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
-  function fmt(n){ return Number(n).toLocaleString(); }
-
-  function renderUserInfo(){
-    if(currentUser){
-      userInfo.innerHTML = `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${fmt(player.cash)} KRW`;
-    } else {
-      userInfo.textContent = '⏳ 로그인 대기중...';
-    }
-  }
-
-  /**************************************************************
-   * 종목 / 시세 / 차트
-   **************************************************************/
-  const companies = [
-    { name:"떡잎방범대", price:1000, history:[1000], cfg:{ vol:0.03, drift:0.002, jumpProb:0.01, jumpVol:0.10, min:1 } },
-    { name:"카스틸로",   price:500,  history:[500],  cfg:{ vol:0.06, drift:-0.001,jumpProb:0.02, jumpVol:0.20, min:1 } },
-    { name:"사쿠라",     price:500,  history:[500],  cfg:{ vol:0.04, drift:0.000, jumpProb:0.00, jumpVol:0.00, min:1 } },
-    { name:"청룡",       price:500,  history:[500],  cfg:{ vol:0.08, drift:0.003, jumpProb:0.03, jumpVol:0.25, min:1 } },
-    { name:"경찰청",     price:500,  history:[500],  cfg:{ vol:0.02, drift:0.001, jumpProb:0.00, jumpVol:0.00, min:1 } },
-    { name:"EMS",       price:500,  history:[500],  cfg:{ vol:0.05, drift:-0.002,jumpProb:0.01, jumpVol:0.15, min:1 } },
-    { name:"올드보이",   price:500,  history:[500],  cfg:{ vol:0.07, drift:0.000, jumpProb:0.02, jumpVol:0.30, min:1 } },
-    { name:"작두",       price:800,  history:[800],  cfg:{ vol:0.10, drift:0.004, jumpProb:0.05, jumpVol:0.40, min:1 } }
-  ];
+  /* 종목 */
+  const companies=[{name:"떡잎방범대",price:1000,history:[1000]},{name:"카스틸로",price:500,history:[500]},{name:"사쿠라",price:500,history:[500]},{name:"청룡",price:500,history:[500]},{name:"경찰청",price:500,history:[500]},{name:"EMS",price:500,history:[500]},{name:"올드보이",price:500,history:[500]},{name:"작두",price:800,history:[800]}];
 
   function renderCompanies(){
-    companiesDiv.innerHTML = '';
-    companies.forEach(c => {
-      const held = player.holdings[c.name] || 0;
-      const inputId = `qty-${c.name}`;
-      const card = document.createElement('div');
-      card.className = 'company';
-      card.innerHTML = `
-        <div class="left">
-          <strong>${c.name}</strong>
-          ${fmt(c.price)} KRW | 보유: ${held}주
-        </div>
+    companiesDiv.innerHTML='';
+    companies.forEach(c=>{
+      const held=player.holdings[c.name]||0;
+      const inputId=`qty-${c.name}`;
+      const div=document.createElement('div');
+      div.className='company';
+      div.innerHTML=`
+        <div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유:${held}주</div>
         <div class="actions">
           <input type="number" id="${inputId}" value="1" min="1">
-          <button onclick="buy('${c.name}', parseInt(document.getElementById('${inputId}').value)||1)">매수</button>
-          <button onclick="sell('${c.name}', parseInt(document.getElementById('${inputId}').value)||1)">매도</button>
+          <button onclick="buy('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매수</button>
+          <button onclick="sell('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매도</button>
         </div>`;
-      companiesDiv.appendChild(card);
+      companiesDiv.appendChild(div);
     });
     renderUserInfo();
-    updateChart();
   }
 
-  function nextTick(){
-    companies.forEach(c=>{
-      const {vol, drift, jumpProb, jumpVol, min} = c.cfg;
-      let shock = (Math.random()*2-1)*vol + drift;
-      if(Math.random() < jumpProb) shock += (Math.random()*2-1)*jumpVol;
-      c.price = Math.max(min, Math.floor(c.price*(1+shock)));
-      c.history.push(c.price);
-    });
-    renderCompanies();
-  }
+  /* 거래 */
+  async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"),{date:new Date().toLocaleString(),userId:currentUser.id,userName:currentUser.name,...entry}); }
+  function buy(name,qty){ const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty) return alert('현금 부족'); player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty; saveTradeLog({type:'매수',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매수`); renderCompanies(); }
+  function sell(name,qty){ const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty) return alert('보유 부족'); player.cash+=c.price*qty; player.holdings[name]-=qty; saveTradeLog({type:'매도',company:name,qty,price:c.price,cash:player.cash}); log(`✅ ${currentUser.name} ${name} ${qty}주 매도`); renderCompanies(); }
 
-  function startAuto(){
-    if(autoTimer) clearInterval(autoTimer);
-    autoTimer = setInterval(nextTick, 5000);
-  }
-  function stopAuto(){ if(autoTimer) clearInterval(autoTimer); }
+  /* 입금 */
+  async function requestDeposit(){ const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); if(!acct||amount<=0) return alert('입력 오류'); const req={id:'REQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,acct,amount,status:'대기',type:'입금'}; await addDoc(collection(db,'pendingDeposits'),req); log(`📨 입금 요청: ${amount.toLocaleString()} KRW`); }
 
-  function updateChart(){
-    const ctx = document.getElementById('chart').getContext('2d');
-    const labels = companies[0].history.map((_,i)=>i);
-    const datasets = companies.map(c => ({ label:c.name, data:c.history, borderWidth:2, fill:false, tension:0.2 }));
-    if(!chart){
-      chart = new Chart(ctx, { type:'line', data:{ labels, datasets }, options:{ responsive:true } });
-    } else {
-      chart.data.labels = labels;
-      chart.data.datasets.forEach((d,i)=> d.data = companies[i].history);
-      chart.update();
-    }
-  }
-
-  /**************************************************************
-   * 거래 & 로그 (Firestore 기록 + 현금 동기화)
-   **************************************************************/
-  async function saveTradeLog(entry){
-    try{
-      await addDoc(collection(db, "tradeLogs"), {
-        createdAt: serverTimestamp(),
-        date: new Date().toLocaleString(),
-        userId: currentUser.id,
-        userName: currentUser.name,
-        ...entry
-      });
-    }catch(e){ console.error("tradeLogs 기록 오류:", e); }
-  }
-
-  async function syncCashToDB(){
-    try {
-      await updateDoc(doc(db, "users", currentUser.id), { cash: player.cash });
-    } catch(e){
-      console.error("현금 동기화 오류:", e);
-    }
-  }
-
-  function buy(name, qty){
-    if(!currentUser) return alert('로그인 필요');
-    const c = companies.find(x=>x.name===name);
-    if(player.cash < c.price*qty) return alert('현금 부족');
-    player.cash -= c.price*qty;
-    player.holdings[name] = (player.holdings[name]||0) + qty;
-
-    saveTradeLog({ type:'매수', company:name, qty, price:c.price, cash:player.cash });
-    syncCashToDB();
-    log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${fmt(c.price)}`);
-    renderCompanies();
-  }
-
-  function sell(name, qty){
-    if(!currentUser) return alert('로그인 필요');
-    const c = companies.find(x=>x.name===name);
-    if((player.holdings[name]||0) < qty) return alert('보유 주식 부족');
-    player.cash += c.price*qty;
-    player.holdings[name] -= qty;
-
-    saveTradeLog({ type:'매도', company:name, qty, price:c.price, cash:player.cash });
-    syncCashToDB();
-    log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${fmt(c.price)}`);
-    renderCompanies();
-  }
-
-  /**************************************************************
-   * 입/출금 요청 (Firestore에 저장)
-   **************************************************************/
-  async function requestDeposit(){
-    if(!currentUser) return alert('로그인 필요');
-    const acct = acctNo.value.trim();
-    const amount = parseNumber(cashAmount.value);
-    const memo = cashMemo.value.trim();
-    if(!acct) return alert('계좌번호를 입력하세요.');
-    if(amount <= 0) return alert('금액을 올바르게 입력하세요.');
-
-    const req = {
-      id: 'REQ-' + Date.now(),
-      createdAt: serverTimestamp(),
-      date: new Date().toLocaleString(),
-      userId: currentUser.id,
-      userName: currentUser.name,
-      acct, amount, memo, status: '대기', type: '입금'
-    };
-    try {
-      await addDoc(collection(db, 'pendingDeposits'), req);
-      log(`📨 입금 요청: ${fmt(amount)} KRW / 계좌:${acct}`);
-      acctNo.value=''; cashAmount.value=''; cashMemo.value='';
-    } catch(e){ console.error("입금 요청 오류:", e); }
-  }
-
-  function openWithdrawModal(){
-    if(!currentUser) return alert('로그인 필요');
-    withdrawId.value = currentUser.id;
-    withdrawName.value = currentUser.name;
-    withdrawAmount.value = '';
-    withdrawMemo.value = '';
-    withdrawModal.style.display = 'flex';
-  }
+  /* 출금 */
+  function openWithdrawModal(){ withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex'; }
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
+  async function submitWithdraw(){ const amount=parseInt(withdrawAmount.value)||0; if(amount<=0) return alert('금액 오류'); const req={id:'WREQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,amount,status:'대기',type:'출금'}; await addDoc(collection(db,'pendingWithdrawals'),req); log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
 
-  async function submitWithdraw(){
-    if(!currentUser) return alert('로그인 필요');
-    const amount = parseInt(withdrawAmount.value)||0;
-    const memo = withdrawMemo.value.trim();
-    if(amount <= 0) return alert('출금 금액 오류');
+  /* 관리자 대기함 */
+  function toggleAdminQueue(){ adminQueue.classList.toggle('active'); }
 
-    const req = {
-      id: 'WREQ-' + Date.now(),
-      createdAt: serverTimestamp(),
-      date: new Date().toLocaleString(),
-      userId: currentUser.id,
-      userName: currentUser.name,
-      amount, memo, status:'대기', type:'출금'
-    };
-    try {
-      await addDoc(collection(db, 'pendingWithdrawals'), req);
-      log(`💸 출금 요청: ${fmt(amount)} KRW`);
-      closeWithdrawModal();
-    } catch(e){ console.error("출금 요청 오류:", e); }
-  }
+  /* 로그인 */
+  window.onload=()=>{ 
+    const saved=localStorage.getItem('stockUser');
+    if(saved){ 
+      try{ currentUser=JSON.parse(saved);}catch(e){ localStorage.removeItem('stockUser'); }
+    }
+    if(currentUser){ 
+      loginModal.style.display='none'; renderUserInfo(); renderCompanies(); log(`🔄 자동 로그인: ${currentUser.name}`);
+    } else { 
+      loginModal.style.display='flex';
+    }
+    // 안전장치
+    setTimeout(()=>{ if(!currentUser){ loginModal.style.display='flex'; }},1000);
+  };
 
-  /**************************************************************
-   * 관리자 승인 모달 / 실시간 대기열
-   **************************************************************/
-  function openAdminModal(){
-    adminModal.style.display = 'flex';
-    renderAdminQueue();
-  }
-  function closeAdminModal(){ adminModal.style.display = 'none'; }
-  function checkAdmin(){
-    const code = document.getElementById('adminCode').value.trim();
-    if(code !== 'ADMIN123'){ alert('관리자 코드가 올바르지 않습니다.'); return; }
-    renderAdminQueue();
-  }
+  // 시작 버튼 (수정된 부분)
+  document.getElementById("startBtn").onclick = async () => {
+    const cid = document.getElementById("customId").value.trim();
+    const cname = document.getElementById("customName").value.trim();
 
-  // Firestore 실시간 리스너
-  function startRequestsListeners(){
-    // 입금 대기열
-    const depCol = collection(db, 'pendingDeposits');
-    unsubDeposits = onSnapshot(depCol, snap=>{
-      deposits = [];
-      snap.forEach(d => deposits.push({ _ref:d.ref, ...d.data() }));
-      renderAdminQueue();
-    });
-
-    // 출금 대기열
-    const wdrCol = collection(db, 'pendingWithdrawals');
-    unsubWithdrawals = onSnapshot(wdrCol, snap=>{
-      withdrawals = [];
-      snap.forEach(d => withdrawals.push({ _ref:d.ref, ...d.data() }));
-      renderAdminQueue();
-    });
-  }
-
-  function renderAdminQueue(){
-    if(adminModal.style.display !== 'flex') return; // 모달 열렸을 때만 렌더
-    const container = adminQueue;
-    container.innerHTML = '';
-
-    const list = [...deposits, ...withdrawals].sort((a,b)=>{
-      const ta = a.createdAt?.toMillis?.() ?? Date.parse(a.date) ?? 0;
-      const tb = b.createdAt?.toMillis?.() ?? Date.parse(b.date) ?? 0;
-      return tb - ta;
-    });
-
-    if(list.length === 0){
-      container.innerHTML = `<div class="req-card">대기 중인 요청이 없습니다.</div>`;
+    if (!cid || !cname) {
+      alert("고유번호와 이름을 입력하세요.");
       return;
     }
 
-    const codeOk = document.getElementById('adminCode').value.trim() === 'ADMIN123';
+    currentUser = { id: cid, name: cname, cash: player.cash };
 
-    list.forEach(req=>{
-      const badgeClass = req.status==='대기' ? 'wait' : (req.status==='승인' ? 'approved' : 'rejected');
-      const div = document.createElement('div');
-      div.className = 'req-card';
-      div.innerHTML = `
-        <div>
-          <strong>${req.userName}(${req.userId})</strong>
-          - ${fmt(req.amount)} KRW
-          <span class="badge ${badgeClass}">${req.status}</span>
-          [${req.type}]
-        </div>
-        <div class="req-meta">
-          ID: ${req.id} | ${req.date} ${req.acct ? '| 계좌:'+req.acct : ''} ${req.memo ? '| 메모:'+req.memo : ''}
-        </div>
-        <div style="margin-top:8px;">
-          ${req.status==='대기' ? `
-            <button ${codeOk?'':'disabled'} onclick="approveRequest('${req.id}','${req.type}')">승인</button>
-            <button ${codeOk?'':'disabled'} onclick="rejectRequest('${req.id}','${req.type}')">거절</button>
-          ` : `<em>처리됨</em>`}
-        </div>`;
-      container.appendChild(div);
-    });
-
-    if(!codeOk){
-      const tip = document.createElement('div');
-      tip.style.marginTop = '10px';
-      tip.style.opacity = '.9';
-      tip.innerHTML = '🔒 승인/거절을 하려면 상단에 관리자 코드를 입력하세요.';
-      container.appendChild(tip);
+    try {
+      await setDoc(doc(db, "users", cid), currentUser);
+      console.log("Firestore 저장 완료");
+    } catch (e) {
+      console.error("Firestore 저장 오류:", e);
+      alert("DB 저장 중 오류가 발생했습니다. (localStorage에는 저장됨)");
     }
-  }
 
-  async function approveRequest(reqId, type){
-    const code = document.getElementById('adminCode').value.trim();
-    if(code !== 'ADMIN123'){ alert('관리자 코드 필요'); return; }
+    localStorage.setItem("stockUser", JSON.stringify(currentUser));
+    document.getElementById("loginModal").style.display = "none";
 
-    const arr = type === '입금' ? deposits : withdrawals;
-    const req = arr.find(r => r.id === reqId);
-    if(!req || req.status !== '대기'){ alert('요청을 찾을 수 없거나 이미 처리되었습니다.'); return; }
-
-    try{
-      // 상태 업데이트
-      await updateDoc(req._ref, { status:'승인' });
-
-      // 유저 현금 변경
-      const userRef = doc(db, 'users', req.userId);
-      await updateDoc(userRef, { cash: increment(type==='입금' ? req.amount : -req.amount) });
-
-      log(`✅ ${type} 승인: ${req.userName} ${fmt(req.amount)} KRW`);
-    } catch(e){
-      console.error("승인 처리 오류:", e);
-      alert('승인 처리 중 오류');
-    }
-  }
-
-  async function rejectRequest(reqId, type){
-    const code = document.getElementById('adminCode').value.trim();
-    if(code !== 'ADMIN123'){ alert('관리자 코드 필요'); return; }
-
-    const arr = type === '입금' ? deposits : withdrawals;
-    const req = arr.find(r => r.id === reqId);
-    if(!req || req.status !== '대기'){ alert('요청을 찾을 수 없거나 이미 처리되었습니다.'); return; }
-
-    try{
-      await updateDoc(req._ref, { status:'거절' });
-      log(`⛔ ${type} 거절: ${req.userName} ${fmt(req.amount)} KRW`);
-    } catch(e){
-      console.error("거절 처리 오류:", e);
-      alert('거절 처리 중 오류');
-    }
-  }
-
-  /**************************************************************
-   * 로그인 (Auth 없음) - Firestore + localStorage
-   **************************************************************/
-  function watchMyCash(){
-    // 내 cash 실시간 반영
-    if(unsubUserCash) unsubUserCash();
-    unsubUserCash = onSnapshot(doc(db, 'users', currentUser.id), snap=>{
-      if(snap.exists()){
-        const data = snap.data();
-        if(typeof data.cash === 'number'){
-          player.cash = data.cash;
-          renderUserInfo();
-        }
-      }
-    });
-  }
-
-  async function initAfterLogin(){
     renderUserInfo();
     renderCompanies();
-    updateChart();
-    startAuto();
-    watchMyCash();
-    startRequestsListeners(); // 관리자 대기열
-  }
-
-  // F5 시 자동 로그인 or 모달 보장
-  window.onload = async () => {
-    const saved = localStorage.getItem('stockUser');
-    if(saved){
-      try{ currentUser = JSON.parse(saved); } catch(e){ localStorage.removeItem('stockUser'); }
-    }
-    if(currentUser){
-      loginModal.style.display = 'none';
-      await initAfterLogin();
-      log(`🔄 자동 로그인: ${currentUser.name}`);
-    } else {
-      loginModal.style.display = 'flex';
-    }
-    // 안전장치: 1초 후에도 로그인 안 되어 있으면 모달 유지
-    setTimeout(()=>{ if(!currentUser){ loginModal.style.display='flex'; } }, 1000);
+    log(`✅ 로그인: ${cname}`);
   };
 
-  // 시작 버튼: users/{id} 존재 시 가져오고, 없으면 생성
-  document.getElementById('startBtn').onclick = async () => {
-    const cid   = document.getElementById('customId').value.trim();
-    const cname = document.getElementById('customName').value.trim();
-    if(!cid || !cname){ alert('고유번호와 이름을 입력하세요.'); return; }
+  function logout(){ localStorage.removeItem('stockUser'); location.reload(); }
 
-    const userRef = doc(db, 'users', cid);
-    try{
-      const snap = await getDoc(userRef);
-      if(snap.exists()){
-        // 기존 사용자 → DB 데이터 사용 (이름 변경도 반영)
-        const data = snap.data();
-        const next = { id: cid, name: cname || data.name || cid, cash: typeof data.cash==='number' ? data.cash : player.cash };
-        await setDoc(userRef, next, { merge:true }); // 이름 갱신
-        currentUser = next;
-        player.cash = next.cash;
-      } else {
-        // 신규 사용자 생성
-        currentUser = { id: cid, name: cname, cash: player.cash };
-        await setDoc(userRef, { ...currentUser, createdAt: serverTimestamp() });
-      }
-
-      localStorage.setItem('stockUser', JSON.stringify(currentUser));
-      loginModal.style.display = 'none';
-      await initAfterLogin();
-      log(`✅ 로그인: ${currentUser.name}`);
-    } catch(e){
-      console.error('로그인(유저 생성/조회) 오류:', e);
-      alert('로그인 처리 중 오류가 발생했습니다.');
-    }
-  };
-
-  function logout(){
-    // 계정은 보존, 클라이언트만 로그아웃
-    if(unsubUserCash) unsubUserCash();
-    if(unsubDeposits) unsubDeposits();
-    if(unsubWithdrawals) unsubWithdrawals();
-    localStorage.removeItem('stockUser');
-    location.reload();
-  }
-
-  /**************************************************************
-   * 전역 바인딩 (onclick에서 접근)
-   **************************************************************/
-  window.buy = buy;
-  window.sell = sell;
-  window.requestDeposit = requestDeposit;
-
-  window.openWithdrawModal = openWithdrawModal;
-  window.closeWithdrawModal = closeWithdrawModal;
-  window.submitWithdraw = submitWithdraw;
-
-  window.openAdminModal = openAdminModal;
-  window.closeAdminModal = closeAdminModal;
-  window.checkAdmin = checkAdmin;
-  window.approveRequest = approveRequest;
-  window.rejectRequest = rejectRequest;
-
-  window.logout = logout;
+  /* 전역 바인딩 */
+  window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit; window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw; window.toggleAdminQueue=toggleAdminQueue; window.logout=logout;
 </script>
 </body>
 </html>
-
