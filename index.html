@@ -42,6 +42,7 @@
 <body>
 <h1>인게임 주식 시뮬레이터</h1>
 
+<!-- 사용자 정보 -->
 <div id="userRow">
   <div id="userInfo">⏳ 로그인 대기중...</div>
   <div>
@@ -50,6 +51,7 @@
   </div>
 </div>
 
+<!-- 입금 요청 -->
 <div id="depositForm">
   <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
   <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
@@ -57,14 +59,15 @@
   <button onclick="requestDeposit()">입금 요청</button>
 </div>
 
+<!-- 종목 & 차트 -->
 <div id="companies"></div>
 <canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
 
+<!-- 관리자 대기함 -->
 <div style="text-align:center; margin-top:20px;">
   <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
 </div>
-
 <div id="adminQueue">
   <h3>승인 대기함</h3>
   <div id="queueList"></div>
@@ -99,7 +102,16 @@
   import { initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, increment, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
   import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
-  const firebaseConfig = { /* 🔑 Firebase 설정 */ };
+  // 🔑 Firebase 설정값 넣기
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_MSG_ID",
+    appId: "YOUR_APP_ID"
+  };
+
   const app = initializeApp(firebaseConfig);
   const db = initializeFirestore(app,{experimentalForceLongPolling:true,useFetchStreams:false});
   const auth = getAuth(app);
@@ -115,11 +127,78 @@
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
 
   /* ===== 종목 ===== */
-  const companies=[ /* ... 동일 ... */ ];
+  const companies=[
+    {name:"떡잎방범대",price:1000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
+    {name:"카스틸로",price:500,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
+    {name:"사쿠라",price:500,history:[500],cfg:{vol:0.04,drift:0.000,jumpProb:0.00,jumpVol:0.00,min:1}},
+    {name:"청룡",price:500,history:[500],cfg:{vol:0.08,drift:0.003,jumpProb:0.03,jumpVol:0.25,min:1}},
+    {name:"경찰청",price:500,history:[500],cfg:{vol:0.02,drift:0.001,jumpProb:0.00,jumpVol:0.00,min:1}},
+    {name:"EMS",price:500,history:[500],cfg:{vol:0.05,drift:-0.002,jumpProb:0.01,jumpVol:0.15,min:1}},
+    {name:"올드보이",price:500,history:[500],cfg:{vol:0.07,drift:0.000,jumpProb:0.02,jumpVol:0.30,min:1}},
+    {name:"작두",price:800,history:[800],cfg:{vol:0.10,drift:0.004,jumpProb:0.05,jumpVol:0.40,min:1}}
+  ];
+  const companiesDiv=document.getElementById('companies');
+  function renderCompanies(){ 
+    companiesDiv.innerHTML=""; 
+    companies.forEach(c=>{
+      const held=player.holdings[c.name]||0; 
+      const inputId=`qty-${c.name}`; 
+      const div=document.createElement("div"); 
+      div.className="company"; 
+      div.innerHTML=`
+        <div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유:${held}주</div>
+        <div class="actions">
+          <input type="number" id="${inputId}" value="1" min="1">
+          <button onclick="buy('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매수</button>
+          <button onclick="sell('${c.name}',parseInt(document.getElementById('${inputId}').value)||1)">매도</button>
+        </div>`;
+      companiesDiv.appendChild(div);
+    }); 
+    renderUserInfo(); updateChart();
+  }
+  function startAuto(){ setInterval(()=>{
+    companies.forEach(c=>{
+      let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift;
+      if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol;
+      c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock)));
+      c.history.push(c.price);
+    });
+    renderCompanies();
+  },5000); }
 
-  // --- 생략 (매수/매도, 입출금 요청, 관리자 대기열 렌더링 부분 동일) ---
+  function updateChart(){ 
+    const ctx=document.getElementById('chart').getContext('2d'); 
+    const labels=companies[0].history.map((_,i)=>i); 
+    const datasets=companies.map(c=>({label:c.name,data:c.history,borderWidth:2,fill:false,tension:0.2})); 
+    if(!chart){ 
+      chart=new Chart(ctx,{type:'line',data:{labels,datasets},options:{responsive:true}});} 
+    else {chart.data.labels=labels; chart.data.datasets.forEach((d,i)=>d.data=companies[i].history); chart.update();} 
+  }
 
-  /* ===== 로그인 / 자동로그인 수정 ===== */
+  /* ===== 거래 ===== */
+  async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"),entry); }
+  function buy(name,qty){ if(!currentUser)return alert("로그인 필요"); const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty)return alert("현금 부족"); player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty; saveTradeLog({date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,type:"매수",company:name,qty,price:c.price,cash:player.cash}); log(`✅ 매수:${name} ${qty}주`); renderCompanies();}
+  function sell(name,qty){ if(!currentUser)return alert("로그인 필요"); const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty)return alert("보유 부족"); player.cash+=c.price*qty; player.holdings[name]-=qty; saveTradeLog({date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,type:"매도",company:name,qty,price:c.price,cash:player.cash}); log(`✅ 매도:${name} ${qty}주`); renderCompanies(); }
+
+  /* ===== 입출금 요청 ===== */
+  async function requestDeposit(){ if(!currentUser)return alert("로그인 필요"); const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); const memo=cashMemo.value.trim(); if(!acct||amount<=0)return alert("잘못된 입력"); const req={id:"REQ-"+Date.now(),date:new Date().toLocaleString(),uid:currentUser.uid,userId:currentUser.id,userName:currentUser.name,acct,amount,memo,status:"대기",type:"입금"}; await addDoc(collection(db,"pendingDeposits"),req); log(`📨 입금 요청:${amount.toLocaleString()} KRW`); acctNo.value=""; cashAmount.value=""; cashMemo.value=""; }
+  function openWithdrawModal(){ withdrawModal.style.display="flex"; }
+  function closeWithdrawModal(){ withdrawModal.style.display="none"; }
+  async function submitWithdraw(){ if(!currentUser)return alert("로그인 필요"); const id=withdrawId.value.trim(); const name=withdrawName.value.trim(); const amount=parseInt(withdrawAmount.value)||0; const memo=withdrawMemo.value.trim(); if(!id||!name||amount<=0)return alert("입력 오류"); const req={id:"WREQ-"+Date.now(),date:new Date().toLocaleString(),uid:currentUser.uid,userId:id,userName:name,amount,memo,status:"대기",type:"출금"}; await addDoc(collection(db,"pendingWithdrawals"),req); log(`💸 출금 요청:${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
+
+  /* ===== 관리자 대기열 ===== */
+  function listenDeposits(){ onSnapshot(collection(db,"pendingDeposits"),snap=>{pendingDeposits=[];snap.forEach(d=>pendingDeposits.push(d.data()));renderQueue();}); }
+  function listenWithdrawals(){ onSnapshot(collection(db,"pendingWithdrawals"),snap=>{pendingWithdrawals=[];snap.forEach(d=>pendingWithdrawals.push(d.data()));renderQueue();}); }
+  function renderQueue(){ if(!adminQueue.classList.contains("active"))return; queueList.innerHTML=""; const combined=[...pendingDeposits,...pendingWithdrawals].sort((a,b)=>new Date(b.date)-new Date(a.date)); if(combined.length===0)return queueList.innerHTML='<div class="req-card">대기 없음</div>'; combined.forEach(req=>{const badgeClass=req.status==='대기'?'wait':(req.status==='승인'?'approved':'rejected'); const div=document.createElement("div"); div.className="req-card"; div.innerHTML=`<div><div><strong>${req.userName}(${req.userId})</strong> - ${req.amount.toLocaleString()} KRW <span class="badge ${badgeClass}">${req.status}</span> [${req.type}]</div><div class="req-meta">ID:${req.id} | ${req.date} | 메모:${req.memo||"-"}</div></div><div class="req-actions">${req.status==="대기"?(req.type==="출금"?`<button onclick="approveWithdrawal('${req.id}')">승인</button><button onclick="rejectWithdrawal('${req.id}')">거절</button>`:`<button onclick="approveDeposit('${req.id}')">승인</button><button onclick="rejectDeposit('${req.id}')">거절</button>`):`<span>처리됨</span>`}</div>`; queueList.appendChild(div); }); }
+  function toggleAdminQueue(){ adminQueue.classList.toggle("active"); renderQueue(); }
+
+  /* ===== 승인/거절 ===== */
+  async function approveDeposit(id){ const snap=await getDocs(collection(db,"pendingDeposits")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingDeposits",d.id),{status:"승인"}); await updateDoc(doc(db,"users",data.uid),{cash:increment(data.amount)}); if(currentUser && currentUser.uid===data.uid){ player.cash+=data.amount; renderUserInfo(); } log(`✅ 입금 승인: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function rejectDeposit(id){ const snap=await getDocs(collection(db,"pendingDeposits")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingDeposits",d.id),{status:"거절"}); log(`⛔ 입금 거절: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function approveWithdrawal(id){ const snap=await getDocs(collection(db,"pendingWithdrawals")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingWithdrawals",d.id),{status:"승인"}); await updateDoc(doc(db,"users",data.uid),{cash:increment(-data.amount)}); if(currentUser && currentUser.uid===data.uid){ player.cash-=data.amount; renderUserInfo(); } log(`✅ 출금 승인: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+  async function rejectWithdrawal(id){ const snap=await getDocs(collection(db,"pendingWithdrawals")); for(const d of snap.docs){ const data=d.data(); if(data.id===id && data.status==="대기"){ await updateDoc(doc(db,"pendingWithdrawals",d.id),{status:"거절"}); log(`⛔ 출금 거절: ${data.userName} ${data.amount.toLocaleString()} KRW`); } } }
+
+  /* ===== 로그인 / 자동로그인 ===== */
   async function newAnonymousLogin(){ if(!auth.currentUser){return signInAnonymously(auth);} return auth.currentUser; }
   newAnonymousLogin();
 
@@ -129,14 +208,14 @@
       const snap=await getDoc(ref);
 
       if(snap.exists() && snap.data().active){
-        // 🔑 자동 로그인
+        // ✅ 자동 로그인
         const data=snap.data();
         currentUser={uid:user.uid,id:data.id,name:data.name,cash:data.cash};
         loginModal.style.display="none";
         renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
         log(`🔄 자동 로그인: ${data.name}`);
       } else {
-        // 🔑 문서가 없거나 active:false → 모달 띄움
+        // ❌ 새 유저 or active:false → 로그인 모달
         loginModal.style.display="flex";
         startBtn.onclick=async()=>{ 
           const cid=customId.value.trim(); 
@@ -152,12 +231,23 @@
         };
       }
     } else {
-      // Firebase 유저 없음 → 모달 띄우기
       loginModal.style.display="flex";
     }
   });
 
-  async function logout(){ if(currentUser)await updateDoc(doc(db,"users",currentUser.uid),{active:false}); if(auth.currentUser)await signOut(auth); location.reload(); }
+  async function logout(){ 
+    if(currentUser) await updateDoc(doc(db,"users",currentUser.uid),{active:false}); 
+    if(auth.currentUser) await signOut(auth); 
+    location.reload(); 
+  }
+
+  // window 바인딩
+  window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
+  window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw;
+  window.toggleAdminQueue=toggleAdminQueue; 
+  window.logout=logout;
+  window.approveDeposit=approveDeposit; window.rejectDeposit=rejectDeposit;
+  window.approveWithdrawal=approveWithdrawal; window.rejectWithdrawal=rejectWithdrawal;
 </script>
 </body>
 </html>
