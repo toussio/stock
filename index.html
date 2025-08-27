@@ -96,7 +96,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, query, where, increment, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { initializeFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, increment, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
   import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
   const firebaseConfig = { /* 🔑 Firebase 설정 */ };
@@ -161,23 +161,32 @@
     if(user){ 
       const ref=doc(db,"users",user.uid);
       const snap=await getDoc(ref);
+
       if(snap.exists() && snap.data().active){
+        // 자동 로그인
         const data=snap.data();
         currentUser={uid:user.uid,id:data.id,name:data.name,cash:data.cash};
         loginModal.style.display="none";
         renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
         log(`🔄 자동 로그인: ${data.name}`);
       } else {
+        // 새 유저 → 로그인 모달 반드시 띄움
         loginModal.style.display="flex";
         startBtn.onclick=async()=>{ 
           const cid=customId.value.trim(); const cname=customName.value.trim();
           if(!cid||!cname)return alert("입력필수");
+
           currentUser={uid:user.uid,id:cid,name:cname,cash:player.cash};
           await setDoc(ref,{...currentUser,active:true,createdAt:new Date()});
-          loginModal.style.display="none"; renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
+
+          loginModal.style.display="none"; 
+          renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
           log(`✅ 로그인: ${cname}`);
         };
       }
+    } else {
+      // Firebase 유저 없음 → 모달 띄우기
+      loginModal.style.display="flex";
     }
   });
 
