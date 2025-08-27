@@ -991,9 +991,27 @@
   window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
   window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices;
 
+// 뉴스 모달 열기
+function openNewsModal(){
+  document.getElementById("newsModal").style.display = "flex";
+}
+
+// 뉴스 모달 닫기
+function closeNewsModal(){
+  document.getElementById("newsModal").style.display = "none";
+}
+
+// 뉴스 내용 추가하기 (선택 사항)
+function addNews(text){
+  const div = document.createElement("div");
+  div.innerHTML = `<p>📰 ${new Date().toLocaleString()} - ${text}</p>`;
+  document.getElementById("newsContent").prepend(div);
+}
+
 </script>
 </body>
 </html>
+
 
 
 
