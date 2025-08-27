@@ -129,7 +129,8 @@
     <h2>출금 요청</h2>
     <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
     <input type="text" id="withdrawName" placeholder="이름 입력"><br>
-    <input type="number" id="withdrawAmount" placeholder="출금 금액 입력"><br>
+    <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
+    <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
     <input type="text" id="withdrawMemo" placeholder="메모 (선택)"><br>
     <button onclick="submitWithdraw()">요청</button>
     <button onclick="closeWithdrawModal()">취소</button>
@@ -390,32 +391,58 @@
   /* =========================
  *  입/출금 요청
  * ========================= */
-async function requestDeposit(){
-  if(!currentUser) return alert('로그인 후 이용해주세요.');
-  const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); const memo=cashMemo.value.trim();
-  if(!acct||amount<=0) return alert('입력 오류');
-  const req = { id:'REQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, acct, amount, memo, status:'대기', type:'입금' };
-  try{ await addDoc(collection(db,'pendingDeposits'),req); }catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
-  log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
-  alert("✅ 입금 요청이 완료되었습니다.");   // 🔔 추가된 팝업
+async function requestDeposit(){ ... }   // 기존 그대로
+
+function openWithdrawModal(){ ... }      // 기존 그대로
+function closeWithdrawModal(){ ... }     // 기존 그대로
+
+function updateWithdrawFee(){             // ✅ 새로 추가
+  const feeRate = 0.2;
+  const amount = parseInt(document.getElementById("withdrawAmount").value) || 0;
+  if(amount > 0){
+    const fee = Math.round(amount * feeRate);
+    const total = amount + fee;
+    document.getElementById("withdrawFeeInfo").innerText =
+      `출금 요청액: ${amount.toLocaleString()}원 | 수수료: ${fee.toLocaleString()}원 | 실제 차감: ${total.toLocaleString()}원`;
+  } else {
+    document.getElementById("withdrawFeeInfo").innerText = "";
+  }
 }
 
-function openWithdrawModal(){
+async function submitWithdraw(){          // ✅ 교체된 버전
   if(!currentUser) return alert('로그인 후 이용해주세요.');
-  withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex';
-}
-function closeWithdrawModal(){ withdrawModal.style.display='none'; }
-
-async function submitWithdraw(){
-  if(!currentUser) return alert('로그인 후 이용해주세요.');
-  const amount=parseInt(withdrawAmount.value)||0; const memo=withdrawMemo.value.trim();
+  const amount=parseInt(withdrawAmount.value)||0; 
+  const memo=withdrawMemo.value.trim();
   if(amount<=0) return alert('금액 오류');
-  const req = { id:'WREQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, amount, memo, status:'대기', type:'출금' };
-  try{ await addDoc(collection(db,'pendingWithdrawals'),req); }catch(e){ console.warn("⚠️ 출금 DB 저장 실패:",e); }
-  log(`💸 출금 요청: ${amount.toLocaleString()} KRW`);
-  alert("✅ 출금 요청이 완료되었습니다.");   // 🔔 추가된 팝업
+
+  const feeRate = 0.2;
+  const fee = Math.round(amount * feeRate);
+  const total = amount + fee;
+
+  if(!confirm(`출금 요청액: ${amount.toLocaleString()}원\n수수료: ${fee.toLocaleString()}원\n실제 차감: ${total.toLocaleString()}원\n\n이대로 요청하시겠습니까?`)){
+    return;
+  }
+
+  const req = { 
+    id:'WREQ-'+Date.now(), 
+    date:new Date().toLocaleString(), 
+    userId:currentUser.id, 
+    userName:currentUser.name, 
+    amount, 
+    memo, 
+    status:'대기', 
+    type:'출금' 
+  };
+  try{ 
+    await addDoc(collection(db,'pendingWithdrawals'),req); 
+  }catch(e){ 
+    console.warn("⚠️ 출금 DB 저장 실패:",e); 
+  }
+  log(`💸 출금 요청: ${amount.toLocaleString()} KRW (수수료 ${fee.toLocaleString()}원, 실제 차감 ${total.toLocaleString()}원)`);
+  alert("✅ 출금 요청이 완료되었습니다.");
   closeWithdrawModal();
 }
+
 
 
   /* =========================
@@ -873,4 +900,5 @@ async function submitWithdraw(){
 </script>
 </body>
 </html>
+
 
