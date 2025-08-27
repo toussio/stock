@@ -146,7 +146,7 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
     q.forEach(async d=>{ const data=d.data();
       if(data.id===id && data.status==="대기"){
         await updateDoc(doc(db,"pendingDeposits",d.id), {status:"승인"});
-        player.cash+=data.amount; await updateDoc(doc(db,"users",d.data().userId), {cash:player.cash});
+        player.cash+=data.amount; await updateDoc(doc(db,"users",currentUser.uid), {cash:player.cash});
         const entry={date:new Date().toLocaleString(), uid:currentUser.uid, userId:data.userId, userName:data.userName, type:"입금승인", company:"현금", qty:0, price:0, amount:data.amount, cash:player.cash};
         await saveTradeLog(entry); renderUserInfo(); log(`✅ 입금 승인: ${data.amount.toLocaleString()} KRW`);
       }
@@ -177,14 +177,45 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
     saveTradeLog(entry); log(`✅ 매도: ${name} ${qty}주 @ ${c.price}`); renderCompanies();
   }
 
-  /* ===== 종목/자동 변동 ===== */
-  const companies=[
-    {name:"떡잎방범대",price:10000000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
-    {name:"카스틸로",price:5000000,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
-    {name:"사쿠라",price:6500000,history:[500],cfg:{vol:0.04,drift:0.000,jumpProb:0.00,jumpVol:0.00,min:1}}
+  /* ===== 기업 리스트 (수정됨) ===== */
+  const companies = [
+    { name: "떡잎방범대", price: 1000, history: [1000],
+      cfg: { vol: 0.03, drift: 0.002, jumpProb: 0.01, jumpVol: 0.10, min: 1 } },
+    { name: "카스틸로", price: 500, history: [500],
+      cfg: { vol: 0.06, drift: -0.001, jumpProb: 0.02, jumpVol: 0.20, min: 1 } },
+    { name: "사쿠라", price: 500, history: [500],
+      cfg: { vol: 0.04, drift: 0.000, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
+    { name: "청룡", price: 500, history: [500],
+      cfg: { vol: 0.08, drift: 0.003, jumpProb: 0.03, jumpVol: 0.25, min: 1 } },
+    { name: "경찰청", price: 500, history: [500],
+      cfg: { vol: 0.02, drift: 0.001, jumpProb: 0.00, jumpVol: 0.00, min: 1 } },
+    { name: "EMS", price: 500, history: [500],
+      cfg: { vol: 0.05, drift: -0.002, jumpProb: 0.01, jumpVol: 0.15, min: 1 } },
+    { name: "올드보이", price: 500, history: [500],
+      cfg: { vol: 0.07, drift: 0.000, jumpProb: 0.02, jumpVol: 0.30, min: 1 } },
+    { name: "작두", price: 800, history: [800],
+      cfg: { vol: 0.10, drift: 0.004, jumpProb: 0.05, jumpVol: 0.40, min: 1 } }
   ];
-  function renderCompanies(){ const ctn=document.getElementById("companies"); ctn.innerHTML=""; companies.forEach(c=>{const held=player.holdings[c.name]||0; const div=document.createElement("div"); div.className="company"; div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div><div class="actions"><button onclick="buy('${c.name}',1)">매수</button><button onclick="sell('${c.name}',1)">매도</button></div>`; ctn.appendChild(div);}); renderUserInfo();}
-  function startAuto(){ setInterval(()=>{companies.forEach(c=>{let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift; if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol; c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock))); c.history.push(c.price);}); renderCompanies();},5000);}
+
+  function renderCompanies(){ 
+    const ctn=document.getElementById("companies"); ctn.innerHTML=""; 
+    companies.forEach(c=>{
+      const held=player.holdings[c.name]||0; 
+      const div=document.createElement("div"); div.className="company"; 
+      div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div><div class="actions"><button onclick="buy('${c.name}',1)">매수</button><button onclick="sell('${c.name}',1)">매도</button></div>`; 
+      ctn.appendChild(div);
+    }); 
+    renderUserInfo();
+  }
+
+  function startAuto(){ 
+    setInterval(()=>{companies.forEach(c=>{
+      let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift; 
+      if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol; 
+      c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock))); 
+      c.history.push(c.price);
+    }); renderCompanies();},5000);
+  }
   
   /* ===== 관리자 대기열 ===== */
   function toggleAdminQueue(){
@@ -213,6 +244,14 @@ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:
       list.appendChild(div);
     });
   }
+
+  /* ===== 버튼 함수 window 바인딩 ===== */
+  window.requestDeposit=requestDeposit;
+  window.buy=buy;
+  window.sell=sell;
+  window.approveDeposit=approveDeposit;
+  window.rejectDeposit=rejectDeposit;
+  window.toggleAdminQueue=toggleAdminQueue;
 </script>
 </body>
 </html>
