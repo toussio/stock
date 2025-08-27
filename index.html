@@ -388,29 +388,35 @@
   }
 
   /* =========================
-   *  입/출금 요청
-   * ========================= */
-  async function requestDeposit(){
-    if(!currentUser) return alert('로그인 후 이용해주세요.');
-    const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); const memo=cashMemo.value.trim();
-    if(!acct||amount<=0) return alert('입력 오류');
-    const req = { id:'REQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, acct, amount, memo, status:'대기', type:'입금' };
-    try{ await addDoc(collection(db,'pendingDeposits'),req); }catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
-    log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
-  }
-  function openWithdrawModal(){
-    if(!currentUser) return alert('로그인 후 이용해주세요.');
-    withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex';
-  }
-  function closeWithdrawModal(){ withdrawModal.style.display='none'; }
-  async function submitWithdraw(){
-    if(!currentUser) return alert('로그인 후 이용해주세요.');
-    const amount=parseInt(withdrawAmount.value)||0; const memo=withdrawMemo.value.trim();
-    if(amount<=0) return alert('금액 오류');
-    const req = { id:'WREQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, amount, memo, status:'대기', type:'출금' };
-    try{ await addDoc(collection(db,'pendingWithdrawals'),req); }catch(e){ console.warn("⚠️ 출금 DB 저장 실패:",e); }
-    log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal();
-  }
+ *  입/출금 요청
+ * ========================= */
+async function requestDeposit(){
+  if(!currentUser) return alert('로그인 후 이용해주세요.');
+  const acct=acctNo.value.trim(); const amount=parseNumber(cashAmount.value); const memo=cashMemo.value.trim();
+  if(!acct||amount<=0) return alert('입력 오류');
+  const req = { id:'REQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, acct, amount, memo, status:'대기', type:'입금' };
+  try{ await addDoc(collection(db,'pendingDeposits'),req); }catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
+  log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
+  alert("✅ 입금 요청이 완료되었습니다.");   // 🔔 추가된 팝업
+}
+
+function openWithdrawModal(){
+  if(!currentUser) return alert('로그인 후 이용해주세요.');
+  withdrawId.value=currentUser.id; withdrawName.value=currentUser.name; withdrawModal.style.display='flex';
+}
+function closeWithdrawModal(){ withdrawModal.style.display='none'; }
+
+async function submitWithdraw(){
+  if(!currentUser) return alert('로그인 후 이용해주세요.');
+  const amount=parseInt(withdrawAmount.value)||0; const memo=withdrawMemo.value.trim();
+  if(amount<=0) return alert('금액 오류');
+  const req = { id:'WREQ-'+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, amount, memo, status:'대기', type:'출금' };
+  try{ await addDoc(collection(db,'pendingWithdrawals'),req); }catch(e){ console.warn("⚠️ 출금 DB 저장 실패:",e); }
+  log(`💸 출금 요청: ${amount.toLocaleString()} KRW`);
+  alert("✅ 출금 요청이 완료되었습니다.");   // 🔔 추가된 팝업
+  closeWithdrawModal();
+}
+
 
   /* =========================
    *  로그인 & 현재 유저 구독
@@ -867,3 +873,4 @@
 </script>
 </body>
 </html>
+
