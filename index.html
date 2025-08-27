@@ -268,6 +268,9 @@
   // stock123 보간 타이머(종목별)
   const smoothTimers = {};
 
+  // 구매 수량 상태 기억 (종목별)
+  const qtyState = {};  // { [companyName]: number }
+
   /* =========================
    *  유틸
    * ========================= */
@@ -278,6 +281,11 @@
     if(currentUser) userInfo.innerHTML = `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금:${player.cash.toLocaleString()} KRW`;
   }
   function safeId(name){ return String(name).replace(/[^a-zA-Z0-9가-힣]/g,'_'); }
+  function formatHoldings(h){
+    if(!h || typeof h!=='object') return '보유없음';
+    const arr = Object.entries(h).filter(([k,v])=> (v||0)>0).map(([k,v])=>`${k}:${v}주`);
+    return arr.length? arr.join(', ') : '보유없음';
+  }
 
   /* =========================
    *  기업 데이터 (11개)
@@ -321,6 +329,7 @@
     const safe = safeId(c.name);
     const held = player.holdings[c.name]||0;
     const nowPrice = getDisplayPrice(c);
+    const initQty = (Number.isFinite(qtyState[c.name]) && qtyState[c.name] > 0) ? qtyState[c.name] : 1;
 
     const div = document.createElement('div');
     div.className = 'company';
@@ -334,12 +343,19 @@
         </span>
       </div>
       <div class="actions">
-        <input type="number" id="qty-${safe}" value="1" min="1">
+        <input type="number" id="qty-${safe}" value="${initQty}" min="1">
         <button onclick="buy('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매수</button>
         <button onclick="sell('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매도</button>
       </div>
     `;
     companiesDiv.appendChild(div);
+
+    // 입력값 지속 저장
+    const qtyInput = div.querySelector(`#qty-${safe}`);
+    qtyInput.addEventListener('input', (e)=>{
+      const v = parseInt(e.target.value, 10);
+      qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
+    });
   }
   function initCompaniesUI(){
     companiesDiv.innerHTML = '';
@@ -403,6 +419,9 @@
     player.cash -= p*qty;
     player.holdings[name] = (player.holdings[name]||0) + qty;
 
+    // 수량 기억(선택)
+    qtyState[name] = qty;
+
     syncUserToServer();
     log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${p.toLocaleString()} KRW`);
 
@@ -422,6 +441,9 @@
 
     player.cash += p*qty;
     player.holdings[name] -= qty;
+
+    // 수량 기억(선택)
+    qtyState[name] = qty;
 
     syncUserToServer();
     log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${p.toLocaleString()} KRW`);
@@ -613,15 +635,21 @@
   }
 
   /* =========================
-   *  관리자: 유저(강제 로그아웃)
+   *  관리자: 유저(강제 로그아웃) + 보유종목 표시
    * ========================= */
   function subscribeUsers(){
     onSnapshot(collection(db,"users"),(snap)=>{
       const userList=document.getElementById("userList"); let html="";
       snap.forEach(docu=>{
         const u=docu.data();
+        const holdingsText = formatHoldings(u.holdings);
         html += `<div class="req-card">
-          <div><strong>${u.name}</strong> (${u.id}) | 현금: ${(u.cash??0).toLocaleString()} | 상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}</div>
+          <div>
+            <strong>${u.name}</strong> (${u.id}) |
+            현금: ${(u.cash??0).toLocaleString()} |
+            상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}<br>
+            📦 보유종목: ${holdingsText}
+          </div>
           <div><button onclick="forceLogout('${u.id}')">강제 로그아웃</button></div>
         </div>`;
       });
@@ -1027,7 +1055,10 @@
   window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
   window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
 
-  // price/multiplier change will reflect in panels too
+  // news
+  window.openNewsModal=openNewsModal; window.closeNewsModal=closeNewsModal; window.addNews=addNews;
+
+  // 패널 표시 가격 일괄 갱신(필요 시)
   function refreshAllPanelPrices(){
     companies.forEach(c=>{
       const id1 = document.getElementById(`panel-price-${safeId(c.name)}`);
@@ -1036,11 +1067,7 @@
       if(id2) id2.textContent = getDisplayPrice(c).toLocaleString();
     });
   }
-  // 패널 열릴 때마다 최신값 반영하고 싶다면 필요 시 호출
   window.refreshAllPanelPrices = refreshAllPanelPrices;
-
-  // news
-  window.openNewsModal=openNewsModal; window.closeNewsModal=closeNewsModal; window.addNews=addNews;
 
 </script>
 </body>
