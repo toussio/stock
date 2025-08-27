@@ -85,7 +85,7 @@
 </style>
 </head>
 <body>
-<h1>떡잎방범대 주식 센터</h1>
+<h1>인게임 주식 시뮬레이터</h1>
 
 <!-- 상단: 유저/버튼 -->
 <div id="userRow">
@@ -159,10 +159,10 @@
   <div id="withdrawRequests"></div>
 </div>
 
-<!-- 📊 그래프 제어 패널 (graph123) -->
+<!-- 📊 그래프/금액 제어 패널 (graph123) -->
 <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
   <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
-  <h3>📊 그래프 제어 패널</h3>
+  <h3>📊 그래프/금액 제어 패널</h3>
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
     <button onclick="startPriceSimulation()">시작</button>
     <button onclick="stopPriceSimulation()">정지</button>
@@ -173,7 +173,13 @@
     <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
     <button onclick="applyGraphInterval()">적용</button>
   </div>
-  <p style="color:#9ca3af; margin-top:8px;">※ 시작을 누르면 Firestore의 <code>companyPrices</code>에 중앙 시세가 기록되고, 모든 유저는 실시간 구독으로 동일 그래프를 보게 됩니다.</p>
+  <hr style="opacity:.2">
+  <h4>📈 개별 종목 금액 조정</h4>
+  <div id="graphCompanyAdjust"></div>
+  <h4>📈 전체 종목 금액 조정</h4>
+  <label>±금액</label><input type="number" id="allDelta" value="100" style="width:100px;">
+  <button onclick="adjustAllPrices()">적용</button>
+  <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다.</p>
 </div>
 
 <!-- 🎛️ 주가 조작 패널 (stock123) : 목표금액 + 틱 -->
@@ -183,28 +189,17 @@
   <div id="stockTuner"></div>
 </div>
 
-<!-- 📈 기준가/배율 관리 패널 (change123) -->
+<!-- 📈 배율 관리 패널 (change123) -->
 <div id="adminPanelChange" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
-  <h3>📈 기준가/배율 관리 패널</h3>
-
-  <!-- 전체 조정 -->
+  <h3>📈 배율 관리 패널</h3>
   <div class="req-card">
-    <div><strong>전체 기준가/배율 일괄 조정</strong></div>
+    <div><strong>전체 배율</strong></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <label>기준가 스케일</label>
-      <input type="number" id="allBaseScale" step="0.01" value="1.00" style="width:100px;">
-      <button onclick="scaleAllBasePrices()">전체 기준가 스케일 적용</button>
-
-      <label>모든 배율 값</label>
       <input type="number" id="allMultiplierVal" step="0.01" value="1.00" style="width:100px;">
       <button onclick="setAllMultipliers()">전체 배율 일괄 설정</button>
-
-      <button onclick="resetAllToBase()">전체 종목 '현재가'를 기준가로 리셋</button>
     </div>
   </div>
-
-  <!-- 개별 조정 -->
   <div id="changePanel"></div>
 </div>
 
@@ -220,7 +215,6 @@
     onSnapshot, query, where
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // 🔑 제공해주신 설정값 그대로 사용
   const firebaseConfig = {
     apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
     authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
@@ -256,10 +250,10 @@
   // 그래프 / 타이머
   let chart = null;               // ✅ 한 번만 생성
   let priceTimer = null;
-  let updateInterval = 5000;      // ms (graph123에서 변경 가능)
+  let updateInterval = 5000;      // ms
   let graphUpdateTimer = null;    // onSnapshot 디바운스용
 
-  // stock123 보간 타이머(종목별로 1개 유지)
+  // stock123 보간 타이머(종목별 관리)
   const smoothTimers = {}; // { [companyName]: number }
 
   /* =========================
@@ -286,11 +280,14 @@
     {name:"유토피아",   basePrice:600,  multiplier:1, livePrice:600},
     {name:"inback",     basePrice:550,  multiplier:1, livePrice:550},
   ];
+  function findCompanyById(id){
+    return companies.find(x => ci(x.name)===ci(id));
+  }
 
   /* =========================
-   *  배율 반영된 표시 가격
-   *   - multiplier >= 0  : base * multiplier
-   *   - multiplier < 0   : base / |multiplier|   (예: -3 => 1/3)
+   *  배율 반영 표시가격 (change123)
+   *   - multiplier >= 0 : base * multiplier
+   *   - multiplier < 0  : base / |multiplier|
    * ========================= */
   function getDisplayPrice(c){
     const base = (typeof c.livePrice === 'number') ? c.livePrice : c.basePrice;
@@ -303,12 +300,9 @@
       return Math.max(1, Math.floor(lowered));
     }
   }
-  function findCompanyById(id){
-    return companies.find(x => ci(x.name)===ci(id));
-  }
 
   /* =========================
-   *  기업 카드 렌더 (그래프 데이터는 건드리지 않음)
+   *  기업 카드 렌더
    * ========================= */
   function renderCompanies(){
     companiesDiv.innerHTML = '';
@@ -334,8 +328,10 @@
   }
 
   /* =========================
-   *  거래 (현금 Firestore 동기화 포함)
+   *  거래 (현금 Firestore 동기화 포함) + impactPrice
    * ========================= */
+  const IMPACT_K = 0.001; // 거래량 충격 계수(기준가의 0.1% * 수량)
+
   async function saveTradeLog(entry){
     if(!currentUser) return;
     try{
@@ -351,53 +347,43 @@
     catch(e){ console.warn("⚠️ 현금 동기화 실패:", e); }
   }
 
-  /* =========================
-   *  거래량에 따른 주가 영향 (유저 매수·매도)
-   * ========================= */
   async function impactPrice(name, qty, type){
     const c = findCompanyById(name);
     if(!c) return;
-
-    // 거래량에 비례한 충격: 기준가의 0.1% * 수량 (원하면 계수 조정)
-    let impact = Math.round(c.basePrice * 0.001 * qty);
-    if(type === 'buy')  impact = +impact;
+    let impact = Math.round(c.basePrice * IMPACT_K * Math.abs(qty));
     if(type === 'sell') impact = -impact;
-
     const nextPrice = Math.max(1, (c.livePrice || c.basePrice) + impact);
-
     try {
       await setDoc(doc(db,"companyPrices", name),
         { current: nextPrice, updatedAt: Date.now() }, { merge:true });
-      c.livePrice = nextPrice; // 로컬도 갱신
-      scheduleGraphUpdate();   // 다음 틱에 반영
+      c.livePrice = nextPrice;
+      scheduleGraphUpdate();
       log(`📊 ${name} ${type==="buy"?"매수":"매도"} 영향: ${qty}주 → ${nextPrice.toLocaleString()} KRW`);
     } catch(e){ console.error("가격 영향 반영 실패:", e); }
   }
 
   function buy(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
-    const c = companies.find(x=>x.name===name); const p = getDisplayPrice(c);
+    const c = findCompanyById(name); if(!c) return;
+    const p = getDisplayPrice(c);
     if(player.cash<p*qty) return alert('현금 부족');
     player.cash -= p*qty; player.holdings[name]=(player.holdings[name]||0)+qty;
     saveTradeLog({type:'매수',company:name,qty,price:p,cash:player.cash});
     syncCashToServer();
     log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${p.toLocaleString()} KRW`);
     renderCompanies();
-
-    // ✅ 주가에 즉시 영향
     impactPrice(name, qty, 'buy');
   }
   function sell(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
-    const c = companies.find(x=>x.name===name); const p = getDisplayPrice(c);
+    const c = findCompanyById(name); if(!c) return;
+    const p = getDisplayPrice(c);
     if((player.holdings[name]||0)<qty) return alert('보유 부족');
     player.cash += p*qty; player.holdings[name] -= qty;
     saveTradeLog({type:'매도',company:name,qty,price:p,cash:player.cash});
     syncCashToServer();
     log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${p.toLocaleString()} KRW`);
     renderCompanies();
-
-    // ✅ 주가에 즉시 영향
     impactPrice(name, qty, 'sell');
   }
 
@@ -496,6 +482,7 @@
     } else if(code.toLowerCase()==="graph123"){
       document.getElementById("adminPanelGraph").style.display="block";
       document.getElementById("adminLogin").style.display="none";
+      renderGraphAdjustPanel();
     } else if(code.toLowerCase()==="stock123"){
       document.getElementById("adminPanelStock").style.display="block";
       document.getElementById("adminLogin").style.display="none";
@@ -596,88 +583,51 @@
   }
 
   /* =========================
-   *  관리자: 기준가/배율 관리 (change123)
-   *  Firestore: companySettings/{name} => { basePrice, multiplier }
+   *  관리자: 배율 관리 (change123) — 기준가 제외
+   *  Firestore: companySettings/{name} => { multiplier }
    * ========================= */
   function renderChangePanel(){
     const wrap=document.getElementById("changePanel"); let html='';
     companies.forEach(c=>{
-      const now=getDisplayPrice(c);
-      const pid=`p-${c.name}`, mid=`m-${c.name}`;
+      const mid=`m-${c.name}`;
       html += `
         <div class="req-card">
-          <div>
-            <strong>${c.name}</strong>
-            <div>현재가: ${now.toLocaleString()} KRW | 기준가: ${c.basePrice} | 배율: x${(c.multiplier??1).toFixed(2)}</div>
-          </div>
+          <div><strong>${c.name}</strong> | 현재 배율: x${(c.multiplier??1).toFixed(2)}</div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <label>기준가</label><input type="number" id="${pid}" value="${c.basePrice}" min="1" style="width:120px;">
-            <label>배율</label><input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
-            <button onclick="applyCompanySetting('${c.name}')">적용</button>
-            <button onclick="resetCompanyToBase('${c.name}')">현재가를 기준가로</button>
-            <button onclick="bumpCompany('${c.name}',1.1)">배율 +10%</button>
-            <button onclick="bumpCompany('${c.name}',0.9)">배율 -10%</button>
+            <input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
+            <button onclick="applyMultiplier('${c.name}')">적용</button>
+            <button onclick="bumpCompany('${c.name}',1.1)">+10%</button>
+            <button onclick="bumpCompany('${c.name}',0.9)">-10%</button>
           </div>
         </div>`;
     });
     wrap.innerHTML = html || "회사 데이터 없음";
   }
-  async function applyCompanySetting(name){
-    const pid=`p-${name}`, mid=`m-${name}`;
-    const basePrice = parseInt(document.getElementById(pid).value)||0;
+  async function applyMultiplier(name){
+    const mid=`m-${name}`;
     const multiplier = parseFloat(document.getElementById(mid).value);
-    if(basePrice<=0 || isNaN(multiplier)){ alert('값을 확인하세요.'); return; }
+    if(isNaN(multiplier)){ alert('배율 값을 확인하세요.'); return; }
+    const c=findCompanyById(name); if(!c) return;
     try{
-      await setDoc(doc(db,'companySettings', name), { basePrice, multiplier, updatedAt: Date.now() }, { merge:true });
-      const c=findCompanyById(name);
-      if(c){ c.basePrice=basePrice; c.multiplier=multiplier; renderCompanies(); }
-      scheduleGraphUpdate(); // ✅ 그래프 보존 & 다음 틱 반영
-      log(`🛠️ ${name} 설정 적용: 기준가 ${basePrice}, 배율 x${multiplier}`);
-    }catch(e){ console.error('회사 설정 저장 실패:',e); }
+      await setDoc(doc(db,'companySettings', name), { multiplier, updatedAt: Date.now() }, { merge:true });
+      c.multiplier=multiplier; renderCompanies(); scheduleGraphUpdate();
+      log(`🛠️ ${name} 배율 적용: x${multiplier}`);
+    }catch(e){ console.error('배율 저장 실패:',e); }
   }
   async function bumpCompany(name, factor){
     const c=findCompanyById(name); if(!c) return;
     const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
     try{
-      await setDoc(doc(db,'companySettings', name), { basePrice:c.basePrice, multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
-      c.multiplier=newMultiplier; renderCompanies();
-      scheduleGraphUpdate();
+      await setDoc(doc(db,'companySettings', name), { multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
+      c.multiplier=newMultiplier; renderCompanies(); scheduleGraphUpdate();
       log(`↕️ ${name} 배율 변경: x${(c.multiplier??1).toFixed(2)} → x${newMultiplier.toFixed(2)}`);
     }catch(e){ console.error('배율 변경 실패:',e); }
-  }
-  async function resetAllToBase(){
-    for(const c of companies){
-      await setDoc(doc(db,"companyPrices", c.name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
-      c.livePrice=c.basePrice;
-    }
-    renderCompanies();
-    scheduleGraphUpdate();
-    log("📊 전체 종목의 '현재가'를 기준가로 리셋");
-  }
-  async function resetCompanyToBase(name){
-    const c=findCompanyById(name); if(!c) return;
-    await setDoc(doc(db,"companyPrices", name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
-    c.livePrice=c.basePrice;
-    renderCompanies();
-    scheduleGraphUpdate();
-    log(`📊 ${name} 현재가 → 기준가(${c.basePrice})로 리셋`);
-  }
-  async function scaleAllBasePrices(){
-    const scale = parseFloat(document.getElementById("allBaseScale").value);
-    if(isNaN(scale) || scale<=0){ alert("기준가 스케일을 확인하세요."); return; }
-    for(const c of companies){
-      const newBase = Math.max(1, Math.round(c.basePrice * scale));
-      await setDoc(doc(db,'companySettings', c.name), { basePrice:newBase, multiplier:c.multiplier, updatedAt: Date.now() }, { merge:true });
-      c.basePrice = newBase;
-    }
-    renderChangePanel(); renderCompanies(); scheduleGraphUpdate();
-    log(`🧮 모든 기준가에 스케일 x${scale} 적용`);
   }
   async function setAllMultipliers(){
     const val = parseFloat(document.getElementById("allMultiplierVal").value);
     if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
     for(const c of companies){
-      await setDoc(doc(db,'companySettings', c.name), { basePrice:c.basePrice, multiplier:val, updatedAt: Date.now() }, { merge:true });
+      await setDoc(doc(db,'companySettings', c.name), { multiplier:val, updatedAt: Date.now() }, { merge:true });
       c.multiplier = val;
     }
     renderChangePanel(); renderCompanies(); scheduleGraphUpdate();
@@ -690,14 +640,13 @@
         const data=d.data();
         const c=findCompanyById(d.id);
         if(!c) return;
-        if(typeof data.basePrice==='number') c.basePrice=data.basePrice;
         if(typeof data.multiplier==='number') c.multiplier=data.multiplier;
         changed=true;
       });
       if(changed){
         renderCompanies();
         if(document.getElementById('adminPanelChange').style.display==='block'){ renderChangePanel(); }
-        scheduleGraphUpdate(); // ✅ 새 배율/기준가가 다음 포인트에 반영
+        scheduleGraphUpdate();
       }
     });
   }
@@ -726,10 +675,10 @@
   }
 
   /* =========================
-   *  그래프(Chart.js) — 컨테이너 방식
+   *  그래프(Chart.js)
    * ========================= */
   function initChart(){
-    if(chart) return; // ✅ 중복 생성 방지
+    if(chart) return;
     const ctx=document.getElementById("chart").getContext("2d");
     chart = new Chart(ctx, {
       type:"line",
@@ -756,27 +705,26 @@
     const now=new Date().toLocaleTimeString();
     chart.data.labels.push(now);
     companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
-    const MAX=120; // 최대 포인트
+    const MAX=120;
     if(chart.data.labels.length>MAX){
       chart.data.labels.splice(0, chart.data.labels.length-MAX);
       chart.data.datasets.forEach(d=>{
         if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX);
       });
     }
-    chart.update("none"); // ✅ 애니메이션 제거 → 높이 변동/흔들림 방지
+    chart.update("none");
   }
 
   /* =========================
-   *  그래프 중앙 시뮬레이션 제어 (graph123)
+   *  그래프 시뮬레이션 & 금액 조정 (graph123)
    * ========================= */
   async function updatePrices(){
-    // 중앙값(livePrice) 기반 랜덤 변동 → Firestore 기록 (편향 없음: ±10)
     for(const c of companies){
       const base = (typeof c.livePrice==='number') ? c.livePrice : c.basePrice;
       const change = (Math.random()-0.5)*20; // ±10
       const nextBase = Math.max(50, Math.round(base + change));
       await setDoc(doc(db,"companyPrices", c.name), { current: nextBase, updatedAt: Date.now() }, { merge:true });
-      c.livePrice = nextBase; // 로컬(관리자 클라)도 즉시 갱신
+      c.livePrice = nextBase;
     }
     scheduleGraphUpdate();
   }
@@ -793,7 +741,6 @@
       c.livePrice=c.basePrice;
       await setDoc(doc(db,"companyPrices", c.name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
     }
-    // 클라 그래프 리셋 (오직 여기서만 초기화)
     if(chart){
       chart.data.labels = [];
       chart.data.datasets.forEach(d=> d.data = []);
@@ -812,6 +759,41 @@
     } else {
       log(`⏱️ 변동 주기 설정: ${sec}초 (시작 누르면 적용)`);
     }
+  }
+
+  function renderGraphAdjustPanel(){
+    const wrap=document.getElementById("graphCompanyAdjust"); let html="";
+    companies.forEach(c=>{
+      const id=`adj-${c.name}`;
+      html += `
+        <div class="req-card">
+          <div><strong>${c.name}</strong> | 현재가: ${getDisplayPrice(c).toLocaleString()} KRW</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="number" id="${id}" placeholder="±금액" style="width:100px;">
+            <button onclick="adjustCompanyPrice('${c.name}')">적용</button>
+          </div>
+        </div>`;
+    });
+    wrap.innerHTML=html || "회사 데이터 없음";
+  }
+  async function adjustCompanyPrice(name){
+    const id=`adj-${name}`;
+    const delta=parseInt(document.getElementById(id).value)||0;
+    const c=findCompanyById(name); if(!c) return;
+    const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
+    await setDoc(doc(db,"companyPrices", name), { current:newVal, updatedAt: Date.now() }, { merge:true });
+    c.livePrice=newVal; renderCompanies(); scheduleGraphUpdate();
+    log(`📊 ${name} 금액 조정: ${delta>=0?"+":""}${delta}`);
+  }
+  async function adjustAllPrices(){
+    const delta=parseInt(document.getElementById("allDelta").value)||0;
+    for(const c of companies){
+      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
+      await setDoc(doc(db,"companyPrices", c.name), { current:newVal, updatedAt: Date.now() }, { merge:true });
+      c.livePrice=newVal;
+    }
+    renderCompanies(); scheduleGraphUpdate();
+    log(`📊 전체 종목 금액 ${delta>=0?"+":""}${delta} 적용`);
   }
 
   /* =========================
@@ -865,7 +847,7 @@
   }
 
   /* =========================
-   *  전역 바인딩 (HTML 버튼에서 접근)
+   *  전역 바인딩
    * ========================= */
   window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
   window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw;
@@ -873,16 +855,15 @@
   window.forceLogout=forceLogout; window.approveDeposit=approveDeposit; window.approveWithdraw=approveWithdraw; window.rejectRequest=rejectRequest;
 
   // change123
-  window.renderChangePanel=renderChangePanel; window.applyCompanySetting=applyCompanySetting; window.bumpCompany=bumpCompany;
-  window.resetAllToBase=resetAllToBase; window.resetCompanyToBase=resetCompanyToBase; window.scaleAllBasePrices=scaleAllBasePrices; window.setAllMultipliers=setAllMultipliers;
+  window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; window.bumpCompany=bumpCompany; window.setAllMultipliers=setAllMultipliers;
 
   // stock123
   window.renderStockTuner=renderStockTuner; window.applyStockTarget=applyStockTarget;
 
   // graph123
   window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
+  window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices;
 
 </script>
 </body>
 </html>
-
