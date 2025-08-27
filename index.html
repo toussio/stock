@@ -113,21 +113,6 @@
   function renderUserInfo(){ if(currentUser) userInfo.innerHTML=`<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${player.cash.toLocaleString()} KRW`; }
   function parseNumber(str){ const n=parseInt(String(str).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
 
-  /* ===== 종목 ===== */
-  const companies=[
-    {name:"떡잎방범대",price:1000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
-    {name:"카스틸로",price:500,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
-    {name:"사쿠라",price:500,history:[500],cfg:{vol:0.04,drift:0.000,jumpProb:0.00,jumpVol:0.00,min:1}},
-    {name:"청룡",price:500,history:[500],cfg:{vol:0.08,drift:0.003,jumpProb:0.03,jumpVol:0.25,min:1}},
-    {name:"경찰청",price:500,history:[500],cfg:{vol:0.02,drift:0.001,jumpProb:0.00,jumpVol:0.00,min:1}},
-    {name:"EMS",price:500,history:[500],cfg:{vol:0.05,drift:-0.002,jumpProb:0.01,jumpVol:0.15,min:1}},
-    {name:"올드보이",price:500,history:[500],cfg:{vol:0.07,drift:0.000,jumpProb:0.02,jumpVol:0.30,min:1}},
-    {name:"작두",price:800,history:[800],cfg:{vol:0.10,drift:0.004,jumpProb:0.05,jumpVol:0.40,min:1}}
-  ];
-
-  /* ===== 거래/입출금/승인 함수 (생략했지만 동일하게 유지) ===== */
-  // ... (buy, sell, requestDeposit, submitWithdraw, approveDeposit 등 모든 함수 동일)
-
   /* ===== 로그인 / 자동로그인 ===== */
   async function newAnonymousLogin(){ if(!auth.currentUser){return signInAnonymously(auth);} return auth.currentUser; }
   newAnonymousLogin();
@@ -143,8 +128,10 @@
         currentUser={uid:user.uid,id:data.id,name:data.name,cash:data.cash};
         loginModal.style.display="none";
         renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
+        log(`🔄 자동 로그인: ${data.name}`);
       } else {
-        // ❌ 신규 or active:false → 모달
+        // ❌ 신규 or active:false → 로그인 모달
+        console.log("📌 Firestore 문서 없음 또는 inactive → 로그인 모달 표시");
         loginModal.style.display="flex";
         startBtn.onclick=async()=>{ 
           const cid=customId.value.trim(); 
@@ -156,9 +143,11 @@
 
           loginModal.style.display="none"; 
           renderUserInfo(); renderCompanies(); startAuto(); listenDeposits(); listenWithdrawals();
+          log(`✅ 로그인: ${cname}`);
         };
       }
     } else {
+      console.log("📌 Firebase user 없음 → 로그인 모달 표시");
       loginModal.style.display="flex";
     }
   });
@@ -169,8 +158,18 @@
     location.reload(); 
   }
 
-  // 안전장치: 첫 로드 시 강제로 모달 띄움 (currentUser 없으면)
-  window.onload=()=>{ if(!currentUser){ loginModal.style.display="flex"; } };
+  // 🔒 안전장치: 첫 로드 시 강제로 모달 띄움
+  window.onload=()=>{ 
+    setTimeout(()=>{
+      if(!currentUser){ 
+        console.log("📌 강제 모달 표시 (safety net)"); 
+        document.getElementById("loginModal").style.display="flex"; 
+      }
+    }, 1200); // Firebase 초기화 기다림
+  };
+
+  // ===== 종목, 거래, 입출금, 승인 함수는 그대로 유지 =====
+  // ... (buy, sell, requestDeposit, submitWithdraw, approveDeposit 등 동일)
 </script>
 </body>
 </html>
