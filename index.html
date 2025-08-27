@@ -95,7 +95,7 @@
 </style>
 </head>
 <body>
-<h1>인게임 주식 시뮬레이터</h1>
+<h1>떡잎방범대 주식 센터</h1>
 
 <!-- 상단: 유저/버튼 -->
 <div id="userRow">
@@ -144,6 +144,23 @@
     <input type="text" id="withdrawMemo" placeholder="메모 (선택)"><br>
     <button onclick="submitWithdraw()">요청</button>
     <button onclick="closeWithdrawModal()">취소</button>
+  </div>
+</div>
+
+<!-- 뉴스 버튼 -->
+<div id="newsSection" style="text-align:center; margin:20px 0;">
+  <button onclick="openNewsModal()">📰 뉴스 보기</button>
+</div>
+
+<!-- 뉴스 모달 -->
+<div id="newsModal" class="modal">
+  <div class="modal-content">
+    <button class="xbtn" onclick="closeNewsModal()">✕</button>
+    <h2>📢 최신 뉴스</h2>
+    <div id="newsContent" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:10px;">
+      <p>현재 등록된 뉴스가 없습니다.</p>
+    </div>
+    <button onclick="closeNewsModal()">닫기</button>
   </div>
 </div>
 
@@ -982,6 +999,7 @@
 </script>
 </body>
 </html>
+
 
 
 
