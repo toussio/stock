@@ -90,12 +90,25 @@
   </div>
 </div>
 
+<!-- 관리자 로그인 -->
+<div id="adminLogin" style="text-align:center; margin-top:20px;">
+  <input type="password" id="adminCode" placeholder="관리자 코드 입력">
+  <button onclick="checkAdmin()">관리자 로그인</button>
+</div>
+
+<!-- 관리자 패널 -->
+<div id="adminPanel" style="display:none; max-width:800px; margin:20px auto; background:#1f2937; padding:10px; border-radius:8px;">
+  <h3>👑 관리자 패널</h3>
+  <div id="userList"></div>
+  <button onclick="loadUsers()">🔄 유저 목록 새로고침</button>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // ✅ firebaseConfig (당신 프로젝트 값)
+  // ✅ firebaseConfig (실제 값 사용)
   const firebaseConfig = {
     apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
     authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
@@ -166,7 +179,7 @@
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
   async function submitWithdraw(){ const amount=parseInt(withdrawAmount.value)||0; if(amount<=0) return alert('금액 오류'); const req={id:'WREQ-'+Date.now(),date:new Date().toLocaleString(),...currentUser,amount,status:'대기',type:'출금'}; try{await addDoc(collection(db,'pendingWithdrawals'),req);}catch(e){console.warn("⚠️ 출금 DB 저장 실패:",e);} log(`💸 출금 요청: ${amount.toLocaleString()} KRW`); closeWithdrawModal(); }
 
-  // 관리자 대기함
+  // 관리자 승인 대기함
   function toggleAdminQueue(){ adminQueue.classList.toggle('active'); }
 
   // 로그인 처리
@@ -191,30 +204,101 @@
       return;
     }
 
-    currentUser = { id: cid, name: cname, cash: player.cash };
-
-    // Firestore 저장 시도
     try {
-      await setDoc(doc(db, "users", cid), currentUser);
-      console.log("✅ Firestore 저장 완료:", currentUser);
+      const userRef = doc(db, "users", cid);
+      const snap = await getDoc(userRef);
+
+      if (snap.exists() && snap.data().active) {
+        alert("이미 로그인된 사용자입니다. 로그아웃 후 다시 시도하세요.");
+        return;
+      }
+
+      // 로그인 허용
+      currentUser = { id: cid, name: cname, cash: player.cash, active: true };
+      await setDoc(userRef, currentUser);
+
+      console.log("✅ Firestore 로그인 저장:", currentUser);
+
+      localStorage.setItem("stockUser", JSON.stringify(currentUser));
+      loginModal.style.display = "none";
+
+      renderUserInfo();
+      renderCompanies();
+      log(`✅ 로그인: ${cname}`);
     } catch (e) {
-      console.warn("⚠️ Firestore 저장 실패:", e);
-      // 저장 실패해도 계속 진행
+      console.warn("⚠️ Firestore 확인/저장 실패:", e);
+      alert("로그인 처리 중 오류가 발생했습니다.");
     }
-
-    // 로컬에는 항상 저장
-    localStorage.setItem("stockUser", JSON.stringify(currentUser));
-    loginModal.style.display = "none";
-
-    renderUserInfo();
-    renderCompanies();
-    log(`✅ 로그인: ${cname}`);
   };
 
-  function logout(){ localStorage.removeItem('stockUser'); location.reload(); }
+  // 로그아웃
+  async function logout() {
+    if (currentUser) {
+      try {
+        await updateDoc(doc(db, "users", currentUser.id), { active: false });
+        console.log("🔓 Firestore 로그아웃 처리 완료");
+      } catch (e) {
+        console.warn("⚠️ Firestore 로그아웃 처리 실패:", e);
+      }
+    }
+    localStorage.removeItem('stockUser');
+    location.reload();
+  }
+
+  // 관리자 기능
+  function checkAdmin() {
+    const code = document.getElementById("adminCode").value.trim();
+    if (code === "SECRET1234") { // ✅ 관리자 코드
+      alert("관리자 모드 진입");
+      document.getElementById("adminPanel").style.display = "block";
+      document.getElementById("adminLogin").style.display = "none";
+      loadUsers();
+    } else {
+      alert("관리자 코드가 올바르지 않습니다.");
+    }
+  }
+
+  async function loadUsers() {
+    const userList = document.getElementById("userList");
+    userList.innerHTML = "⏳ 불러오는 중...";
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      let html = "";
+      snap.forEach(docu => {
+        const u = docu.data();
+        html += `
+          <div class="req-card">
+            <div>
+              <strong>${u.name}</strong> (${u.id}) | 현금: ${u.cash?.toLocaleString() || 0} | 상태: ${u.active ? "🟢 로그인중" : "⚪ 로그아웃"}
+            </div>
+            <div>
+              <button onclick="forceLogout('${u.id}')">강제 로그아웃</button>
+            </div>
+          </div>
+        `;
+      });
+      userList.innerHTML = html;
+    } catch (e) {
+      console.error("⚠️ 유저 목록 불러오기 실패:", e);
+      userList.innerHTML = "❌ 불러오기 실패";
+    }
+  }
+
+  async function forceLogout(userId) {
+    try {
+      await updateDoc(doc(db, "users", userId), { active: false });
+      log(`🔓 관리자 강제 로그아웃 처리: ${userId}`);
+      loadUsers();
+    } catch (e) {
+      console.error("강제 로그아웃 실패:", e);
+    }
+  }
 
   // 전역 바인딩
-  window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit; window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal; window.submitWithdraw=submitWithdraw; window.toggleAdminQueue=toggleAdminQueue; window.logout=logout;
+  window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
+  window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal;
+  window.submitWithdraw=submitWithdraw; window.toggleAdminQueue=toggleAdminQueue;
+  window.logout=logout; window.checkAdmin=checkAdmin; window.loadUsers=loadUsers; window.forceLogout=forceLogout;
 </script>
 </body>
 </html>
