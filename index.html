@@ -1,193 +1,167 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>떡잎방범대 주식 센터</title>
 <style>
 body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:20px; }
-h1 { text-align:center; }
-#userRow, #log { margin:20px auto; max-width:800px; }
-#companies { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:20px auto; max-width:800px; }
-.company { padding:10px; background:#1f2937; border-radius:8px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-button { padding:5px 10px; cursor:pointer; }
-#log { max-height:220px; overflow-y:auto; background:#111827; padding:10px; border-radius:8px; }
-canvas { background:#111827; border-radius:8px; display:block; margin:20px auto; }
-#loginModal { display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; }
-#loginModalContent { background:#1f2937; padding:20px; border-radius:10px; text-align:center; }
-#loginModal input { margin:10px 0; padding:5px; width:80%; }
+h1{text-align:center;} #userRow,#log{margin:20px auto; max-width:800px;}
+#userRow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;justify-content:space-between;}
+#userInfo{font-size:16px;} #depositForm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+#depositForm input{padding:6px;} #depositForm .memo{min-width:200px;}
+#companies{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:20px auto;max-width:800px;}
+.company{padding:10px;background:#1f2937;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.company .left{display:flex;flex-direction:column;gap:6px;} .company .actions{display:flex;gap:6px;align-items:center;}
+button{padding:5px 10px;cursor:pointer;} #log{max-height:220px;overflow-y:auto;background:#111827;padding:10px;border-radius:8px;}
+canvas{background:#111827;border-radius:8px;display:block;margin:20px auto;}
+#downloadSection{text-align:center;margin-top:20px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+#downloadSection input{padding:5px;} #adminQueue{max-width:800px;margin:14px auto 0;display:none;}
+#adminQueue.active{display:block;} .req-card{background:#1f2937;border-radius:8px;padding:10px;margin:8px 0;
+display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.req-meta{font-size:12px;opacity:.9;} .req-actions button{margin-left:6px;}
+.badge{padding:2px 6px;border-radius:6px;font-size:12px;} .badge.wait{background:#374151;}
+.badge.approved{background:#065f46;} .badge.rejected{background:#7f1d1d;}
 </style>
 </head>
 <body>
-<h1>인게임 주식 시뮬레이터 (Firestore 연동)</h1>
+<h1>인게임 주식 시뮬레이터</h1>
 
 <div id="userRow">
-  <div id="userInfo"></div>
+  <div id="userInfo">⏳ 로그인 중...</div>
+  <div id="depositForm">
+    <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
+    <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
+    <input id="cashMemo" type="text" class="memo" placeholder="메모 (선택)">
+    <button onclick="requestDeposit()">입금 요청</button>
+  </div>
 </div>
 
 <div id="companies"></div>
 <canvas id="chart" width="800" height="400"></canvas>
 <div id="log"></div>
 
-<!-- 로그인 모달 -->
-<div id="loginModal">
-  <div id="loginModalContent">
-    <h2>거래 시작 전 정보 입력</h2>
-    <input type="text" id="userId" placeholder="고유번호 입력" /><br/>
-    <input type="text" id="userName" placeholder="이름 입력" /><br/>
-    <button id="startBtn">시작</button>
-  </div>
+<div id="downloadSection">
+  <input type="text" id="adminCode" placeholder="관리자 코드 (ADMIN123)" />
+  <button onclick="downloadExcel()">엑셀 다운로드</button>
+  <button onclick="toggleAdminQueue()">승인 대기함 열기</button>
+</div>
+
+<div id="adminQueue">
+  <h3>입금 승인 대기함</h3>
+  <div id="queueList"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ✅ Firebase 초기화 & Firestore + Auth -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import {
-  initializeFirestore, doc, getDoc, setDoc, updateDoc,
-  collection, addDoc, getDocs, onSnapshot, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, setDoc } 
+    from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged, signOut } 
+    from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
-/* 🔑 Firebase 설정 (console에서 CDN 값 복사) */
-const firebaseConfig = {
-  apiKey: "AIzaSyCQf-ofDMSTwOBsopBsx5ZXCy1XhIWLeVY",
-  authDomain: "cotyledons-of-stock.firebaseapp.com",
-  projectId: "cotyledons-of-stock",
-  storageBucket: "cotyledons-of-stock.appspot.com",   // ✅ 꼭 appspot.com
-  messagingSenderId: "343488842605",
-  appId: "1:343488842605:web:c5dcbfcd64dacf9955e864",
-  measurementId: "G-QWBTK3MQG8"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
+    authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
+    projectId: "cotyledons-of-stock-a1241",
+    storageBucket: "cotyledons-of-stock-a1241.appspot.com",
+    messagingSenderId: "962984742513",
+    appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
+    measurementId: "G-NRPT075Q3X"
+  };
 
-const app = initializeApp(firebaseConfig);
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
 
-/* ✅ WebChannel 400 에러 방지 */
-const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false
-});
+  let player = { holdings: {}, cash: 5000000 };
+  let currentUser = null;
+  let pendingDeposits = [];
 
-/* 상태 */
-let player = { holdings:{}, cash:5000000 };
-let currentUser = null;
-let chart;
+  /* ===== 익명 로그인 ===== */
+  signInAnonymously(auth).catch(err => console.error("익명 로그인 실패:", err));
 
-/* 기업 초기값 */
-let companies = [
-  { name:"떡잎방범대", price:1000, history:[1000], range:0.05 },
-  { name:"카스틸로", price:500, history:[500], range:0.05 },
-  { name:"사쿠라", price:500, history:[500], range:0.05 },
-  { name:"청룡", price:500, history:[500], range:0.05 }
-];
-
-/* 로그 */
-function log(msg){ const l=document.getElementById("log"); l.innerHTML=`<div>${msg}</div>`+l.innerHTML; }
-
-/* Firestore 연결 테스트 */
-async function testFirestore(){
-  try {
-    const ref = doc(db, "_health", "ping");
-    await setDoc(ref, { last: serverTimestamp() }, { merge:true });
-    const snap = await getDoc(ref);
-    if(snap.exists()){
-      log("✅ Firestore 연결 성공: " + JSON.stringify(snap.data()));
+  onAuthStateChanged(auth, async (user) => {
+    if(user){
+      currentUser = { id: user.uid, name: "익명유저", cash: player.cash };
+      // users 컬렉션에 저장
+      await setDoc(doc(db,"users",user.uid),{
+        id: user.uid, name:"익명유저", cash: player.cash, createdAt:new Date()
+      });
+      renderUserInfo(); renderCompanies(); startAuto(); listenDeposits();
+      log(`✅ 익명 로그인: ${user.uid}`);
     } else {
-      log("❌ Firestore 연결 실패 (문서 없음)");
+      document.getElementById("userInfo").innerText="❌ 로그인 실패";
     }
-  } catch(e){
-    log("❌ Firestore 오류: " + e.message);
-    console.error(e);
-  }
-}
-testFirestore();
-
-/* 로그인 */
-async function loginUser(userId,userName){
-  const userRef=doc(db,"users",userId);
-  const snap=await getDoc(userRef);
-  if(snap.exists()){
-    const data=snap.data();
-    player={ cash:data.cash??5000000, holdings:data.holdings??{} };
-  } else {
-    await setDoc(userRef,{ id:userId, name:userName, cash:5000000, holdings:{} });
-  }
-  currentUser={ id:userId, name:userName };
-  renderUserInfo(); renderCompanies();
-  log(`👤 로그인: ${userName}(${userId})`);
-}
-
-/* UI */
-function renderUserInfo(){
-  document.getElementById("userInfo").innerHTML =
-    `<strong>${currentUser?.name||""}(${currentUser?.id||""})</strong> |
-     현금: ${player.cash.toLocaleString()} KRW`;
-}
-function renderCompanies(){
-  const container=document.getElementById("companies");
-  container.innerHTML="";
-  companies.forEach(c=>{
-    const held=player.holdings[c.name]||0;
-    const div=document.createElement("div");
-    div.className="company";
-    div.innerHTML=`
-      <div>
-        <strong>${c.name}</strong><br/>
-        가격: <span id="price-${c.name}">${c.price.toLocaleString()}</span> KRW<br/>
-        보유: ${held}주
-      </div>
-      <div>
-        <input type="number" id="qty-${c.name}" value="1" min="1" style="width:60px;">
-        <button onclick="buy('${c.name}')">매수</button>
-        <button onclick="sell('${c.name}')">매도</button>
-      </div>`;
-    container.appendChild(div);
   });
-  updateChart();
-}
 
-/* 거래 */
-window.buy=async function(name){
-  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
-  const c=companies.find(x=>x.name===name);
-  if(player.cash<c.price*qty){ alert("현금 부족"); return; }
-  player.cash-=c.price*qty;
-  player.holdings[name]=(player.holdings[name]||0)+qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매수 @ ${c.price}`);
-  await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
-  renderCompanies();
-};
-window.sell=async function(name){
-  const qty=parseInt(document.getElementById(`qty-${name}`).value,10)||1;
-  const c=companies.find(x=>x.name===name);
-  if((player.holdings[name]||0)<qty){ alert("보유 부족"); return; }
-  player.cash+=c.price*qty;
-  player.holdings[name]-=qty;
-  log(`✅ ${currentUser.name} ${name} ${qty}주 매도 @ ${c.price}`);
-  await updateDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings });
-  renderCompanies();
-};
+  /* ===== 유틸 ===== */
+  function log(msg){ document.getElementById('log').innerHTML = `<div>${msg}</div>`+document.getElementById('log').innerHTML; }
+  function renderUserInfo(){ 
+    if(currentUser) document.getElementById('userInfo').innerHTML = `<strong>${currentUser.name}(${currentUser.id})</strong> | 현금: ${player.cash.toLocaleString()} KRW`; 
+  }
 
-/* 차트 */
-const ctx=document.getElementById("chart").getContext("2d");
-chart=new Chart(ctx,{
-  type:"line",
-  data:{ labels:[0], datasets:companies.map(c=>({label:c.name,data:c.history,
-    borderColor:"#"+Math.floor(Math.random()*16777215).toString(16), fill:false})) },
-  options:{ responsive:true, scales:{ x:{title:{display:true,text:"틱"}}, y:{title:{display:true,text:"가격"}} } }
-});
-function updateChart(){
-  chart.data.labels=Array.from({length:companies[0].history.length},(_,i)=>i);
-  chart.data.datasets.forEach((d,i)=>{ d.data=companies[i].history; });
-  chart.update();
-}
+  /* ===== 거래 로그 저장 ===== */
+  async function saveTradeLog(entry){ await addDoc(collection(db,"tradeLogs"), entry); }
 
-/* 시작 버튼 */
-document.getElementById("startBtn").addEventListener("click", async ()=>{
-  const uid=document.getElementById("userId").value.trim();
-  const uname=document.getElementById("userName").value.trim();
-  if(!uid||!uname){ alert("입력 필요"); return; }
-  await loginUser(uid,uname);
-  document.getElementById("loginModal").style.display="none";
-});
+  /* ===== 입금 ===== */
+  async function requestDeposit(){
+    if(!currentUser){ alert("로그인 필요"); return; }
+    const acct=acctNo.value.trim(); const amount=parseInt(cashAmount.value.replace(/[^0-9]/g,''))||0; const memo=cashMemo.value.trim();
+    if(!acct||amount<=0){ alert("잘못된 입력"); return; }
+    const req={id:"REQ-"+Date.now(), date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, acct, amount, memo, status:"대기"};
+    await addDoc(collection(db,"pendingDeposits"), req);
+    log(`📨 입금 요청: ${amount.toLocaleString()} KRW`);
+    acctNo.value=""; cashAmount.value=""; cashMemo.value="";
+  }
+  function listenDeposits(){ onSnapshot(collection(db,"pendingDeposits"), snap=>{ pendingDeposits=[]; snap.forEach(d=>pendingDeposits.push(d.data())); renderQueue(); }); }
+
+  async function approveDeposit(id){
+    const q=await getDocs(collection(db,"pendingDeposits"));
+    q.forEach(async d=>{ const data=d.data();
+      if(data.id===id && data.status==="대기"){
+        await updateDoc(doc(db,"pendingDeposits",d.id), {status:"승인"});
+        player.cash+=data.amount; await updateDoc(doc(db,"users",data.userId), {cash:player.cash});
+        const entry={date:new Date().toLocaleString(), userId:data.userId, userName:data.userName, type:"입금승인", company:"현금", qty:0, price:0, amount:data.amount, cash:player.cash};
+        await saveTradeLog(entry); renderUserInfo(); log(`✅ 입금 승인: ${data.amount.toLocaleString()} KRW`);
+      }
+    });
+  }
+  async function rejectDeposit(id){
+    const q=await getDocs(collection(db,"pendingDeposits"));
+    q.forEach(async d=>{ const data=d.data();
+      if(data.id===id && data.status==="대기"){
+        await updateDoc(doc(db,"pendingDeposits",d.id), {status:"거절"});
+        const entry={date:new Date().toLocaleString(), userId:data.userId, userName:data.userName, type:"입금거절", company:"현금", qty:0, price:0, amount:data.amount, cash:player.cash};
+        await saveTradeLog(entry); log(`⛔ 입금 거절: ${data.amount.toLocaleString()} KRW`);
+      }
+    });
+  }
+
+  /* ===== 매수/매도 ===== */
+  function buy(name, qty){
+    const c=companies.find(x=>x.name===name); if(player.cash<c.price*qty){alert("현금 부족"); return;}
+    player.cash-=c.price*qty; player.holdings[name]=(player.holdings[name]||0)+qty;
+    const entry={date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, type:"매수", company:name, qty, price:c.price, amount:c.price*qty, cash:player.cash};
+    saveTradeLog(entry); log(`✅ 매수: ${name} ${qty}주 @ ${c.price}`); renderCompanies();
+  }
+  function sell(name, qty){
+    const c=companies.find(x=>x.name===name); if((player.holdings[name]||0)<qty){alert("보유 부족"); return;}
+    player.cash+=c.price*qty; player.holdings[name]-=qty;
+    const entry={date:new Date().toLocaleString(), userId:currentUser.id, userName:currentUser.name, type:"매도", company:name, qty, price:c.price, amount:c.price*qty, cash:player.cash};
+    saveTradeLog(entry); log(`✅ 매도: ${name} ${qty}주 @ ${c.price}`); renderCompanies();
+  }
+
+  /* ===== 종목/차트 ===== */
+  const companies=[
+    {name:"떡잎방범대",price:10000000,history:[1000],cfg:{vol:0.03,drift:0.002,jumpProb:0.01,jumpVol:0.10,min:1}},
+    {name:"카스틸로",price:5000000,history:[500],cfg:{vol:0.06,drift:-0.001,jumpProb:0.02,jumpVol:0.20,min:1}},
+    {name:"사쿠라",price:6500000,history:[500],cfg:{vol:0.04,drift:0.000,jumpProb:0.00,jumpVol:0.00,min:1}}
+  ];
+  function renderCompanies(){ const ctn=document.getElementById("companies"); ctn.innerHTML=""; companies.forEach(c=>{const held=player.holdings[c.name]||0; const div=document.createElement("div"); div.className="company"; div.innerHTML=`<div class="left"><strong>${c.name}</strong> ${c.price.toLocaleString()} KRW | 보유: ${held}주</div><div class="actions"><button onclick="buy('${c.name}',1)">매수</button><button onclick="sell('${c.name}',1)">매도</button></div>`; ctn.appendChild(div);}); renderUserInfo();}
+  function startAuto(){ setInterval(()=>{companies.forEach(c=>{let shock=(Math.random()*2-1)*c.cfg.vol+c.cfg.drift; if(Math.random()<c.cfg.jumpProb)shock+=(Math.random()*2-1)*c.cfg.jumpVol; c.price=Math.max(c.cfg.min,Math.floor(c.price*(1+shock))); c.history.push(c.price);}); renderCompanies();},5000);}
 </script>
 </body>
 </html>
