@@ -87,173 +87,8 @@
   @media (max-width:600px){ #companies{ grid-template-columns:1fr } }
 </style>
 </head>
-<body>
-<h1>떡잎방범대 주식 센터</h1>
 
-<div id="userRow">
-  <div id="userInfo">⏳ 로그인 대기중...</div>
-  <div>
-    <button onclick="logout()">로그아웃</button>
-    <button onclick="openWithdrawModal()">출금 요청</button>
-    <button onclick="openNewsModal()">📰 뉴스 보기</button>
-  </div>
-</div>
-
-<!-- 입금 요청 폼 -->
-<div id="depositForm">
-  <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
-  <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
-  <input id="cashMemo" type="text" class="memo" placeholder="메모 (선택)">
-  <button onclick="requestDeposit()">입금 요청</button>
-</div>
-
-<!-- 그래프 -->
-<div id="chartWrap"><canvas id="chart"></canvas></div>
-
-<!-- 기업 카드 -->
-<div id="companies"></div>
-
-<!-- 하단 로그 -->
-<div id="log"></div>
-
-<!-- 로그인 모달 -->
-<div id="loginModal" class="modal">
-  <div class="modal-content">
-    <h2>정보 입력 후 시작</h2>
-    <input type="text" id="customId" placeholder="고유번호 입력"><br>
-    <input type="text" id="customName" placeholder="이름 입력"><br>
-    <button id="startBtn">시작</button>
-  </div>
-</div>
-
-<!-- 출금 요청 모달 -->
-<div id="withdrawModal" class="modal">
-  <div class="modal-content">
-    <!-- 제목과 닫기 버튼을 한 줄에 배치 -->
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 style="margin:0;">출금 요청</h2>
-      <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
-    </div>
-
-    <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
-    <input type="text" id="withdrawName" placeholder="이름 입력"><br>
-    <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
-    <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
-    <input type="text" id="withdrawMemo" placeholder="메모 (선택)"><br>
-    <button onclick="submitWithdraw()">요청</button>
-  </div>
-</div>
-
-<!-- 뉴스 모달 -->
-<div id="newsModal" class="modal">
-  <div class="modal-content">
-    <button class="xbtn" onclick="closeNewsModal()">✕</button>
-    <h2>📢 최신 뉴스</h2>
-    <div id="newsContent" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:10px;">
-      <p>현재 등록된 뉴스가 없습니다.</p>
-    </div>
-    <button onclick="closeNewsModal()">닫기</button>
-  </div>
-</div>
-
-<!-- 관리자 로그인 -->
-<div id="adminLogin">
-  <input type="password" id="adminCode" placeholder="관리자 코드 입력">
-  <button onclick="checkAdmin()">관리자 로그인</button>
-</div>
-
-<!-- 👑 강제 로그아웃 패널 (SECRET1234) -->
-<div id="adminPanelUsers" class="admin-panel">
-  <button class="xbtn" onclick="closeAdmin('adminPanelUsers')">✕</button>
-  <h3>👑 강제 로그아웃 패널</h3>
-  <div id="userList"></div>
-</div>
-
-<!-- 💰 입출금 관리 패널 (ADMIN123) -->
-<div id="adminPanelFinance" class="admin-panel">
-  <button class="xbtn" onclick="closeAdmin('adminPanelFinance')">✕</button>
-  <h3>💰 입출금 요청 패널</h3>
-  <h4>입금 요청</h4>
-  <div id="depositRequests"></div>
-  <h4>출금 요청</h4>
-  <div id="withdrawRequests"></div>
-</div>
-
-<!-- 📊 그래프/금액 제어 패널 (graph123) -->
-<div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
-  <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
-  <h3>📊 그래프/금액 제어 패널</h3>
-
-  <!-- 그래프 제어 + 전체 종목 금액 조정 -->
-  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-    <button onclick="marketOpen()">🟢 장 시작</button>
-    <button onclick="marketClose()">🔴 장 마감</button>
-    <button onclick="resetGraph()">그래프 초기화</button>
-
-    <label style="margin-left:20px;">전체 조정 ±금액</label>
-    <input type="number" id="allDelta" value="100" style="width:100px;">
-    <button onclick="adjustAllPrices()">적용</button>
-  </div>
-
-  <div style="margin-top:10px;">
-    <strong>⏱️ 변동 주기 (초):</strong>
-    <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
-    <button onclick="applyGraphInterval()">적용</button>
-  </div>
-
-  <div style="margin-top:10px;">
-    <strong>📊 변동폭 범위:</strong>
-    <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
-    <button onclick="applyDeltaMax()">적용</button>
-  </div>
-
-  <hr style="opacity:.2">
-
-  <h4>📈 개별 종목 금액 조정</h4>
-  <div id="graphCompanyAdjust"></div>
-
-  <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다.</p>
-</div>
-
-<!-- 🎛️ 주가 조작 패널 (stock123) -->
-<div id="adminPanelStock" class="admin-panel">
-  <button class="xbtn" onclick="closeAdmin('adminPanelStock')">✕</button>
-  <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
-  <div id="stockTuner"></div>
-</div>
-
-<!-- 📈 배율/확률 관리 패널 (change123) -->
-<div id="adminPanelChange" class="admin-panel">
-  <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
-  <h3>📈 배율 & 확률 관리 패널</h3>
-
-  <!-- 전체 배율 -->
-  <div class="req-card">
-    <div><strong>전체 배율</strong></div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <input type="number" id="allMultiplierVal" step="0.01" value="1.00" style="width:100px;">
-      <button onclick="setAllMultipliers()">전체 배율 일괄 설정</button>
-    </div>
-  </div>
-
-  <!-- 전체 확률 -->
-  <div class="req-card">
-    <div><strong>전체 확률</strong></div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <label>이득%</label>
-      <input type="number" id="globalProfit" step="0.01" min="0" max="1" value="0.3" style="width:70px;">
-      <label>손해%</label>
-      <input type="number" id="globalLoss" step="0.01" min="0" max="1" value="0.7" style="width:70px;">
-      <button onclick="setAllChances()">전체 확률 일괄 적용</button>
-    </div>
-    <small style="color:#9ca3af;">* 합계 ≤ 1, 남는 확률은 “변화 없음”입니다.</small>
-  </div>
-
-  <!-- 개별 종목 배율/확률 -->
-  <div id="changePanel"></div>
-</div>
-
-<!-- 라이브러리 -->
+  <!-- 라이브러리 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   /* =========================
@@ -311,37 +146,6 @@
   const qtyState = {};  // { [companyName]: number }
 
   /* =========================
-   *  시장 상태 (장 시작/마감)
-   * ========================= */
-  let marketIsOpen = false;
-
-  function marketOpenFn(){
-    marketIsOpen = true;
-    alert("🟢 장이 오픈되었습니다.");
-    updateAllMarketBadges();
-    startPriceSimulation();
-  }
-  function marketClose(){
-    marketIsOpen = false;
-    alert("🔴 지금은 장 오픈이 아닙니다.");
-    updateAllMarketBadges();
-    stopPriceSimulation();
-  }
-  function updateAllMarketBadges(){
-  companies.forEach(c=>{
-    const badge = document.getElementById(`badge-${safeId(c.name)}`);
-    if(!badge) return;
-    if(marketIsOpen){   // ✅ 변수명 수정
-      badge.textContent = "🟢 장 열림";
-      badge.style.color = "#10b981"; // 초록색
-    } else {
-      badge.textContent = "🔴 장 마감";
-      badge.style.color = "#ef4444"; // 빨강색
-    }
-  });
-}
-
-  /* =========================
    *  유틸
    * ========================= */
   const ci = s => String(s||'').toLowerCase();
@@ -376,7 +180,7 @@
   function findCompanyById(id){ return companies.find(x => ci(x.name)===ci(id)); }
 
   /* =========================
-   *  표시가격: multiplier 은밀 반영
+   *  표시가격
    * ========================= */
   function getDisplayPrice(c){
     const base = (typeof c.livePrice === 'number') ? c.livePrice : c.basePrice;
@@ -390,82 +194,51 @@
     }
   }
 
- function buildCompanyCard(c){
-  const safe = safeId(c.name);
-  const held = player.holdings[c.name]||0;
-  const nowPrice = getDisplayPrice(c);
-  const initQty = (Number.isFinite(qtyState[c.name]) && qtyState[c.name] > 0) ? qtyState[c.name] : 1;
+  /* =========================
+   *  기업 카드 (수정 완료)
+   * ========================= */
+  function buildCompanyCard(c){
+    const safe = safeId(c.name);
+    const held = player.holdings[c.name]||0;
+    const nowPrice = getDisplayPrice(c);
+    const initQty = (Number.isFinite(qtyState[c.name]) && qtyState[c.name] > 0) ? qtyState[c.name] : 1;
 
-  const div = document.createElement('div');
-  div.className = 'company';
-  div.id = `card-${safe}`;
-  div.innerHTML = `
-    <div class="info">
-      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
-        <strong>${c.name}</strong>
-        <div class="market-badge" id="badge-${safe}" style="font-size:13px;"></div>
+    const div = document.createElement('div');
+    div.className = 'company';
+    div.id = `card-${safe}`;
+    div.innerHTML = `
+      <div class="info">
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+          <strong>${c.name}</strong>
+          <div class="market-badge" id="badge-${safe}" style="font-size:13px;"></div>
+        </div>
+        <span>
+          <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
+          <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
+        </span>
       </div>
-      <span>
-        <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
-        <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
-      </span>
-    </div>
-    <div class="actions">
-      <input type="number" id="qty-${safe}" value="${initQty}" min="1">
-      <button onclick="buy('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매수</button>
-      <button onclick="sell('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매도</button>
-    </div>
-  `;
-  companiesDiv.appendChild(div);
+      <div class="actions">
+        <input type="number" id="qty-${safe}" value="${initQty}" min="1">
+        <button onclick="buy('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매수</button>
+        <button onclick="sell('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매도</button>
+      </div>
+    `;
+    companiesDiv.appendChild(div);
 
-  const qtyInput = div.querySelector(`#qty-${safe}`);
-  qtyInput.addEventListener('input', (e)=>{
-    const v = parseInt(e.target.value, 10);
-    qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
-  });
-}
+    // ✅ 중복 코드 제거, 여기서만 이벤트 리스너 처리
+    const qtyInput = div.querySelector(`#qty-${safe}`);
+    qtyInput.addEventListener('input', (e)=>{
+      const v = parseInt(e.target.value, 10);
+      qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
+    });
+  }
 
-  const qtyInput = div.querySelector(`#qty-${safe}`);
-  qtyInput.addEventListener('input', (e)=>{
-    const v = parseInt(e.target.value, 10);
-    qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
-  });
-}
   function initCompaniesUI(){
     companiesDiv.innerHTML = '';
     companies.forEach(buildCompanyCard);
-    updateAllMarketBadges();
-  }
-  function updateCompanyPriceDOM(name){
-    const el = document.getElementById(`price-${safeId(name)}`);
-    const c = findCompanyById(name);
-    if(el && c) el.textContent = getDisplayPrice(c).toLocaleString();
-  }
-  function updateCompanyHoldingDOM(name){
-    const el = document.getElementById(`held-${safeId(name)}`);
-    if(el) el.textContent = (player.holdings[name]||0);
   }
 
-  /* =========================
-   *  시장 파라미터 (간단 버전)
-   * ========================= */
-  // 종목별 이득/손해 확률 (기본 3:7). Firestore 동기화됨.
-  const companyChances = {};
-  companies.forEach(c=>{
-    companyChances[c.name] = { profit:0.3, loss:0.7 };
-  });
-
-  /* =========================
-   *  서버 동기화 (users)
-   * ========================= */
-  async function syncUserToServer(){
-    if(!currentUser) return;
-    try{
-      await setDoc(doc(db,"users",currentUser.id), { cash: player.cash, holdings: player.holdings }, { merge:true });
-    }catch(e){ console.warn("⚠️ 사용자 동기화 실패:", e); }
-  }
-
-  /* =========================
+    /* =========================
    *  거래 영향 (간단 랜덤)
    * ========================= */
   async function impactPrice(name, qty, type){
@@ -505,6 +278,7 @@
     renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
     impactPrice(name, qty, 'buy');
   }
+
   function sell(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     if(!marketIsOpen) return alert("지금은 장 오픈이 아닙니다");
@@ -533,7 +307,8 @@
       userId:currentUser.id, userName:currentUser.name,
       acct, amount, memo, status:'대기', type:'입금'
     };
-    try{ await addDoc(collection(db,'pendingDeposits'),req); }catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
+    try{ await addDoc(collection(db,'pendingDeposits'),req); }
+    catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
     alert("✅ 입금 요청이 완료되었습니다.");
   }
 
@@ -544,6 +319,7 @@
     withdrawModal.style.display='flex';
   }
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
+
   function updateWithdrawFee(){
     const feeRate = 0.3;
     const amount = parseInt(document.getElementById("withdrawAmount").value) || 0;
@@ -556,6 +332,7 @@
       document.getElementById("withdrawFeeInfo").innerText = "";
     }
   }
+
   async function submitWithdraw(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     const amount=parseInt(withdrawAmount.value)||0;
@@ -653,7 +430,6 @@
 
     const token = crypto.randomUUID();
 
-    // 기존 보유/현금 유지
     let nextCash = snap.exists() ? (snap.data().cash ?? 5000000) : 5000000;
     let nextHoldings = snap.exists() ? (snap.data().holdings ?? {}) : {};
 
@@ -668,7 +444,6 @@
       lastLoginAt: Date.now()
     },{merge:true});
 
-    // F5만 자동 로그인 허용
     localStorage.setItem("lastUserId", cid);
     localStorage.setItem("sessionToken", token);
 
@@ -701,7 +476,7 @@
     }
   });
 
-  /* =========================
+    /* =========================
    *  관리자 코드 분기 + 패널
    * ========================= */
   function checkAdmin(){
@@ -736,7 +511,7 @@
   }
 
   /* =========================
-   *  관리자: 유저(강제 로그아웃)
+   *  관리자: 유저 관리
    * ========================= */
   function subscribeUsers(){
     onSnapshot(collection(db,"users"),(snap)=>{
@@ -764,7 +539,7 @@
   }
 
   /* =========================
-   *  관리자: 입/출금 실시간 & 승인/거절
+   *  관리자: 입/출금 관리
    * ========================= */
   function subscribeRequests(){
     const depQ=query(collection(db,"pendingDeposits"),where("status","==","대기"));
@@ -850,374 +625,6 @@
   }
 
   /* =========================
-   *  회사 설정/확률/시세 구독
-   * ========================= */
-  function subscribeCompanySettings(){
-    onSnapshot(collection(db,'companySettings'), (snap)=>{
-      let changed=false;
-      snap.forEach(d=>{
-        const data=d.data();
-        const c=findCompanyById(d.id);
-        if(!c) return;
-        if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; changed=true; }
-      });
-      if(changed){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
-    });
-  }
-
-  function subscribeCompanyChances(){
-    onSnapshot(collection(db,'companyChances'), (snap)=>{
-      snap.forEach(docu=>{
-        const data = docu.data();
-        if(typeof data.profit==='number' && typeof data.loss==='number'){
-          companyChances[docu.id] = { profit:data.profit, loss:data.loss };
-        }
-      });
-      const panel = document.getElementById("adminPanelChange");
-      if(panel && panel.style.display==="block"){ renderChangePanel(); }
-    });
-  }
-
-  function subscribeCompanyPrices(){
-    onSnapshot(collection(db,"companyPrices"), (snap)=>{
-      let any=false;
-      snap.forEach(docu=>{
-        const data=docu.data();
-        const c=findCompanyById(docu.id);
-        if(c && typeof data.current==='number'){ c.livePrice=data.current; any=true; }
-      });
-      if(any){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
-    });
-  }
-
-  /* =========================
-   *  그래프(Chart.js)
-   * ========================= */
-  function initChart(){
-    if(chart) return;
-    const ctx=document.getElementById("chart").getContext("2d");
-    chart = new Chart(ctx, {
-      type:"line",
-      data:{
-        labels:[],
-        datasets: companies.map(c=>({ label:c.name, data:[], borderWidth:2, fill:false, tension:0.25 }))
-      },
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        animation:false,
-        plugins:{ legend:{position:"bottom"} },
-        scales:{
-          x:{ title:{display:true, text:"시간"} },
-          y:{ title:{display:true, text:"가격 (KRW)"}, beginAtZero:false }
-        }
-      }
-    });
-  }
-  function appendChartPoint(){
-    if(!chart) return;
-    const now=new Date().toLocaleTimeString();
-    chart.data.labels.push(now);
-    companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
-    const MAX=120;
-    if(chart.data.labels.length>MAX){
-      chart.data.labels.splice(0, chart.data.labels.length-MAX);
-      chart.data.datasets.forEach(d=>{
-        if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX);
-      });
-    }
-    chart.update("none");
-  }
-  function scheduleGraphUpdate(){
-    if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); }
-    graphUpdateTimer=setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, 200);
-  }
-
-  // 시뮬레이션 틱
-  function simulateTick(){
-    companies.forEach(c=>{
-      const prev = c.livePrice||c.basePrice||1000;
-      const chance = companyChances[c.name] || {profit:0.3, loss:0.7};
-      const up = Math.random() < chance.profit;
-      const amp = (Math.random()*0.6+0.1)/100; // 0.1%~0.7%
-      const ratio = up ? amp : -amp*1.2;
-      const next = Math.max(1, Math.round(prev*(1+ratio)));
-      c.livePrice = next;
-      updateCompanyPriceDOM(c.name);
-    });
-    scheduleGraphUpdate();
-  }
-
-  function startPriceSimulation(){
-    if(priceTimer) return;
-    priceTimer=setInterval(simulateTick, updateInterval);
-  }
-  function stopPriceSimulation(){
-    if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
-  }
-  async function resetGraph(){
-    for(const c of companies){
-      c.livePrice=c.basePrice;
-      await setDoc(doc(db,"companyPrices", c.name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
-    }
-    if(chart){
-      chart.data.labels = [];
-      chart.data.datasets.forEach(d=> d.data = []);
-      chart.update();
-    }
-    companies.forEach(c => updateCompanyPriceDOM(c.name));
-  }
-  function applyGraphInterval(){
-    const sec = parseInt(document.getElementById("intervalInput").value)||5;
-    updateInterval = Math.max(1, sec) * 1000;
-    if(priceTimer){
-      clearInterval(priceTimer);
-      priceTimer=null;
-      startPriceSimulation();
-    }
-  }
-
-  /* =========================
-   *  그래프/금액 제어 (graph123)
-   * ========================= */
-  function renderGraphAdjustPanel(){
-    const wrap=document.getElementById("graphCompanyAdjust"); let html="";
-
-    // 상단 컨트롤 박스 존재하므로 여기서는 종목별 조정만 그림
-    companies.forEach(c=>{
-      const id=`adj-${c.name}`;
-      html += `
-        <div class="req-card">
-          <div><strong>${c.name}</strong> | 현재가: <span id="panel-price-${safeId(c.name)}">${getDisplayPrice(c).toLocaleString()}</span> KRW</div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="number" id="${id}" placeholder="±금액" style="width:100px;">
-            <button onclick="adjustCompanyPrice('${c.name}')">적용</button>
-          </div>
-        </div>`;
-    });
-    wrap.innerHTML=html || "회사 데이터 없음";
-  }
-
-  async function adjustCompanyPrice(name){
-    const id=`adj-${name}`;
-    const delta=parseInt(document.getElementById(id).value)||0;
-    const c=findCompanyById(name); if(!c) return;
-    const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
-    await setDoc(doc(db,"companyPrices", name), { current:newVal, updatedAt: Date.now() }, { merge:true });
-    c.livePrice=newVal;
-    updateCompanyPriceDOM(name);
-    const p = document.getElementById(`panel-price-${safeId(name)}`); if(p) p.textContent=getDisplayPrice(c).toLocaleString();
-    scheduleGraphUpdate();
-  }
-
-  async function adjustAllPrices(){
-    const delta=parseInt(document.getElementById("allDelta").value)||0;
-    for(const c of companies){
-      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
-      await setDoc(doc(db,"companyPrices", c.name), { current:newVal, updatedAt: Date.now() }, { merge:true });
-      c.livePrice=newVal;
-      updateCompanyPriceDOM(c.name);
-      const p = document.getElementById(`panel-price-${safeId(c.name)}`); if(p) p.textContent=getDisplayPrice(c).toLocaleString();
-    }
-    scheduleGraphUpdate();
-  }
-
-  function applyDeltaMax(){
-    const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
-    deltaMax = Math.max(1, val);
-  }
-
-  /* =========================
-   *  🎛️ 주가 조작 (stock123): 단순/복합/자동
-   * ========================= */
-  function clearSmoothTimer(name){
-    if(smoothTimers[name]){ clearInterval(smoothTimers[name]); delete smoothTimers[name]; }
-  }
-  function smoothAdjust(c, targetPrice, steps=10){
-    clearSmoothTimer(c.name);
-    const start = c.livePrice || c.basePrice;
-    const diff = targetPrice - start;
-    let count = 0;
-    const step = diff / steps;
-
-    smoothTimers[c.name] = setInterval(async ()=>{
-      count++;
-      c.livePrice = Math.max(1, Math.round(start + step*count));
-      await setDoc(doc(db,"companyPrices", c.name),
-        { current:c.livePrice, updatedAt: Date.now() }, { merge:true });
-      updateCompanyPriceDOM(c.name);
-      scheduleGraphUpdate();
-      if(count >= steps) clearSmoothTimer(c.name);
-    }, updateInterval);
-  }
-
-  function renderStockTuner(){
-    const wrap=document.getElementById("stockTuner"); let html="";
-    companies.forEach(c=>{
-      const cid=`chg-${c.name}`, sid=`steps-${c.name}`;
-      const mid=`mid-${c.name}`, fin=`fin-${c.name}`, steps2=`steps2-${c.name}`;
-      html += `
-        <div class="req-card">
-          <div><strong>${c.name}</strong> | 현재가: <span id="tuner-price-${safeId(c.name)}">${getDisplayPrice(c).toLocaleString()}</span> KRW</div>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <label>목표금액</label>
-            <input type="number" id="${cid}" placeholder="예: 1500" style="width:100px;">
-            <label>틱</label>
-            <input type="number" id="${sid}" value="10" min="1" style="width:80px;">
-            <button onclick="applyStockTarget('${c.name}')">단순 이동</button>
-          </div>
-          <div style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <label>중간</label><input type="number" id="${mid}" placeholder="중간 목표" style="width:100px;">
-            <label>최종</label><input type="number" id="${fin}" placeholder="최종 목표" style="width:100px;">
-            <label>틱</label><input type="number" id="${steps2}" value="20" min="2" style="width:80px;">
-            <button onclick="applyScenario('${c.name}','riseFall')">🎭 상승→하락</button>
-            <button onclick="applyScenario('${c.name}','fallRise')">🔄 하락→회복</button>
-            <button onclick="applyAutoScenario('${c.name}')">🤖 자동</button>
-          </div>
-        </div>`;
-    });
-    wrap.innerHTML = html || "회사 데이터 없음";
-  }
-
-  function splitStepsByDistance(current, mid, fin, stepsTotal){
-    const totalDist = Math.max(1, Math.abs(fin - current));
-    const firstDist = Math.abs(mid - current);
-    const firstSteps = Math.max(1, Math.floor(stepsTotal * (firstDist/totalDist)));
-    const secondSteps = Math.max(1, stepsTotal - firstSteps);
-    return [firstSteps, secondSteps];
-  }
-
-  function applyStockTarget(name){
-    const val = parseInt(document.getElementById(`chg-${name}`).value)||0;
-    const steps = parseInt(document.getElementById(`steps-${name}`).value)||10;
-    if(val<=0){ alert("목표 금액 오류"); return; }
-    const c = findCompanyById(name); if(!c) return;
-    smoothAdjust(c, val, steps);
-  }
-
-  function applyScenario(name, mode){
-    const c = findCompanyById(name); if(!c) return;
-    const mid = parseInt(document.getElementById(`mid-${name}`).value) || 0;
-    const fin = parseInt(document.getElementById(`fin-${name}`).value) || 0;
-    const steps = parseInt(document.getElementById(`steps2-${name}`).value) || 20;
-    if(mid<=0 || fin<=0 || steps<2){ alert("입력 오류"); return; }
-
-    const current = c.livePrice || c.basePrice;
-    const [firstSteps, secondSteps] = splitStepsByDistance(current, mid, fin, steps);
-
-    smoothAdjust(c, mid, firstSteps);
-    setTimeout(()=> smoothAdjust(c, fin, secondSteps), firstSteps*updateInterval);
-  }
-
-  function applyAutoScenario(name){
-    const c = findCompanyById(name); if(!c) return;
-    const steps = parseInt(document.getElementById(`steps2-${name}`).value) || 20;
-
-    const dataset = chart.data.datasets.find(d=>d.label===name);
-    const len = dataset?.data?.length ?? 0;
-    const recent = len ? dataset.data.slice(Math.max(0,len-5)) : [];
-    const slope = (recent.length>=2)? (recent[recent.length-1]-recent[0]) : 0;
-    const mode = slope >= 0 ? "riseFall" : "fallRise";
-
-    const current = c.livePrice || c.basePrice || 1000;
-    const mid = mode==="riseFall" ? Math.round(current*1.05) : Math.round(current*0.95);
-    const fin = mode==="riseFall" ? Math.round(current*0.85) : Math.round(current*1.15);
-
-    const [firstSteps, secondSteps] = splitStepsByDistance(current, mid, fin, steps);
-
-    smoothAdjust(c, mid, firstSteps);
-    setTimeout(()=> smoothAdjust(c, fin, secondSteps), firstSteps*updateInterval);
-  }
-
-  /* =========================
-   *  change123: 배율 & 확률
-   * ========================= */
-  function renderChangePanel(){
-    const wrap=document.getElementById("changePanel"); let html='';
-    companies.forEach(c=>{
-      const mid=`m-${c.name}`;
-      const profit=(companyChances[c.name]?.profit ?? 0.3);
-      const loss=(companyChances[c.name]?.loss ?? 0.7);
-      html += `
-        <div class="req-card">
-          <div><strong>${c.name}</strong> | 현재 배율: x${(c.multiplier??1).toFixed(2)}</div>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
-            <button onclick="applyMultiplier('${c.name}')">배율 적용</button>
-            <button onclick="bumpCompany('${c.name}',1.1)">+10%</button>
-            <button onclick="bumpCompany('${c.name}',0.9)">-10%</button>
-          </div>
-          <div style="display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;">
-            <label>이득%</label>
-            <input type="number" id="profit-${c.name}" step="0.01" min="0" max="1" value="${profit}" style="width:70px;">
-            <label>손해%</label>
-            <input type="number" id="loss-${c.name}" step="0.01" min="0" max="1" value="${loss}" style="width:70px;">
-            <button onclick="applyCompanyChance('${c.name}')">확률 적용</button>
-          </div>
-        </div>`;
-    });
-    wrap.innerHTML = html || "회사 데이터 없음";
-  }
-
-  async function applyMultiplier(name){
-    const mid=`m-${name}`;
-    const multiplier = parseFloat(document.getElementById(mid).value);
-    if(isNaN(multiplier)){ alert('배율 값을 확인하세요.'); return; }
-    const c=findCompanyById(name); if(!c) return;
-    try{
-      await setDoc(doc(db,'companySettings', name), { multiplier, updatedAt: Date.now() }, { merge:true });
-      c.multiplier=multiplier;
-      updateCompanyPriceDOM(name);
-      scheduleGraphUpdate();
-    }catch(e){ console.error('배율 저장 실패:',e); }
-  }
-  async function bumpCompany(name, factor){
-    const c=findCompanyById(name); if(!c) return;
-    const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
-    try{
-      await setDoc(doc(db,'companySettings', name), { multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
-      c.multiplier=newMultiplier;
-      updateCompanyPriceDOM(name);
-      scheduleGraphUpdate();
-    }catch(e){ console.error('배율 변경 실패:',e); }
-  }
-  async function setAllMultipliers(){
-    const val = parseFloat(document.getElementById("allMultiplierVal").value);
-    if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
-    for(const c of companies){
-      await setDoc(doc(db,'companySettings', c.name), { multiplier:val, updatedAt: Date.now() }, { merge:true });
-      c.multiplier = val;
-    }
-    companies.forEach(c => updateCompanyPriceDOM(c.name));
-    scheduleGraphUpdate();
-  }
-
-  async function applyCompanyChance(name){
-    const p=parseFloat(document.getElementById(`profit-${name}`).value);
-    const l=parseFloat(document.getElementById(`loss-${name}`).value);
-    if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
-    try{
-      await setDoc(doc(db,'companyChances', name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
-      companyChances[name] = { profit:p, loss:l };
-      alert(`✅ ${name} 확률 변경: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
-    }catch(e){ console.error("확률 저장 실패:", e); }
-  }
-
-  async function setAllChances(){
-    const p = parseFloat(document.getElementById('globalProfit').value);
-    const l = parseFloat(document.getElementById('globalLoss').value);
-    if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)."); return; }
-    try{
-      for(const c of companies){
-        await setDoc(doc(db,'companyChances', c.name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
-        companyChances[c.name] = { profit:p, loss:l };
-      }
-      alert(`✅ 전체 확률 적용: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
-      renderChangePanel();
-    }catch(e){ console.error("전체 확률 적용 실패:", e); }
-  }
-
-  /* =========================
    *  뉴스 모달
    * ========================= */
   function openNewsModal(){ document.getElementById("newsModal").style.display = "flex"; }
@@ -1237,28 +644,28 @@
   window.logout=logout; window.checkAdmin=checkAdmin; window.closeAdmin=closeAdmin;
   window.forceLogout=forceLogout; window.approveDeposit=approveDeposit; window.approveWithdraw=approveWithdraw; window.rejectRequest=rejectRequest;
 
-  // change123
-  window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; window.bumpCompany=bumpCompany; window.setAllMultipliers=setAllMultipliers;
-  window.applyCompanyChance=applyCompanyChance; window.setAllChances=setAllChances;
+  // 그래프/배율/확률 관련
+  window.renderChangePanel=renderChangePanel; 
+  window.applyMultiplier=applyMultiplier; 
+  window.bumpCompany=bumpCompany; 
+  window.setAllMultipliers=setAllMultipliers;
+  window.applyCompanyChance=applyCompanyChance; 
+  window.setAllChances=setAllChances;
 
   // stock123
-  window.renderStockTuner=renderStockTuner; window.applyStockTarget=applyStockTarget;
-  window.applyScenario=applyScenario; window.applyAutoScenario=applyAutoScenario;
+  window.renderStockTuner=renderStockTuner; 
+  window.applyStockTarget=applyStockTarget;
+  window.applyScenario=applyScenario; 
+  window.applyAutoScenario=applyAutoScenario;
 
   // graph123
-  window.marketOpen=marketOpenFn; window.marketClose=marketClose;
-  window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
+  window.marketOpen=marketOpenFn; 
+  window.marketClose=marketClose;
+  window.renderGraphAdjustPanel=renderGraphAdjustPanel; 
+  window.adjustCompanyPrice=adjustCompanyPrice; 
+  window.adjustAllPrices=adjustAllPrices; 
+  window.applyDeltaMax=applyDeltaMax;
   window.applyGraphInterval=applyGraphInterval;
-
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
