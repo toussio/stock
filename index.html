@@ -811,330 +811,421 @@
       location.reload();
     }
 
-        /* =========================
-     *  관리자 코드 분기
-     * ========================= */
-    function checkAdmin(){
-      const code=document.getElementById("adminCode").value.trim();
-      if(code==="SECRET1234"){
-        document.getElementById("adminPanelUsers").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        subscribeUsers();
-      } else if(code==="ADMIN123"){
-        document.getElementById("adminPanelFinance").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        subscribeRequests();
-      } else if(code.toLowerCase()==="graph123"){
-        document.getElementById("adminPanelGraph").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        renderGraphAdjustPanel();
-      } else if(code.toLowerCase()==="stock123"){
-        document.getElementById("adminPanelStock").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        renderStockTuner();
-      } else if(code.toLowerCase()==="change123"){
-        document.getElementById("adminPanelChange").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        renderChangePanel();
-      } else if(code.toLowerCase()==="news123"){
-        document.getElementById("adminPanelNews").style.display="block";
-        document.getElementById("adminLogin").style.display="none";
-        renderNewsAdminPanel();
-      } else {
-        alert("관리자 코드가 올바르지 않습니다.");
+       /* =========================
+ *  관리자 코드 분기
+ * ========================= */
+let isNewsAdmin = false; // news123 입력 시 true
+
+function checkAdmin(){
+  const code=document.getElementById("adminCode").value.trim();
+  if(code==="SECRET1234"){
+    document.getElementById("adminPanelUsers").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    subscribeUsers();
+  } else if(code==="ADMIN123"){
+    document.getElementById("adminPanelFinance").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    subscribeRequests();
+  } else if(code.toLowerCase()==="graph123"){
+    document.getElementById("adminPanelGraph").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    renderGraphAdjustPanel();
+  } else if(code.toLowerCase()==="stock123"){
+    document.getElementById("adminPanelStock").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    renderStockTuner();
+  } else if(code.toLowerCase()==="change123"){
+    document.getElementById("adminPanelChange").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    renderChangePanel();
+  } else if(code.toLowerCase()==="news123"){
+    isNewsAdmin = true;
+    localStorage.setItem("isNewsAdmin","1");
+    document.getElementById("adminPanelNews").style.display="block";
+    document.getElementById("adminLogin").style.display="none";
+    renderNewsAdminPanel();
+    // 관리자 모드에서 팝업에도 X가 보이도록 즉시 리렌더
+    renderNewsModal(lastNewsSnapshot);
+  } else {
+    alert("관리자 코드가 올바르지 않습니다.");
+  }
+}
+
+function closeAdmin(panelId){
+  document.getElementById(panelId).style.display="none";
+  document.getElementById("adminLogin").style.display="block";
+}
+
+/* =========================
+ *  관리자: 유저(강제 로그아웃) (SECRET1234)
+ * ========================= */
+function subscribeUsers(){
+  onSnapshot(collection(db,"users"),(snap)=>{
+    const userList=document.getElementById("userList"); let html="";
+    snap.forEach(docu=>{
+      const u=docu.data();
+      const holdingsText = formatHoldings(u.holdings);
+      html += `<div class="req-card">
+        <div>
+          <strong>${u.name}</strong> (${u.id}) |
+          현금: ${(u.cash??0).toLocaleString()} |
+          상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}<br>
+          📦 보유종목: ${holdingsText}
+        </div>
+        <div><button onclick="forceLogout('${u.id}')">강제 로그아웃</button></div>
+      </div>`;
+    });
+    userList.innerHTML=html||"등록된 유저 없음";
+  });
+}
+async function forceLogout(userId){
+  try{ await updateDoc(doc(db,"users",userId),{active:false}); }
+  catch(e){ console.error("강제 로그아웃 실패:",e); }
+}
+
+/* =========================
+ *  관리자: 입/출금 (ADMIN123)
+ * ========================= */
+function subscribeRequests(){
+  const depQ=query(collection(db,"pendingDeposits"),where("status","==","대기"));
+  onSnapshot(depQ,(snap)=>{
+    const depDiv=document.getElementById("depositRequests"); let html="";
+    snap.forEach(docu=>{
+      const d=docu.data();
+      html += `<div class="req-card">
+        <div><strong>${d.userName}</strong> (${d.userId}) | ${Number(d.amount||0).toLocaleString()}원 | 메모: ${d.memo||""}</div>
+        <div>
+          <button onclick="approveDeposit('${docu.id}','${d.userId}',${Number(d.amount||0)})">승인</button>
+          <button onclick="rejectRequest('pendingDeposits','${docu.id}')">거절</button>
+        </div>
+      </div>`;
+    });
+    depDiv.innerHTML = html || "대기중인 입금 요청 없음";
+  });
+
+  const witQ=query(collection(db,"pendingWithdrawals"),where("status","==","대기"));
+  onSnapshot(witQ,(snap)=>{
+    const witDiv=document.getElementById("withdrawRequests"); let html="";
+    snap.forEach(docu=>{
+      const w=docu.data();
+      const net = Number(w.amount||0);
+      const fee = (typeof w.fee==='number') ? Number(w.fee) : 0;
+      const original = (typeof w.original==='number') ? Number(w.original) : (net + fee);
+      html += `<div class="req-card">
+        <div>
+          <strong>${w.userName}</strong> (${w.userId}) |
+          원요청: ${original.toLocaleString()}원 |
+          수수료: ${fee.toLocaleString()}원 |
+          실제 수령: ${net.toLocaleString()}원
+          ${w.memo?`| 메모: ${w.memo}`:""}
+        </div>
+        <div>
+          <button onclick="approveWithdraw('${docu.id}')">승인</button>
+          <button onclick="rejectRequest('pendingWithdrawals','${docu.id}')">거절</button>
+        </div>
+      </div>`;
+    });
+    witDiv.innerHTML = html || "대기중인 출금 요청 없음";
+  });
+}
+async function approveDeposit(reqId,userId,amount){
+  try{
+    const uref=doc(db,"users",userId); const usnap=await getDoc(uref);
+    const prev=usnap.exists()?(usnap.data().cash||0):0; const updated=prev+Number(amount||0);
+    await setDoc(uref,{cash:updated},{merge:true});
+    await updateDoc(doc(db,"pendingDeposits",reqId),{status:"승인"});
+    if(currentUser?.id===userId){ player.cash=updated; renderUserInfo(); }
+  }catch(e){ console.error("입금 승인 실패:",e); }
+}
+async function approveWithdraw(reqId){
+  try{
+    const wref = doc(db,"pendingWithdrawals",reqId);
+    const wsnap = await getDoc(wref);
+    if(!wsnap.exists()){ alert("요청 문서를 찾을 수 없습니다."); return; }
+    const w = wsnap.data();
+    const userId = w.userId;
+    const net = Number(w.amount||0);
+    const fee = (typeof w.fee==='number') ? Number(w.fee) : 0;
+    const original = (typeof w.original==='number') ? Number(w.original) : (net + fee);
+
+    const uref=doc(db,"users",userId); 
+    const usnap=await getDoc(uref);
+    const prev=usnap.exists()?(usnap.data().cash||0):0; 
+    const updated=prev - original;
+    if(updated<0){ alert("현금 부족으로 승인 불가"); return; }
+
+    await setDoc(uref,{cash:updated},{merge:true});
+    await updateDoc(wref,{status:"승인"});
+    if(currentUser?.id===userId){ player.cash=updated; renderUserInfo(); }
+  }catch(e){ console.error("출금 승인 실패:",e); }
+}
+async function rejectRequest(col,reqId){
+  try{ await updateDoc(doc(db,col,reqId),{status:"거절"}); }
+  catch(e){ console.error("거절 실패:",e); }
+}
+
+/* =========================
+ *  관리자: 배율 & 확률 (change123)
+ * ========================= */
+function renderChangePanel(){
+  const wrap=document.getElementById("changePanel"); let html='';
+  companies.forEach(c=>{
+    const mid=`m-${c.name}`;
+    const profit=(companyChances[c.name]?.profit ?? 0.3);
+    const loss=(companyChances[c.name]?.loss ?? 0.7);
+    html += `
+      <div class="req-card">
+        <div><strong>${c.name}</strong> | 현재 배율: x${(c.multiplier??1).toFixed(2)}</div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
+          <button onclick="applyMultiplier('${c.name}')">배율 적용</button>
+          <button onclick="bumpCompany('${c.name}',1.1)">+10%</button>
+          <button onclick="bumpCompany('${c.name}',0.9)">-10%</button>
+        </div>
+        <div style="display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+          <label>이득%</label>
+          <input type="number" id="profit-${c.name}" step="0.01" min="0" max="1" value="${profit}" style="width:70px;">
+          <label>손해%</label>
+          <input type="number" id="loss-${c.name}" step="0.01" min="0" max="1" value="${loss}" style="width:70px;">
+          <button onclick="applyCompanyChance('${c.name}')">확률 적용</button>
+        </div>
+      </div>`;
+  });
+  wrap.innerHTML = html || "회사 데이터 없음";
+}
+async function applyMultiplier(name){
+  const mid=`m-${name}`;
+  const multiplier = parseFloat(document.getElementById(mid).value);
+  if(isNaN(multiplier)){ alert('배율 값을 확인하세요.'); return; }
+  const c=findCompanyById(name); if(!c) return;
+  try{
+    await setDoc(doc(db,'companySettings', name), { multiplier, updatedAt: Date.now() }, { merge:true });
+    c.multiplier=multiplier;
+    updateCompanyPriceDOM(name);
+    scheduleGraphUpdate();
+  }catch(e){ console.error('배율 저장 실패:',e); }
+}
+async function bumpCompany(name, factor){
+  const c=findCompanyById(name); if(!c) return;
+  const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
+  try{
+    await setDoc(doc(db,'companySettings', name), { multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
+    c.multiplier=newMultiplier;
+    updateCompanyPriceDOM(name);
+    scheduleGraphUpdate();
+  }catch(e){ console.error('배율 변경 실패:',e); }
+}
+async function setAllMultipliers(){
+  const val = parseFloat(document.getElementById("allMultiplierVal").value);
+  if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
+  for(const c of companies){
+    await setDoc(doc(db,'companySettings', c.name), { multiplier:val, updatedAt: Date.now() }, { merge:true });
+    c.multiplier = val;
+  }
+  companies.forEach(c => updateCompanyPriceDOM(c.name));
+}
+function subscribeCompanySettings(){
+  onSnapshot(collection(db,'companySettings'), (snap)=>{
+    let changed=false;
+    snap.forEach(d=>{
+      const data=d.data();
+      const c=findCompanyById(d.id);
+      if(!c) return;
+      if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; changed=true; }
+    });
+    if(changed){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
+  });
+}
+
+// ✅ 전체 확률 일괄 적용(전역 버튼용)
+async function setAllChances(){
+  const p = parseFloat(document.getElementById("globalProfit").value);
+  const l = parseFloat(document.getElementById("globalLoss").value);
+  if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
+  for(const c of companies){
+    await setDoc(doc(db,'companyChances', c.name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
+    companyChances[c.name] = { profit:p, loss:l };
+  }
+  alert("✅ 전체 확률을 적용했습니다.");
+}
+async function applyCompanyChance(name){
+  const p=parseFloat(document.getElementById(`profit-${name}`).value);
+  const l=parseFloat(document.getElementById(`loss-${name}`).value);
+  if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
+  try{
+    await setDoc(doc(db,'companyChances', name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
+    companyChances[name] = { profit:p, loss:l };
+    alert(`✅ ${name} 확률 변경: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
+  }catch(e){ console.error("확률 저장 실패:", e); }
+}
+function subscribeCompanyChances(){
+  onSnapshot(collection(db,'companyChances'), (snap)=>{
+    snap.forEach(docu=>{
+      const data = docu.data();
+      if(data && data.__deleted) return;
+      if(typeof data.profit==='number' && typeof data.loss==='number'){
+        companyChances[docu.id] = { profit:data.profit, loss:data.loss };
       }
-    }
+    });
+    const panel = document.getElementById("adminPanelChange");
+    if(panel && panel.style.display==="block"){ renderChangePanel(); }
+  });
+}
 
-    function closeAdmin(panelId){
-      document.getElementById(panelId).style.display="none";
-      document.getElementById("adminLogin").style.display="block";
-    }
+/* =========================
+ *  뉴스 (news123 / 모든 유저 공유)
+ * ========================= */
+let lastNewsSnapshot = []; // 최신 스냅샷 캐시 (팝업 재렌더용)
 
-    /* =========================
-     *  관리자: 유저 관리 (SECRET1234)
-     * ========================= */
-    function subscribeUsers(){
-      onSnapshot(collection(db,"users"),(snap)=>{
-        const userList=document.getElementById("userList"); 
-        let html="";
-        snap.forEach(docu=>{
-          const u=docu.data();
-          const holdingsText = formatHoldings(u.holdings);
-          html += `<div class="req-card">
-            <div>
-              <strong>${u.name}</strong> (${u.id}) |
-              현금: ${(u.cash??0).toLocaleString()} |
-              상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}<br>
-              📦 보유종목: ${holdingsText}
-            </div>
-            <div><button onclick="forceLogout('${u.id}')">강제 로그아웃</button></div>
-          </div>`;
-        });
-        userList.innerHTML=html||"등록된 유저 없음";
-      });
-    }
+function renderNewsAdminPanel(){
+  // 리스트는 subscribeNews가 채움
+  const list = document.getElementById("newsAdminList");
+  if(list) list.innerHTML = "";
+}
 
-    async function forceLogout(userId){
-      try{ await updateDoc(doc(db,"users",userId),{active:false}); }
-      catch(e){ console.error("강제 로그아웃 실패:",e); }
-    }
+// 팝업용 렌더 (isNewsAdmin일 때만 X 버튼 보임)
+function renderNewsModal(items){
+  const box = document.getElementById("newsContent");
+  if(!box) return;
+  if(!items || items.length===0){
+    box.innerHTML = "<p>현재 등록된 뉴스가 없습니다.</p>";
+    return;
+  }
+  let html = "";
+  items.forEach(it=>{
+    const time = it.date || new Date(it.createdAt||Date.now()).toLocaleString();
+    const text = it.text || "";
+    const id   = it.id;
+    const delBtn = isNewsAdmin ? `<button class="xbtn" style="position:static;width:auto;height:auto;padding:2px 8px;" onclick="deleteNews('${id}')">✕</button>` : "";
+    html += `<div class="req-card">
+      <div>📰 ${time} - ${text}</div>
+      <div>${delBtn}</div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
 
-    /* =========================
-     *  관리자: 입출금 관리 (ADMIN123)
-     * ========================= */
-    function subscribeRequests(){
-      const depQ=query(collection(db,"pendingDeposits"),where("status","==","대기"));
-      onSnapshot(depQ,(snap)=>{
-        const depDiv=document.getElementById("depositRequests"); let html="";
-        snap.forEach(docu=>{
-          const d=docu.data();
-          html += `<div class="req-card">
-            <div><strong>${d.userName}</strong> (${d.userId}) | ${Number(d.amount||0).toLocaleString()}원 | 메모: ${d.memo||""}</div>
-            <div>
-              <button onclick="approveDeposit('${docu.id}','${d.userId}',${Number(d.amount||0)})">승인</button>
-              <button onclick="rejectRequest('pendingDeposits','${docu.id}')">거절</button>
-            </div>
-          </div>`;
-        });
-        depDiv.innerHTML = html || "대기중인 입금 요청 없음";
-      });
+// 관리자 패널용 렌더
+function renderNewsAdminList(items){
+  const wrap = document.getElementById("newsAdminList");
+  if(!wrap) return;
+  let html="";
+  items.forEach(it=>{
+    const time = it.date || new Date(it.createdAt||Date.now()).toLocaleString();
+    const text = it.text || "";
+    html += `<div class="req-card">
+      <div>📰 ${time} - ${text}</div>
+      <div><button onclick="deleteNews('${it.id}')">삭제</button></div>
+    </div>`;
+  });
+  wrap.innerHTML = html || "<p>등록된 뉴스가 없습니다.</p>";
+}
 
-      const witQ=query(collection(db,"pendingWithdrawals"),where("status","==","대기"));
-      onSnapshot(witQ,(snap)=>{
-        const witDiv=document.getElementById("withdrawRequests"); let html="";
-        snap.forEach(docu=>{
-          const w=docu.data();
-          const net = Number(w.amount||0);
-          const fee = (typeof w.fee==='number') ? Number(w.fee) : 0;
-          const original = (typeof w.original==='number') ? Number(w.original) : (net + fee);
-          html += `<div class="req-card">
-            <div>
-              <strong>${w.userName}</strong> (${w.userId}) |
-              원요청: ${original.toLocaleString()}원 |
-              수수료: ${fee.toLocaleString()}원 |
-              실제 수령: ${net.toLocaleString()}원
-              ${w.memo?`| 메모: ${w.memo}`:""}
-            </div>
-            <div>
-              <button onclick="approveWithdraw('${docu.id}')">승인</button>
-              <button onclick="rejectRequest('pendingWithdrawals','${docu.id}')">거절</button>
-            </div>
-          </div>`;
-        });
-        witDiv.innerHTML = html || "대기중인 출금 요청 없음";
-      });
-    }
+// 실시간 구독(모든 유저 공유)
+function subscribeNews(){
+  onSnapshot(collection(db,"news"),(snap)=>{
+    const list = [];
+    snap.forEach(docu=>{
+      const d = docu.data();
+      if(d && d.__deleted) return; // 소프트 삭제 필터
+      list.push({ id: docu.id, ...d });
+    });
+    // 최신순 정렬(생성시각 또는 date 문자열)
+    list.sort((a,b)=>{
+      const ta = a.createdAt || 0;
+      const tb = b.createdAt || 0;
+      if(ta && tb) return tb - ta;
+      // createdAt이 없다면 문자열 날짜 비교(대략)
+      return String(b.date||"").localeCompare(String(a.date||""));
+    });
 
-    async function approveDeposit(reqId,userId,amount){
-      try{
-        const uref=doc(db,"users",userId); 
-        const usnap=await getDoc(uref);
-        const prev=usnap.exists()?(usnap.data().cash||0):0; 
-        const updated=prev+Number(amount||0);
+    lastNewsSnapshot = list;
+    renderNewsModal(list);
+    if(isNewsAdmin) renderNewsAdminList(list);
+  });
+}
 
-        await setDoc(uref,{cash:updated},{merge:true});
-        await updateDoc(doc(db,"pendingDeposits",reqId),{status:"승인"});
+// 뉴스 추가(관리자)
+async function submitNews(){
+  const el = document.getElementById("newsInput");
+  if(!el) return;
+  const text = el.value.trim();
+  if(!text) return;
+  const payload = {
+    text,
+    date: new Date().toLocaleString(),
+    createdAt: Date.now()
+  };
+  try{
+    await addDoc(collection(db,"news"), payload);
+    el.value = "";
+  }catch(e){ console.error("뉴스 추가 실패:", e); }
+}
 
-        if(currentUser?.id===userId){ player.cash=updated; renderUserInfo(); }
-      }catch(e){ console.error("입금 승인 실패:",e); }
-    }
+// 뉴스 삭제(소프트 삭제)
+async function deleteNews(id){
+  try{
+    await setDoc(doc(db,"news",id), { __deleted: true, deletedAt: Date.now() }, { merge:true });
+  }catch(e){ console.error("뉴스 삭제 실패:", e); }
+}
 
-    async function approveWithdraw(reqId){
-      try{
-        const wref = doc(db,"pendingWithdrawals",reqId);
-        const wsnap = await getDoc(wref);
-        if(!wsnap.exists()){ alert("요청 문서를 찾을 수 없습니다."); return; }
-        const w = wsnap.data();
-        const userId = w.userId;
-        const net = Number(w.amount||0);
-        const fee = (typeof w.fee==='number') ? Number(w.fee) : 0;
-        const original = (typeof w.original==='number') ? Number(w.original) : (net + fee);
+// 팝업 열고/닫기
+function openNewsModal(){ document.getElementById("newsModal").style.display = "flex"; }
+function closeNewsModal(){ document.getElementById("newsModal").style.display = "none"; }
 
-        const uref=doc(db,"users",userId); 
-        const usnap=await getDoc(uref);
-        const prev=usnap.exists()?(usnap.data().cash||0):0; 
-        const updated=prev - original;
-        if(updated<0){ alert("현금 부족으로 승인 불가"); return; }
+/* =========================
+ *  로그인 시 뉴스 자동 표시
+ *  - startBtn 핸들러 이후에 호출되도록 별도 헬퍼
+ * ========================= */
+function showNewsAfterLogin(){
+  // 스냅샷이 이미 도착했다면 즉시, 아니면 약간 대기 후
+  setTimeout(()=> openNewsModal(), 300);
+}
 
-        await setDoc(uref,{cash:updated},{merge:true});
-        await updateDoc(wref,{status:"승인"});
-        if(currentUser?.id===userId){ player.cash=updated; renderUserInfo(); }
-      }catch(e){ console.error("출금 승인 실패:",e); }
-    }
+/* =========================
+ *  전역 바인딩
+ * ========================= */
+window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
+window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal;
+window.submitWithdraw=submitWithdraw; window.updateWithdrawFee=updateWithdrawFee;
+window.logout=logout; window.checkAdmin=checkAdmin; window.closeAdmin=closeAdmin;
+window.forceLogout=forceLogout; window.approveDeposit=approveDeposit; window.approveWithdraw=approveWithdraw; window.rejectRequest=rejectRequest;
 
-    async function rejectRequest(col,reqId){
-      try{ await updateDoc(doc(db,col,reqId),{status:"거절"}); }
-      catch(e){ console.error("거절 실패:",e); }
-    }
+// change123
+window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; 
+window.bumpCompany=bumpCompany; window.setAllMultipliers=setAllMultipliers;
+window.applyCompanyChance=applyCompanyChance; window.setAllChances=setAllChances;
 
-    /* =========================
-     *  관리자: 배율 & 확률 (change123)
-     * ========================= */
-    function renderChangePanel(){
-      const wrap=document.getElementById("changePanel"); let html='';
-      companies.forEach(c=>{
-        const mid=`m-${c.name}`;
-        const profit=(companyChances[c.name]?.profit ?? 0.3);
-        const loss=(companyChances[c.name]?.loss ?? 0.7);
-        html += `
-          <div class="req-card">
-            <div><strong>${c.name}</strong> | 현재 배율: x${(c.multiplier??1).toFixed(2)}</div>
-            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
-              <button onclick="applyMultiplier('${c.name}')">배율 적용</button>
-              <button onclick="bumpCompany('${c.name}',1.1)">+10%</button>
-              <button onclick="bumpCompany('${c.name}',0.9)">-10%</button>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;">
-              <label>이득%</label>
-              <input type="number" id="profit-${c.name}" step="0.01" min="0" max="1" value="${profit}" style="width:70px;">
-              <label>손해%</label>
-              <input type="number" id="loss-${c.name}" step="0.01" min="0" max="1" value="${loss}" style="width:70px;">
-              <button onclick="applyCompanyChance('${c.name}')">확률 적용</button>
-            </div>
-          </div>`;
-      });
-      wrap.innerHTML = html || "회사 데이터 없음";
-    }
+// stock123
+window.renderStockTuner=renderStockTuner; window.applyStockTarget=applyStockTarget;
+window.applyScenario=applyScenario; window.applyAutoScenario=applyAutoScenario;
 
-    async function applyMultiplier(name){
-      const mid=`m-${name}`;
-      const multiplier = parseFloat(document.getElementById(mid).value);
-      if(isNaN(multiplier)){ alert('배율 값을 확인하세요.'); return; }
-      const c=findCompanyById(name); if(!c) return;
-      try{
-        await setDoc(doc(db,'companySettings', name), { multiplier, updatedAt: Date.now() }, { merge:true });
-        c.multiplier=multiplier;
-        updateCompanyPriceDOM(name);
-        scheduleGraphUpdate();
-      }catch(e){ console.error('배율 저장 실패:',e); }
-    }
+// graph123
+window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; 
+window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
+window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; 
+window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
 
-    async function bumpCompany(name, factor){
-      const c=findCompanyById(name); if(!c) return;
-      const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
-      try{
-        await setDoc(doc(db,'companySettings', name), { multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
-        c.multiplier=newMultiplier;
-        updateCompanyPriceDOM(name);
-        scheduleGraphUpdate();
-      }catch(e){ console.error('배율 변경 실패:',e); }
-    }
+// news123
+window.renderNewsAdminPanel=renderNewsAdminPanel; window.submitNews=submitNews; 
+window.deleteNews=deleteNews; window.subscribeNews=subscribeNews;
+window.openNewsModal=openNewsModal; window.closeNewsModal=closeNewsModal;
 
-    async function setAllMultipliers(){
-      const val = parseFloat(document.getElementById("allMultiplierVal").value);
-      if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
-      for(const c of companies){
-        await setDoc(doc(db,'companySettings', c.name), { multiplier:val, updatedAt: Date.now() }, { merge:true });
-        c.multiplier = val;
-      }
-      companies.forEach(c => updateCompanyPriceDOM(c.name));
-    }
+// 패널 표시 가격 일괄 갱신(필요 시)
+function refreshAllPanelPrices(){
+  companies.forEach(c=>{
+    const id1 = document.getElementById(`panel-price-${safeId(c.name)}`);
+    if(id1) id1.textContent = getDisplayPrice(c).toLocaleString();
+    const id2 = document.getElementById(`tuner-price-${safeId(c.name)}`);
+    if(id2) id2.textContent = getDisplayPrice(c).toLocaleString();
+  });
+}
+window.refreshAllPanelPrices = refreshAllPanelPrices;
 
-    function subscribeCompanySettings(){
-      onSnapshot(collection(db,'companySettings'), (snap)=>{
-        let changed=false;
-        snap.forEach(d=>{
-          const data=d.data();
-          const c=findCompanyById(d.id);
-          if(!c) return;
-          if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; changed=true; }
-        });
-        if(changed){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
-      });
-    }
-
-    /* =========================
-     *  뉴스 (news123)
-     * ========================= */
-    function renderNewsAdminPanel(){
-      const wrap=document.getElementById("newsAdminPanel"); 
-      if(!wrap) return;
-      wrap.innerHTML = `
-        <div class="req-card">
-          <input type="text" id="newsInput" placeholder="뉴스 입력..." style="flex:1;">
-          <button onclick="submitNews()">추가</button>
-        </div>`;
-    }
-
-    function subscribeNews(){
-      onSnapshot(collection(db,"news"),(snap)=>{
-        const newsContent=document.getElementById("newsContent");
-        let html="";
-        snap.forEach(docu=>{
-          const n=docu.data();
-          html += `<div class="req-card">
-            <div>📰 ${n.date} - ${n.text}</div>
-            <div><button onclick="deleteNews('${docu.id}')">✕</button></div>
-          </div>`;
-        });
-        newsContent.innerHTML = html || "<p>현재 등록된 뉴스가 없습니다.</p>";
-      });
-    }
-
-    async function submitNews(){
-      const input=document.getElementById("newsInput");
-      const text=input.value.trim();
-      if(!text) return;
-      const req={
-        text,
-        date:new Date().toLocaleString()
-      };
-      try{ await addDoc(collection(db,"news"),req); input.value=""; }
-      catch(e){ console.error("뉴스 추가 실패:",e); }
-    }
-
-    async function deleteNews(id){
-      try{ await updateDoc(doc(db,"news",id),{deleted:true}); }
-      catch(e){ console.error("뉴스 삭제 실패:",e); }
-    }
-
-    function openNewsModal(){
-      document.getElementById("newsModal").style.display = "flex";
-    }
-
-    function closeNewsModal(){
-      document.getElementById("newsModal").style.display = "none";
-    }
-
-    /* =========================
-     *  전역 바인딩
-     * ========================= */
-    window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
-    window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal;
-    window.submitWithdraw=submitWithdraw; window.updateWithdrawFee=updateWithdrawFee;
-    window.logout=logout; window.checkAdmin=checkAdmin; window.closeAdmin=closeAdmin;
-    window.forceLogout=forceLogout; window.approveDeposit=approveDeposit; window.approveWithdraw=approveWithdraw; window.rejectRequest=rejectRequest;
-
-    // change123
-    window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; 
-    window.bumpCompany=bumpCompany; window.setAllMultipliers=setAllMultipliers;
-    window.applyCompanyChance=applyCompanyChance;
-
-    // stock123
-    window.renderStockTuner=renderStockTuner; window.applyStockTarget=applyStockTarget;
-    window.applyScenario=applyScenario; window.applyAutoScenario=applyAutoScenario;
-
-    // graph123
-    window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; 
-    window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
-    window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; 
-    window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
-
-    // news123
-    window.renderNewsAdminPanel=renderNewsAdminPanel; window.submitNews=submitNews; 
-    window.deleteNews=deleteNews; window.subscribeNews=subscribeNews;
-
-    // 패널 가격 새로고침
-    function refreshAllPanelPrices(){
-      companies.forEach(c=>{
-        const id1 = document.getElementById(`panel-price-${safeId(c.name)}`);
-        if(id1) id1.textContent = getDisplayPrice(c).toLocaleString();
-        const id2 = document.getElementById(`tuner-price-${safeId(c.name)}`);
-        if(id2) id2.textContent = getDisplayPrice(c).toLocaleString();
-      });
-    }
-    window.refreshAllPanelPrices = refreshAllPanelPrices;
-
-    // 로그인 후 뉴스 자동 구독
-    subscribeNews();
+/* =========================
+ *  초기화 훅
+ *  - 저장된 뉴스관리자 모드 복원
+ *  - 뉴스 구독 시작
+ * ========================= */
+if(localStorage.getItem("isNewsAdmin")==="1"){ isNewsAdmin = true; }
+subscribeNews();
