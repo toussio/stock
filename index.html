@@ -328,30 +328,18 @@
     stopPriceSimulation();
   }
   function updateAllMarketBadges(){
-    companies.forEach(c=>{
-      const card = document.getElementById(`card-${safeId(c.name)}`);
-      if(!card) return;
-      let badge = card.querySelector(".market-badge");
-      if(!badge){
-        badge = document.createElement("span");
-        badge.className = "market-badge";
-        badge.style.marginLeft = "6px";
-        badge.style.padding = "2px 6px";
-        badge.style.borderRadius = "6px";
-        badge.style.fontSize = "12px";
-        card.querySelector(".info strong").appendChild(badge);
-      }
-      if(marketIsOpen){
-        badge.textContent = "🟢 장 오픈";
-        badge.style.background = "#064e3b";
-        badge.style.color = "#d1fae5";
-      }else{
-        badge.textContent = "🔴 장 마감";
-        badge.style.background = "#7f1d1d";
-        badge.style.color = "#fee2e2";
-      }
-    });
-  }
+  companies.forEach(c=>{
+    const badge = document.getElementById(`badge-${safeId(c.name)}`);
+    if(!badge) return;
+    if(marketOpen){
+      badge.textContent = "🟢 장 열림";
+      badge.style.color = "#10b981"; // 초록색
+    } else {
+      badge.textContent = "🔴 장 마감";
+      badge.style.color = "#ef4444"; // 빨강색
+    }
+  });
+}
 
   /* =========================
    *  유틸
@@ -402,40 +390,38 @@
     }
   }
 
-  /* =========================
-   *  기업 카드 구성
-   * ========================= */
   function buildCompanyCard(c){
-    const safe = safeId(c.name);
-    const held = player.holdings[c.name]||0;
-    const nowPrice = getDisplayPrice(c);
-    const initQty = (Number.isFinite(qtyState[c.name]) && qtyState[c.name] > 0) ? qtyState[c.name] : 1;
+  const safe = safeId(c.name);
+  const held = player.holdings[c.name]||0;
+  const nowPrice = getDisplayPrice(c);
+  const initQty = (Number.isFinite(qtyState[c.name]) && qtyState[c.name] > 0) ? qtyState[c.name] : 1;
 
-    const div = document.createElement('div');
-    div.className = 'company';
-    div.id = `card-${safe}`;
-    div.innerHTML = `
-      <div class="info">
-        <strong>${c.name}</strong>
-        <span>
-          <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
-          <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
-        </span>
-      </div>
-      <div class="actions">
-        <input type="number" id="qty-${safe}" value="${initQty}" min="1">
-        <button onclick="buy('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매수</button>
-        <button onclick="sell('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매도</button>
-      </div>
-    `;
-    companiesDiv.appendChild(div);
+  const div = document.createElement('div');
+  div.className = 'company';
+  div.id = `card-${safe}`;
+  div.innerHTML = `
+    <div class="info">
+      <strong>${c.name}</strong>
+      <div class="market-badge" id="badge-${safe}" style="margin:4px 0; font-size:13px;"></div>
+      <span>
+        <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
+        <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
+      </span>
+    </div>
+    <div class="actions">
+      <input type="number" id="qty-${safe}" value="${initQty}" min="1">
+      <button onclick="buy('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매수</button>
+      <button onclick="sell('${c.name}',parseInt(document.getElementById('qty-${safe}').value)||1)">매도</button>
+    </div>
+  `;
+  companiesDiv.appendChild(div);
 
-    const qtyInput = div.querySelector(`#qty-${safe}`);
-    qtyInput.addEventListener('input', (e)=>{
-      const v = parseInt(e.target.value, 10);
-      qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
-    });
-  }
+  const qtyInput = div.querySelector(`#qty-${safe}`);
+  qtyInput.addEventListener('input', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
+  });
+}
   function initCompaniesUI(){
     companiesDiv.innerHTML = '';
     companies.forEach(buildCompanyCard);
@@ -1258,6 +1244,7 @@
 </script>
 </body>
 </html>
+
 
 
 
