@@ -106,7 +106,7 @@
     </div>
   </div>
 
-  <!-- 출금 요청 모달 -->
+    <!-- 출금 요청 모달 -->
   <div id="withdrawModal" class="modal">
     <div class="modal-content">
       <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
@@ -257,11 +257,13 @@
     const loginModal    = document.getElementById("loginModal");
 
     let chart = null;
-    let priceTimer = null;
-    let graphUpdateTimer = null;
-    let updateInterval = 5000;       // 기본 5초
-    let deltaMax = 1000000;          // 1,000,000원 상한(절대값)
+    let priceTimer = null;          // 시세 시뮬레이터 타이머 (관리자만 사용)
+    let graphUpdateTimer = null;    // 차트 가벼운 디바운스용
+    let updateInterval = 5000;      // 기본 5초 (ms)
+    let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
     let marketOpenFlag = false;
+    let ADMIN_MODE = false;         // 🔒 관리자만 시세쓰기
+
     const marketState = { bias: {} };
     const companyChances = {};       // { [name]: {profit, loss} }
 
@@ -377,44 +379,57 @@
       impactPrice(name, qty, 'sell');
     }
 
-    // ========================= Market Open/Close =========================
+    // ========================= Market Open/Close (관리자만) =========================
     async function marketOpen(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       marketOpenFlag = true;
-      try{ await setDoc(doc(db,"marketState","main"), { isOpen:true, updatedAt: Date.now() }, { merge:true }); }catch(e){}
+      try{ await setDoc(doc(db,"marketState","main"), { isOpen:true, updatedAt: Date.now() }, { merge:true }); }catch(e){console.warn(e);}
       startPriceSimulation(); renderMarketStatus(); alert("✅ 장 시작");
     }
     async function marketClose(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       marketOpenFlag = false;
-      try{ await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true }); }catch(e){}
+      try{ await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true }); }catch(e){console.warn(e);}
       stopPriceSimulation(); renderMarketStatus(); alert("📉 장 마감");
     }
-    function subscribeMarketState(){
-  onSnapshot(doc(db,"marketState","main"), (snap)=>{
-    if(!snap.exists()) return;
-    const d = snap.data();
-    marketOpenFlag = !!d.isOpen;
 
-    // 🔥 interval 값이 1000ms 이상일 때만 반영 (잘못된 값 방지)
-    if(typeof d.interval === "number" && d.interval >= 1000){
-      updateInterval = d.interval;
-      if(priceTimer){
-        clearInterval(priceTimer);
-        priceTimer = null;
-      }
-      if(marketOpenFlag){
-        priceTimer = setInterval(updatePrices, updateInterval);
-      }
+    // ========================= Market State Sync (모든 유저 공통) =========================
+    function subscribeMarketState(){
+      onSnapshot(doc(db,"marketState","main"), (snap)=>{
+        if(!snap.exists()) return;
+        const d = snap.data();
+
+        // 개장/마감 동기화
+        const wasOpen = marketOpenFlag;
+        marketOpenFlag = !!d.isOpen;
+        renderMarketStatus();
+
+        // ⏱ interval 동기화 (최소 1000ms 보장)
+        if(typeof d.interval === "number" && d.interval >= 1000){
+          updateInterval = d.interval;
+        }
+
+        // ✅ 타이머는 "관리자만" 운용 (일반 유저는 구독만)
+        if(ADMIN_MODE){
+          // 상태 바뀌었거나 interval 바뀌었으면 타이머 재설정
+          if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
+          if(marketOpenFlag){
+            priceTimer = setInterval(updatePrices, updateInterval);
+          }
+        }else{
+          // 일반 유저는 혹시 남아있을지 모르는 타이머를 확실히 끔
+          if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
+        }
+
+        // 참고: start/stopPriceSimulation은 ADMIN_MODE에서만 실질 의미가 있으므로 호출 불필요
+      });
     }
 
-    renderMarketStatus();
-    if(marketOpenFlag) startPriceSimulation();
-    else stopPriceSimulation();
-  });
-}
-
-    // ========================= Price Simulation =========================
+    // ========================= Price Simulation (관리자만 Firestore 쓰기) =========================
     async function updatePrices(){
+      if(!ADMIN_MODE) return;               // ✅ 일반 유저는 쓰기 금지
       if(!marketOpenFlag) return;
+
       for(const c of companies){
         const prev = c.livePrice || c.basePrice;
         const chance = companyChances[c.name] || {profit:0.4, loss:0.6};
@@ -432,6 +447,7 @@
         const next = Math.max(1, Math.round(nextRaw));
 
         try{
+          // 🔥 관리자만 시세를 Firestore에 반영
           await setDoc(doc(db,"companyPrices", c.name), { current: next, updatedAt: Date.now() }, { merge:true });
           c.livePrice = next;
           const el = document.getElementById("price-" + safeId(c.name));
@@ -440,6 +456,7 @@
       }
     }
     function startPriceSimulation(){
+      if(!ADMIN_MODE) return;               // ✅ 일반 유저 금지
       if(priceTimer || !marketOpenFlag) return;
       priceTimer = setInterval(updatePrices, updateInterval);
     }
@@ -477,7 +494,7 @@
       chart.update("none");
     }
     function scheduleGraphUpdate(){
-      if(!marketOpenFlag) return;
+      // 그래프는 개장 여부와 관계없이 최근가가 갱신되면 찍고 싶으면 이 가드를 빼도 됨.
       if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); }
       graphUpdateTimer = setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, 200);
     }
@@ -553,6 +570,7 @@
       wrap.innerHTML = html || "회사 데이터 없음";
     }
     async function adjustCompanyPrice(name){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const id = "adj-" + name;
       const inputEl = document.getElementById(id);
       const delta = parseInt(inputEl && inputEl.value) || 0;
@@ -567,6 +585,7 @@
       scheduleGraphUpdate();
     }
     async function adjustAllPrices(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const delta = parseInt(document.getElementById("allDelta").value) || 0;
       for(const c of companies){
         const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
@@ -583,22 +602,24 @@
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
       deltaMax = Math.max(1, val);
     }
-   function applyGraphInterval(){
-  const sec = parseInt(document.getElementById("intervalInput").value) || 5;
-  updateInterval = Math.max(1, sec) * 1000;
+    function applyGraphInterval(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const sec = parseInt(document.getElementById("intervalInput").value) || 5;
+      updateInterval = Math.max(1, sec) * 1000;
 
-  // 🔥 Firestore에 저장 (모든 유저 동기화)
-  setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
-    .then(()=>{
-      // 저장 성공 후 관리자 클라이언트에도 즉시 반영
-      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
-      if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
-      alert("✅ 변동주기 적용됨: " + sec + "초 (전체 유저 동기화)");
-    })
-    .catch(e=>console.error("변동주기 저장 실패:", e));
-}
+      // 🔥 Firestore에 저장 (모든 유저 동기화)
+      setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
+        .then(()=>{
+          // 저장 성공 후 "관리자 클라이언트"에도 즉시 반영
+          if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
+          if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
+          alert("✅ 변동주기 적용됨: " + sec + "초 (전체 유저 동기화)");
+        })
+        .catch(e=>console.error("변동주기 저장 실패:", e));
+    }
 
     async function resetGraph(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       for(const c of companies){
         c.livePrice=c.basePrice;
         await setDoc(doc(db,"companyPrices", c.name), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
@@ -612,10 +633,7 @@
         const el = document.getElementById("price-" + safeId(c.name));
         if(el) el.textContent = getDisplayPrice(c).toLocaleString();
       });
-      if(!marketOpenFlag){
-        await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
-        stopPriceSimulation(); renderMarketStatus();
-      }
+      // 시장 상태는 유지. 관리자가 "마감"으로 강제 저장하고 싶을 때만 반영.
     }
 
     // ========================= Chance/Multiplier Panel =========================
@@ -647,6 +665,7 @@
       wrap.innerHTML = html || "회사 데이터 없음";
     }
     async function applyMultiplier(name){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const mid="m-" + name;
       const multiplier = parseFloat(document.getElementById(mid).value);
       if(isNaN(multiplier)){ alert('배율 값을 확인하세요.'); return; }
@@ -657,6 +676,7 @@
       }catch(e){ console.error('배율 저장 실패:',e); }
     }
     async function bumpCompany(name, factor){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
       const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
       try{
@@ -665,6 +685,7 @@
       }catch(e){ console.error('배율 변경 실패:',e); }
     }
     async function setAllMultipliers(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const val = parseFloat(document.getElementById("allMultiplierVal").value);
       if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
       for(const c of companies){
@@ -674,6 +695,7 @@
       renderChangePanel();
     }
     async function applyCompanyChance(name){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const p=parseFloat(document.getElementById("profit-" + name).value);
       const l=parseFloat(document.getElementById("loss-" + name).value);
       if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
@@ -684,6 +706,7 @@
       }catch(e){ console.error("확률 저장 실패:", e); }
     }
     async function setAllChances(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const p = parseFloat(document.getElementById('globalProfit').value);
       const l = parseFloat(document.getElementById('globalLoss').value);
       if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)."); return; }
@@ -697,11 +720,13 @@
       }catch(e){ console.error("전체 확률 적용 실패:", e); }
     }
     function applyVolatility(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const v = parseFloat(document.getElementById('volatilityInput').value)||1.5;
       deltaMax = Math.max(1, Math.floor(10000 * v));
       alert("변동폭 내부 파라미터 조정 완료 (deltaMax=" + deltaMax.toLocaleString() + ")");
     }
     function runScenario(type){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       if(type==='riseEnd'){
         Object.keys(marketState.bias).forEach(k=> marketState.bias[k]=-1);
         alert('📈 상승 시나리오 바이어스 적용');
@@ -713,7 +738,7 @@
     function applyScenario(){ runScenario('riseEnd'); }
     function applyAutoScenario(){ runScenario('fallEnd'); }
 
-    // ========================= Deposit / Withdraw =========================
+        // ========================= Deposit / Withdraw =========================
     async function requestDeposit(){
       const id   = currentUser?.id || "";
       const name = currentUser?.name || "";
@@ -766,11 +791,12 @@
     function checkAdmin(){
       const code = document.getElementById('adminCode').value.trim();
       if(code==='graph123'){
+        ADMIN_MODE = true;
         const panel = document.getElementById('adminPanelGraph');
         if(panel) panel.style.display='block';
         renderGraphAdjustPanel();
         if(marketOpenFlag && !priceTimer){ startPriceSimulation(); }
-        alert("✅ 그래프 제어가 활성화되었습니다. (이 클라이언트 전용)");
+        alert("✅ 그래프 제어가 활성화되었습니다. (관리자 전용)");
       }else if(code==='SECRET1234'){
         const p = document.getElementById('adminPanelUsers');
         if(p) p.style.display='block';
@@ -821,6 +847,7 @@
       host.innerHTML = html;
     }
     async function applyStockTarget(name, delta){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
       const next = Math.max(1,(c.livePrice||c.basePrice)+delta);
       await setDoc(doc(db,"companyPrices", name), { current: next, updatedAt: Date.now() }, { merge:true });
@@ -930,4 +957,3 @@
   </script>
 </body>
 </html>
-
