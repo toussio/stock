@@ -678,13 +678,27 @@ function applyDeltaMax(){
 }
 
 function applyGraphInterval(){
-  const sec = parseInt(document.getElementById("intervalInput").value)||5;
+  const sec = parseInt(document.getElementById("intervalInput").value) || 5;
   updateInterval = Math.max(1, sec) * 1000;
+
+  // ✅ 기존 interval 제거
   if(priceTimer){
     clearInterval(priceTimer);
+    priceTimer = null;
+  }
+
+  // ✅ 장이 열려있다면 새로운 주기로 즉시 재시작
+  if(marketOpenFlag){
     priceTimer = setInterval(updatePrices, updateInterval);
   }
+
+  // Firestore에도 저장 (다른 클라이언트 동기화용)
+  setDoc(doc(db,"marketState","main"), { interval:updateInterval }, { merge:true })
+    .catch(e=>console.error("변동주기 저장 실패:", e));
+
+  alert(`✅ 변동주기 적용됨: ${sec}초`);
 }
+
 
 async function resetGraph(){
   for(const c of companies){
@@ -1022,4 +1036,5 @@ window.openNewsModal = openNewsModal; window.closeNewsModal = closeNewsModal;
 </script>
 </body>
 </html>
+
 
