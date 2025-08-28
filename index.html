@@ -302,7 +302,7 @@
 
   function marketOpenFn(){
     marketIsOpen = true;
-    alert("🟢 장이 시작되었습니다.");
+    alert("🟢 장이 오픈되었습니다.");
     updateAllMarketBadges();
     startPriceSimulation();
   }
@@ -327,11 +327,11 @@
         card.querySelector(".info strong").appendChild(badge);
       }
       if(marketIsOpen){
-        badge.textContent = "🟢 열림";
+        badge.textContent = "🟢 장 오픈";
         badge.style.background = "#064e3b";
         badge.style.color = "#d1fae5";
       }else{
-        badge.textContent = "🔴 마감";
+        badge.textContent = "🔴 장 마감";
         badge.style.background = "#7f1d1d";
         badge.style.color = "#fee2e2";
       }
@@ -1243,3 +1243,4 @@
 </script>
 </body>
 </html>
+
