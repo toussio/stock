@@ -168,27 +168,35 @@
 <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
   <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
   <h3>📊 그래프/금액 제어 패널</h3>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+
+  <!-- ✅ 그래프 제어 + 전체 종목 금액 조정 한 줄 배치 -->
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
     <button onclick="startPriceSimulation()">시작</button>
     <button onclick="stopPriceSimulation()">정지</button>
     <button onclick="resetGraph()">그래프 초기화</button>
+
+    <label style="margin-left:20px;">전체 조정 ±금액</label>
+    <input type="number" id="allDelta" value="100" style="width:100px;">
+    <button onclick="adjustAllPrices()">적용</button>
   </div>
+
   <div style="margin-top:10px;">
     <strong>⏱️ 변동 주기 (초):</strong>
     <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
     <button onclick="applyGraphInterval()">적용</button>
   </div>
+
   <div style="margin-top:10px;">
     <strong>📊 변동폭 범위:</strong>
     <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
     <button onclick="applyDeltaMax()">적용</button>
   </div>
+
   <hr style="opacity:.2">
+
   <h4>📈 개별 종목 금액 조정</h4>
   <div id="graphCompanyAdjust"></div>
-  <h4>📈 전체 종목 금액 조정</h4>
-  <label>±금액</label><input type="number" id="allDelta" value="100" style="width:100px;">
-  <button onclick="adjustAllPrices()">적용</button>
+
   <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다.</p>
 </div>
 
@@ -1206,3 +1214,4 @@
 </script>
 </body>
 </html>
+
