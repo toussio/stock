@@ -276,17 +276,17 @@
     const loginModal    = document.getElementById("loginModal");
 
     let chart = null;
-    let priceTimer = null;          // 시세 시뮬레이터 타이머 (관리자만 사용)
-    let graphUpdateTimer = null;    // 차트 가벼운 디바운스용
-    let updateInterval = 5000;      // 기본 5초 (ms)
-    let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
-    let marketOpenFlag = false;     // 기본은 '마감'
-    let ADMIN_MODE = false;         // 관리자만 시세쓰기
+    let priceTimer = null;
+    let graphUpdateTimer = null;
+    let updateInterval = 5000;
+    let deltaMax = 1000000;
+    let marketOpenFlag = false;
+    let ADMIN_MODE = false;
 
-    let volatility = 1.5;           // 전역 변동폭 (%)
+    let volatility = 1.5;
 
     const marketState = { bias: {} };
-    const companyChances = {};      // { [safeId]: {profit, loss} }
+    const companyChances = {};
 
     let player = { holdings:{}, cash:0 };
     let currentUser = null;
@@ -297,8 +297,8 @@
     let unsubGlobals = null;
 
     // 뉴스
-    let newsData = [];     // visible=true만 (유저 모달)
-    let newsDataAll = [];  // 전체 (관리자 목록)
+    let newsData = [];
+    let newsDataAll = [];
     let unsubNews = null;
 
     // ========================= Utils =========================
@@ -338,8 +338,6 @@
       const next = (marketState.bias[c.id] || 0) + sign * step;
       marketState.bias[c.id] = Math.max(-1, Math.min(1, next));
     }
-
-    // 매수/매도 상세 알림
     async function buy(name, qty){
       if(!marketOpenFlag) return alert('⛔ 장 마감 중');
       const c = findCompanyById(name); if(!c) return;
@@ -362,12 +360,10 @@
       renderUserInfo(); updateHoldingsUI();
       impactPrice(c.id, qty, 'buy');
     }
-
     async function sell(name, qty){
       if(!marketOpenFlag) return alert('⛔ 장 마감 중');
       const c = findCompanyById(name); if(!c) return;
       if(!currentUser) return alert('로그인 후 이용해주세요.');
-
       const owned = player.holdings[c.name] || 0;
       if(owned <= 0){
         return alert('❌ 보유 주식이 없습니다.');
@@ -925,7 +921,7 @@
       }
     }
 
-    // 유저 목록 실시간 + 강제 로그아웃 버튼
+    // 유저 목록 + 강제 로그아웃 버튼
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
       box.textContent = '불러오는 중...';
@@ -1035,7 +1031,7 @@
         alert('✅ 입금 승인 완료 (현금 반영)');
       }catch(e){
         console.error(e);
-        alert('입금 승인 중 오류가 발생했습니다.');
+        alert('입금 승인 중 오류가 발생했습니다: ' + (e?.message||e));
       }
     }
     async function rejectDeposit(id){
@@ -1044,10 +1040,9 @@
         const el = document.getElementById('dep-'+id); if(el) el.remove();
       }catch(e){
         console.error(e);
-        alert('입금 거절 중 오류가 발생했습니다.');
+        alert('입금 거절 중 오류가 발생했습니다: ' + (e?.message||e));
       }
     }
-
     async function approveWithdraw(id){
       try{
         await runTransaction(db, async (tx)=>{
@@ -1075,7 +1070,7 @@
           alert('❌ 출금 승인 실패: 유저 현금이 부족합니다.');
         }else{
           console.error(e);
-          alert('출금 승인 중 오류가 발생했습니다.');
+          alert('출금 승인 중 오류가 발생했습니다: ' + (e?.message||e));
         }
       }
     }
@@ -1085,7 +1080,7 @@
         const el = document.getElementById('wd-'+id); if(el) el.remove();
       }catch(e){
         console.error(e);
-        alert('출금 거절 중 오류가 발생했습니다.');
+        alert('출금 거절 중 오류가 발생했습니다: ' + (e?.message||e));
       }
     }
 
@@ -1246,7 +1241,7 @@
         currentUser = { id:cid, name:cname, cash:nextCash, active:true };
         player.cash=nextCash; player.holdings=nextHoldings;
 
-        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
+        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true, forcedLogoutAt:null },{merge:true});
         localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
         loginModal.style.display='none';
@@ -1255,6 +1250,7 @@
         console.warn("⚠️ 로그인 처리 오류:", e); alert("로그인 중 오류가 발생했습니다.");
       }
     };
+
     function subscribeCurrentUser(uid){
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
       const uref=doc(db,"users",uid);
@@ -1263,8 +1259,10 @@
         const d=snap.data();
         if(typeof d.cash==='number') player.cash=d.cash;
         if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-        // 🔔 강제 로그아웃 감지
-        if(currentUser && currentUser.id===uid && d.active===false){
+
+        // ✅ 강제 로그아웃만 알림 (단순 새로고침으로 active:false였던 경우는 제외)
+        const wasForced = !!d.forcedLogoutAt && (!d.lastLoginAt || d.forcedLogoutAt > d.lastLoginAt);
+        if(currentUser && currentUser.id===uid && d.active===false && wasForced){
           alert('관리자에 의해 로그아웃되었습니다.');
           localStorage.removeItem('stockUser');
           location.reload();
@@ -1273,6 +1271,7 @@
         renderUserInfo(); updateHoldingsUI();
       });
     }
+
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
@@ -1283,13 +1282,15 @@
     });
 
     // ========================= Init =========================
-    window.onload = () => {
+    window.onload = async () => {
       const saved = localStorage.getItem('stockUser');
       if(saved){
         try{
           const parsed = JSON.parse(saved);
           if(parsed && parsed.id && parsed.name){
             currentUser = { id: parsed.id, name: parsed.name };
+            // 🔧 새로고침 복귀 시 즉시 active=true로 전환하여 강제 로그아웃 오탐 제거
+            try{ await setDoc(doc(db,"users",parsed.id), { active:true, lastLoginAt:Date.now(), forcedLogoutAt:null }, { merge:true }); }catch(_e){}
             loginModal.style.display='none';
             renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(parsed.id);
           }else{ loginModal.style.display='flex'; }
@@ -1305,9 +1306,9 @@
       subscribeCompanyChances();
       subscribeMarketState();
       subscribeGlobals();
-      subscribeNews();           // 뉴스 구독
+      subscribeNews();
       renderMarketStatus();
-      initCompaniesUI();         // 기본은 '마감' 상태로 렌더
+      initCompaniesUI();
     };
 
     // ========================= Global Bindings =========================
@@ -1356,6 +1357,12 @@
 
     // 강제 로그아웃 바인딩
     window.forceLogout = forceLogout;
+
+    // ✅ ADMIN123 승인/거절 전역 바인딩 (모듈 스코프 이슈 해결)
+    window.approveDeposit  = approveDeposit;
+    window.rejectDeposit   = rejectDeposit;
+    window.approveWithdraw = approveWithdraw;
+    window.rejectWithdraw  = rejectWithdraw;
   </script>
 </body>
 </html>
