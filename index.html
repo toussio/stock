@@ -526,7 +526,7 @@
       });
     }
     function renderMarketStatus(){
-      const statusText = marketOpenFlag ? "🟢 개장중" : "🔴 마감";
+      const statusText = marketOpenFlag ? "🟢 개장 중" : "🔴 마감";
       companies.forEach(c=>{
         const el = document.getElementById("marketStatus-" + c.id);
         if(el) el.textContent = statusText;
@@ -1264,3 +1264,4 @@
   </script>
 </body>
 </html>
+
