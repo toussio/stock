@@ -716,6 +716,48 @@ async function setAllChances(){
   }catch(e){ console.error("전체 확률 적용 실패:", e); }
 }
 
+  // ✅ 여기다가 추가
+let volatility = 0.015; // 기본 ±1.5%
+
+function applyVolatility(){
+  const val = parseFloat(document.getElementById("volatilityInput").value)||0.01;
+  volatility = val / 100; // 입력값 % → 소수 변환
+  alert(`✅ 변동폭 적용됨: ±${val}%`);
+}
+
+async function runScenario(mode){
+  alert(mode==="riseEnd" ? "📈 상승종료 시나리오 시작" : "📉 하락종료 시나리오 시작");
+
+  let price = 10000000; // 초기 시장가
+  let ticks = 360; // 1시간 = 360틱 (10초 단위)
+
+  for(let t=0;t<ticks;t++){
+    let probUp;
+    if(mode==="riseEnd"){
+      if(t<120) probUp=0.4;
+      else if(t<240) probUp=0.5;
+      else probUp=0.7;
+    }else if(mode==="fallEnd"){
+      if(t<120) probUp=0.6;
+      else if(t<240) probUp=0.5;
+      else probUp=0.3;
+    }
+
+    let change = (Math.random()<probUp ? 1 : -1) * (Math.random()*volatility);
+    price = price * (1+change);
+
+    // 최소/최대 가격 제한
+    price = Math.max(6000000, Math.min(18000000, price));
+
+    companies.forEach(c=>c.livePrice=price);
+    scheduleGraphUpdate();
+
+    await new Promise(r=>setTimeout(r,100));
+  }
+
+  alert("⏹️ 시나리오 종료 (그래프는 계속 유지됨)");
+}
+  
 /* =========================
  * 주가 조작 패널 (stock123)
  * ========================= */
@@ -1135,4 +1177,5 @@ window.marketEnd   = () => { marketClose(); renderMarketStatus(); };
 </script>
 </body>
 </html>
+
 
