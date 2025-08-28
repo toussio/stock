@@ -138,7 +138,6 @@
   <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
     <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
     <h3>📊 그래프/금액 제어 패널</h3>
-
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
       <button onclick="marketStart()">장 시작 + 시세 시작</button>
       <button onclick="marketEnd()">장 마감 + 시세 정지</button>
@@ -158,21 +157,10 @@
     </div>
 
     <div style="margin-top:10px;">
-      <strong>📊 1틱 상한(±원):</strong>
+      <strong>📊 변동폭 상한(±원):</strong>
       <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
       <button onclick="applyDeltaMax()">적용</button>
     </div>
-
-    <!-- ★ 그래프 패널에서 변동폭 직접 조정 -->
-    <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <strong>📈 변동폭(%)</strong>
-      <input type="number" id="volInputGraph" value="5" step="0.1" min="0" style="width:100px;">
-      <label>최소 변동폭(%)</label>
-      <input type="number" id="minVolInputGraph" value="0.6" step="0.1" min="0" style="width:100px;">
-      <button onclick="applyVolatilityFromGraph()">적용</button>
-      <div style="color:#9ca3af; font-size:12px;">(장 시작 15초간 자동 부스팅)</div>
-    </div>
-
     <hr style="opacity:.2">
     <h4>📈 개별 종목 금액 조정</h4>
     <div id="graphCompanyAdjust"></div>
@@ -224,7 +212,7 @@
 
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
       <label>전역 변동폭 (%)</label>
-      <input id="volatilityInput" type="number" step="0.1" value="5" style="width:100px;">
+      <input id="volatilityInput" type="number" step="0.1" value="1.5" style="width:100px;">
       <button onclick="applyVolatility()">변동폭 적용</button>
     </div>
 
@@ -289,15 +277,14 @@
 
     let chart = null;
     let priceTimer = null;          // 시세 시뮬레이터 타이머 (관리자만 사용)
-    let graphUpdateTimer = null;    // 동기 갱신 디바운스
+    let graphUpdateTimer = null;    // 차트 가벼운 디바운스용
     let updateInterval = 5000;      // 기본 5초 (ms)
     let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
-    let marketOpenFlag = false;     // ✅ 기본은 '마감'
+    let marketOpenFlag = false;     // 기본은 '마감' 취급
+    let hasMarketSnapshot = false;  // ✅ 스냅샷 도착 전: 준비중
     let ADMIN_MODE = false;         // 🔒 관리자만 시세쓰기
 
-    // 변동폭 (그래프 패널에서도 제어)
-    let volatility = 5;             // 기본 전역 변동폭(%)
-    let minVolPct  = 0.6;           // 최소 변동폭(%)
+    let volatility = 1.5;           // 전역 변동폭 (%)
 
     const marketState = { bias: {} };
     const companyChances = {};      // { [safeId]: {profit, loss} }
@@ -323,6 +310,11 @@
       return isNaN(n) ? 0 : Math.max(0, n);
     };
     const log = (msg) => { logDiv.innerHTML = "<div>" + msg + "</div>" + logDiv.innerHTML; };
+
+    function getMarketStatusLabel(){
+      if(!hasMarketSnapshot) return "🟡 준비중";
+      return marketOpenFlag ? "🟢 개장 중" : "🔴 마감";
+    }
 
     // ========================= Company Data =========================
     const companies = [
@@ -353,7 +345,7 @@
       marketState.bias[c.id] = Math.max(-1, Math.min(1, next));
     }
     async function buy(name, qty){
-      if(!marketOpenFlag) return alert('⛔ 장 마감 중');
+      if(!hasMarketSnapshot || !marketOpenFlag) return alert('⛔ 장 마감/준비중');
       const c = findCompanyById(name); if(!c) return;
       if(!currentUser) return alert('로그인 후 이용해주세요.');
       const p = getDisplayPrice(c);
@@ -368,7 +360,7 @@
       impactPrice(c.id, qty, 'buy');
     }
     async function sell(name, qty){
-      if(!marketOpenFlag) return alert('⛔ 장 마감 중');
+      if(!hasMarketSnapshot || !marketOpenFlag) return alert('⛔ 장 마감/준비중');
       const c = findCompanyById(name); if(!c) return;
       if(!currentUser) return alert('로그인 후 이용해주세요.');
       const p = getDisplayPrice(c);
@@ -387,36 +379,28 @@
     async function marketOpen(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       marketOpenFlag = true;
-      window._justOpened = Date.now();        // 장 시작 후 15초 부스팅 기준점
-      try{
-        await setDoc(doc(db,"marketState","main"), { isOpen:true, updatedAt: Date.now() }, { merge:true });
-      }catch(e){ console.warn(e); }
-      renderMarketStatus();                   // 배지 즉시 갱신
-      scheduleGraphSync(true);                // 동기 프레임 갱신
-      startPriceSimulation();
-      alert("✅ 장 시작");
+      try{ await setDoc(doc(db,"marketState","main"), { isOpen:true, updatedAt: Date.now() }, { merge:true }); }catch(e){console.warn(e);}
+      startPriceSimulation(); renderMarketStatus(); alert("✅ 장 시작");
     }
     async function marketClose(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       marketOpenFlag = false;
-      try{
-        await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
-      }catch(e){ console.warn(e); }
-      renderMarketStatus();
-      scheduleGraphSync(true);
-      stopPriceSimulation();
-      alert("📉 장 마감");
+      try{ await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true }); }catch(e){console.warn(e);}
+      stopPriceSimulation(); renderMarketStatus(); alert("📉 장 마감");
     }
 
     // ========================= Market State Sync (모든 유저 공통) =========================
     function subscribeMarketState(){
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
-        if(!snap.exists()) {
-          marketOpenFlag = false;   // 기본 마감
+        hasMarketSnapshot = true; // ✅ 첫 스냅샷 도착
+
+        if(!snap.exists()){
+          marketOpenFlag = false;
           renderMarketStatus();
           return;
         }
         const d = snap.data();
+
         marketOpenFlag = !!d.isOpen;
         renderMarketStatus();
 
@@ -424,7 +408,7 @@
           updateInterval = d.interval;
         }
 
-        // 타이머는 관리자만 운용
+        // ✅ 타이머는 관리자만 운용
         if(ADMIN_MODE){
           if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
           if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
@@ -444,45 +428,32 @@
           volatility = d.volatility;
           const v = document.getElementById('volatilityInput');
           if(v) v.value = String(volatility);
-          const vg = document.getElementById('volInputGraph');
-          if(vg) vg.value = String(volatility);
-        }
-        if(typeof d.minVol === 'number'){
-          minVolPct = Math.max(0, d.minVol);
-          const mg = document.getElementById('minVolInputGraph');
-          if(mg) mg.value = String(minVolPct);
         }
       });
     }
 
     // ========================= Price Simulation (관리자만 Firestore 쓰기) =========================
     async function updatePrices(){
-      if(!ADMIN_MODE || !marketOpenFlag) return;
-
-      const justOpenedBoost =
-        (window._justOpened && (Date.now() - window._justOpened) < 15000) ? 2 : 1; // 장 시작 후 15초 부스팅
+      if(!ADMIN_MODE) return;
+      if(!marketOpenFlag) return;
 
       for(const c of companies){
         const prev = c.livePrice || c.basePrice;
 
-        // 확률
+        // 확률 (profit/loss 정규화)
         const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
         const denom = Math.max(1e-6, (chance.profit + chance.loss));
         let isUp = Math.random() < (chance.profit / denom);
 
-        // 시나리오/체결 바이어스
+        // 시나리오/체결 바이어스 (-1 = 무조건 상승, 1 = 무조건 하락)
         const b = marketState.bias[c.id] || 0;
         if(b === -1) isUp = true;
         if(b ===  1) isUp = false;
         marketState.bias[c.id] = b * 0.5; // 점감
 
-        // 변동폭(%) - [최소, 최대] 범위
-        const mult   = Math.max(0, c.multiplier || 1);
-        const maxPct = (volatility/100) * mult * justOpenedBoost;
-        const minPct = Math.min(maxPct, (minVolPct/100) * mult);
-        const stepPct = minPct + Math.random()*Math.max(0, maxPct - minPct);
-        const signed  = isUp ? stepPct : -stepPct;
-
+        // 변동폭(%): 0 ~ volatility 범위 랜덤, 배율(multiplier) 반영
+        const stepPct = (Math.random() * volatility / 100) * Math.max(0, c.multiplier || 1);
+        const signed = isUp ? stepPct : -stepPct;
         let nextRaw = prev * (1 + signed);
 
         // 1틱 상한(±deltaMax)
@@ -494,9 +465,10 @@
         try{
           await setDoc(doc(db,"companyPrices", c.id), { current: next, updatedAt: Date.now() }, { merge:true });
           c.livePrice = next;
+          const el = document.getElementById("price-" + c.id);
+          if(el) el.textContent = getDisplayPrice(c).toLocaleString();
         }catch(e){ console.error("시뮬레이션 반영 실패:", e); }
       }
-      // 가격 문서 onSnapshot에서 scheduleGraphSync가 호출되므로 여기서 따로 호출 필요 없음
     }
     function startPriceSimulation(){
       if(!ADMIN_MODE) return;
@@ -507,7 +479,7 @@
       if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
     }
 
-    // ========================= Chart & Sync =========================
+    // ========================= Chart =========================
     function initChart(){
       if(chart) return;
       const ctx = document.getElementById("chart").getContext("2d");
@@ -524,36 +496,29 @@
         }
       });
     }
-    function pushChartPoint(){
+    function appendChartPoint(){
       if(!chart) return;
       const now = new Date().toLocaleTimeString();
       chart.data.labels.push(now);
       companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
-      const MAX=180;
+      const MAX=120;
       if(chart.data.labels.length>MAX){
         chart.data.labels.splice(0, chart.data.labels.length-MAX);
         chart.data.datasets.forEach(d=>{ if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX); });
       }
       chart.update("none");
     }
-    function scheduleGraphSync(force=false){
-      if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); graphUpdateTimer=null; }
-      const doSync = ()=>{
-        // 카드 가격 텍스트 최신화
-        companies.forEach(c=>{
-          const el = document.getElementById("price-" + c.id);
-          if(el) el.textContent = getDisplayPrice(c).toLocaleString();
-        });
-        // 차트 포인트 추가
-        pushChartPoint();
+    function scheduleGraphUpdate(){
+      if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); }
+      graphUpdateTimer = setTimeout(()=>{
+        appendChartPoint();
         graphUpdateTimer=null;
-      };
-      if(force) doSync();
-      else graphUpdateTimer = setTimeout(doSync, 30);
+      }, Math.max(200, updateInterval/2));
     }
 
     // ========================= Market Status Text & 버튼 활성/비활성 =========================
     function updateTradeButtons(){
+      const allowTrade = hasMarketSnapshot && marketOpenFlag;
       companies.forEach(c=>{
         const qty = document.getElementById("qty-" + c.id);
         const card = document.getElementById("card-" + c.id);
@@ -561,21 +526,19 @@
         const btns = card.querySelectorAll("button");
         btns.forEach(b=>{
           if(b.textContent.includes('매수') || b.textContent.includes('매도')){
-            b.disabled = !marketOpenFlag;
+            b.disabled = !allowTrade;
           }
         });
-        if(qty) qty.disabled = !marketOpenFlag;
+        if(qty) qty.disabled = !allowTrade;
       });
     }
     function renderMarketStatus(){
-      const statusText = marketOpenFlag ? "🟢 개장 중" : "🔴 마감";
+      const label = getMarketStatusLabel();
       companies.forEach(c=>{
         const el = document.getElementById("marketStatus-" + c.id);
-        if(el) el.textContent = statusText;
+        if(el) el.textContent = label;
       });
       updateTradeButtons();
-      // 상태가 바뀌면 한 프레임 동기 갱신
-      scheduleGraphSync(true);
     }
 
     // ========================= Firestore Subscriptions =========================
@@ -588,8 +551,11 @@
           if(c && typeof data.current==='number'){ c.livePrice=data.current; any=true; }
         });
         if(any){
-          // 한 프레임에 카드 & 그래프 동기 반영
-          scheduleGraphSync();
+          companies.forEach(c => {
+            const el = document.getElementById("price-" + c.id);
+            if(el) el.textContent = getDisplayPrice(c).toLocaleString();
+          });
+          scheduleGraphUpdate();
         }
       });
     }
@@ -734,20 +700,21 @@
       return Math.max(1, v);
     }
     function initCompaniesUI(){
+      const allowTrade = hasMarketSnapshot && marketOpenFlag;
       let html="";
       companies.forEach(c=>{
         html += `
           <div class="company" id="card-${c.id}">
             <div class="info">
               <span>${c.name}</span>
-              <span class="status-badge" id="marketStatus-${c.id}">${marketOpenFlag ? "🟢 개장 중":"🔴 마감"}</span>
+              <span class="status-badge" id="marketStatus-${c.id}">${getMarketStatusLabel()}</span>
             </div>
             <div>가격: <strong><span id="price-${c.id}">${getDisplayPrice(c).toLocaleString()}</span> KRW</strong></div>
             <div>보유: <span id="hold-${c.id}">${player.holdings[c.name]||0}</span> 주</div>
             <div class="actions">
-              <input type="number" id="qty-${c.id}" min="1" value="1" ${marketOpenFlag?'':'disabled'}>
-              <button ${marketOpenFlag?'':'disabled'} onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
-              <button ${marketOpenFlag?'':'disabled'} onclick="sell('${c.name}', getQty('${c.name}'))">매도</button>
+              <input type="number" id="qty-${c.id}" min="1" value="1" ${allowTrade?'':'disabled'}>
+              <button ${allowTrade?'':'disabled'} onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
+              <button ${allowTrade?'':'disabled'} onclick="sell('${c.name}', getQty('${c.name}'))">매도</button>
             </div>
           </div>
         `;
@@ -800,7 +767,9 @@
       c.livePrice=newVal;
       const p = document.getElementById("panel-price-" + c.id);
       if(p) p.textContent=getDisplayPrice(c).toLocaleString();
-      scheduleGraphSync(true);
+      const el = document.getElementById("price-" + c.id);
+      if(el) el.textContent=getDisplayPrice(c).toLocaleString();
+      scheduleGraphUpdate();
     }
     async function adjustAllPrices(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -809,8 +778,12 @@
         const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
         await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
         c.livePrice=newVal;
+        const p = document.getElementById("panel-price-" + c.id);
+        if(p) p.textContent=getDisplayPrice(c).toLocaleString();
+        const el = document.getElementById("price-" + c.id);
+        if(el) el.textContent=getDisplayPrice(c).toLocaleString();
       }
-      scheduleGraphSync(true);
+      scheduleGraphUpdate();
     }
     function applyDeltaMax(){
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
@@ -840,24 +813,10 @@
         chart.data.datasets.forEach(d=> d.data = []);
         chart.update();
       }
-      scheduleGraphSync(true);
-    }
-
-    // 그래프 패널에서 변동폭 바로 적용
-    async function applyVolatilityFromGraph(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const vEl = document.getElementById('volInputGraph');
-      const mEl = document.getElementById('minVolInputGraph');
-      const v  = Number(vEl?.value);
-      const m  = Number(mEl?.value);
-      const vv = isNaN(v) ? volatility : Math.max(0, v);
-      const mm = isNaN(m) ? minVolPct  : Math.max(0, m);
-      try{
-        await setDoc(doc(db,'globals','settings'), { volatility: vv, minVol: mm, updatedAt: Date.now() }, { merge:true });
-        volatility = vv; minVolPct = mm;
-        const vi = document.getElementById('volatilityInput'); if(vi) vi.value = String(vv);
-        alert(`✅ 변동폭 ${vv}% / 최소 ${mm}% 적용`);
-      }catch(e){ console.error(e); alert("오류: 변동폭 적용 실패"); }
+      companies.forEach(c => {
+        const el = document.getElementById("price-" + c.id);
+        if(el) el.textContent = getDisplayPrice(c).toLocaleString();
+      });
     }
 
     // ========================= Deposit / Withdraw =========================
@@ -953,7 +912,7 @@
       }
     }
 
-    // 유저 목록 실시간 (강제 로그아웃 포함)
+    // 유저 목록 실시간
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
       box.textContent = '불러오는 중...';
@@ -972,21 +931,13 @@
                   <div>현금: ${Number(u.cash||0).toLocaleString()} KRW</div>
                   <div>보유: ${holdTxt}</div>
                 </div>
-                <div style="display:flex; gap:6px;">
-                  <button onclick="forceLogout('${docu.id}')">강제 로그아웃</button>
-                </div>
+                <div style="font-size:12px;color:#9ca3af;">업데이트: ${new Date(u.updatedAt||u.lastLoginAt||Date.now()).toLocaleString()}</div>
               </div>
             `;
           });
           box.innerHTML = html || "유저 없음";
         });
       }
-    }
-    async function forceLogout(uid){
-      try{
-        await updateDoc(doc(db,"users",uid), { active:false, forceLogout:true, lastLogoutAt:Date.now() });
-        alert('✅ 강제 로그아웃 완료');
-      }catch(e){ console.error(e); alert('오류: 강제 로그아웃 실패'); }
     }
 
     // 입/출금 실시간 (pending만 표시)
@@ -1004,7 +955,7 @@
           let html="";
           snap.forEach(docu=>{
             const r=docu.data();
-            if(r.status!=='pending') return; // 승인/거절된 건 숨김
+            if(r.status!=='pending') return; // ✅ 승인/거절된 건 숨김
             html += `
               <div class="req-card" id="dep-${docu.id}">
                 <div>
@@ -1026,7 +977,7 @@
           let html="";
           snap.forEach(docu=>{
             const r=docu.data();
-            if(r.status!=='pending') return; // 승인/거절된 건 숨김
+            if(r.status!=='pending') return; // ✅ 승인/거절된 건 숨김
             const fee = Math.floor((r.amount||0)*0.3);
             html += `
               <div class="req-card" id="wd-${docu.id}">
@@ -1046,59 +997,62 @@
       }
     }
 
-    // ✅ 현금 반영 + 목록 자동 제거(스냅샷 필터)
+    // ✅ 입금 승인 시: 유저 현금 += amount, 요청 승인 처리
     async function approveDeposit(id){
-      try{
-        const ref = doc(db,"depositRequests",id);
-        const snap = await getDoc(ref);
-        if(!snap.exists()){ alert('요청이 존재하지 않습니다.'); return; }
-        const r = snap.data();
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const reqRef = doc(db,"depositRequests",id);
+      const snap = await getDoc(reqRef);
+      if(!snap.exists()) return alert('요청을 찾을 수 없습니다.');
+      const r = snap.data();
+      if(r.status !== 'pending') return alert('이미 처리된 요청입니다.');
 
-        if(r.userId && r.amount>0){
-          const uref = doc(db,"users", r.userId);
-          const usnap = await getDoc(uref);
-          let cash = 0;
-          if(usnap.exists()) cash = Number(usnap.data().cash||0);
-          cash += Number(r.amount||0);
-          await updateDoc(uref, { cash, updatedAt: Date.now() });
-        }
-        await updateDoc(ref, { status:'approved', updatedAt:Date.now() });
-      }catch(e){ console.error(e); alert('입금 승인 중 오류'); }
+      const userRef = doc(db,"users", r.userId);
+      const uSnap = await getDoc(userRef);
+      let cash = 0;
+      if(uSnap.exists() && typeof uSnap.data().cash === 'number') cash = uSnap.data().cash;
+      cash += Number(r.amount||0);
+
+      await updateDoc(userRef, { cash, updatedAt: Date.now() });
+      await updateDoc(reqRef, { status:'approved', processedAt: Date.now() });
+      alert("✅ 입금 승인 및 반영 완료");
     }
     async function rejectDeposit(id){
-      try{
-        await updateDoc(doc(db,"depositRequests",id),{status:'rejected', updatedAt:Date.now()});
-      }catch(e){ console.error(e); alert('입금 거절 중 오류'); }
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      await updateDoc(doc(db,"depositRequests",id),{status:'rejected', updatedAt:Date.now()});
+      alert("🚫 입금 요청 거절 처리");
     }
+
+    // ✅ 출금 승인 시: 유저 현금에서 amount 차감(수수료는 내부 보관), 부족 시 거절
     async function approveWithdraw(id){
-      try{
-        const ref = doc(db,"withdrawRequests",id);
-        const snap = await getDoc(ref);
-        if(!snap.exists()){ alert('요청이 존재하지 않습니다.'); return; }
-        const r = snap.data();
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const reqRef = doc(db,"withdrawRequests",id);
+      const snap = await getDoc(reqRef);
+      if(!snap.exists()) return alert('요청을 찾을 수 없습니다.');
+      const r = snap.data();
+      if(r.status !== 'pending') return alert('이미 처리된 요청입니다.');
 
-        if(r.userId && r.amount>0){
-          const uref = doc(db,"users", r.userId);
-          const usnap = await getDoc(uref);
-          let cash = 0;
-          if(usnap.exists()) cash = Number(usnap.data().cash||0);
+      const userRef = doc(db,"users", r.userId);
+      const uSnap = await getDoc(userRef);
+      let cash = 0;
+      if(uSnap.exists() && typeof uSnap.data().cash === 'number') cash = uSnap.data().cash;
 
-          const amount = Number(r.amount||0);
-          if(cash < amount){
-            alert('사용자 현금 부족으로 자동 거절됩니다.');
-            await updateDoc(ref, { status:'rejected', reason:'insufficient', updatedAt:Date.now() });
-            return;
-          }
-          cash -= amount; // 수수료는 실지급에만 영향, 차감은 요청액 기준
-          await updateDoc(uref, { cash, updatedAt: Date.now() });
-        }
-        await updateDoc(ref, { status:'approved', updatedAt:Date.now() });
-      }catch(e){ console.error(e); alert('출금 승인 중 오류'); }
+      const amount = Number(r.amount||0);
+      if(cash < amount){
+        await updateDoc(reqRef, { status:'rejected', reason:'insufficient', processedAt: Date.now() });
+        return alert("❌ 사용자 현금 부족으로 거절 처리되었습니다.");
+      }
+
+      const fee = Math.floor(amount*0.3);
+      const paid = Math.max(0, amount - fee);
+
+      await updateDoc(userRef, { cash: cash - amount, updatedAt: Date.now() });
+      await updateDoc(reqRef, { status:'approved', fee, paid, processedAt: Date.now() });
+      alert("✅ 출금 승인 및 반영 완료");
     }
     async function rejectWithdraw(id){
-      try{
-        await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
-      }catch(e){ console.error(e); alert('출금 거절 중 오류'); }
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
+      alert("🚫 출금 요청 거절 처리");
     }
 
     // 🎛️ 주가 조작 패널
@@ -1206,11 +1160,10 @@
     async function applyVolatility(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const v = Number(document.getElementById('volatilityInput').value);
-      const vv = isNaN(v) ? volatility : Math.max(0, v);
+      const vv = isNaN(v) ? 1.5 : Math.max(0, v);
       try{
         await setDoc(doc(db,'globals','settings'), { volatility: vv, updatedAt: Date.now() }, { merge:true });
         volatility = vv;
-        const vg = document.getElementById('volInputGraph'); if(vg) vg.value = String(vv);
         alert(`✅ 전역 변동폭 ${vv}% 적용`);
       }catch(e){ console.error(e); alert("오류: 변동폭 적용 실패"); }
     }
@@ -1230,6 +1183,13 @@
       companies.forEach(c=>{ marketState.bias[c.id] = force; });
       alert(type==='riseEnd' ? "📈 단기 상승 유도 시작" : "📉 단기 하락 유도 시작");
       setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 0; }); }, 60000);
+    }
+    function applyAutoScenario(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      companies.forEach(c=>{ marketState.bias[c.id] = -1; });
+      setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 1; }); }, 30000);
+      setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 0; }); }, 60000);
+      alert("⏱️ 자동 시나리오(상승→하락) 60초 실행");
     }
 
     // ========================= Login / Session =========================
@@ -1252,7 +1212,7 @@
         currentUser = { id:cid, name:cname, cash:nextCash, active:true };
         player.cash=nextCash; player.holdings=nextHoldings;
 
-        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true, forceLogout:false },{merge:true});
+        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
         localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
         loginModal.style.display='none';
@@ -1264,18 +1224,9 @@
     function subscribeCurrentUser(uid){
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
       const uref=doc(db,"users",uid);
-      unsubscribeUser = onSnapshot(uref, async (snap)=>{
+      unsubscribeUser = onSnapshot(uref,(snap)=>{
         if(!snap.exists()) return;
         const d=snap.data();
-
-        // 관리자 강제 로그아웃 처리
-        if(d.forceLogout){
-          alert('⚠️ 관리자에 의해 로그아웃되었습니다.');
-          try{ await updateDoc(uref,{ forceLogout:false, active:false, lastLogoutAt:Date.now() }); }catch(e){}
-          localStorage.removeItem('stockUser'); location.reload();
-          return;
-        }
-
         if(typeof d.cash==='number') player.cash=d.cash;
         if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
         renderUserInfo(); updateHoldingsUI();
@@ -1314,8 +1265,8 @@
       subscribeMarketState();
       subscribeGlobals();
       subscribeNews();           // 📰 뉴스 구독
-      renderMarketStatus();      // 기본은 '마감' 상태
-      initCompaniesUI();
+      renderMarketStatus();
+      initCompaniesUI();         // 기본은 '🟡 준비중' 상태로 렌더
     };
 
     // ========================= Global Bindings =========================
@@ -1344,8 +1295,8 @@
     window.applyCompanyChance = applyCompanyChance;
     window.setAllChances = setAllChances;
     window.applyVolatility = applyVolatility;
-    window.applyVolatilityFromGraph = applyVolatilityFromGraph;
     window.applyScenario = applyScenario;
+    window.applyAutoScenario = applyAutoScenario;
     window.runScenario = runScenario;
 
     window.marketStart = () => { marketOpen(); };
@@ -1357,11 +1308,10 @@
     window.renderFinanceQueues = renderFinanceQueues;
     window.renderUserList = renderUserList;
 
+    // 뉴스 관리자 바인딩
     window.postNews = postNews;
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
-
-    window.forceLogout = forceLogout;
   </script>
 </body>
 </html>
