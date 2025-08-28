@@ -65,7 +65,18 @@
   .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:50; }
   .modal-content { background:var(--card); padding:20px; border-radius:10px; text-align:center; width:min(90%,440px); position:relative; }
   .modal-content input { margin:8px 0; padding:8px; width:85%; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
-  .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; }
+ .xbtn {
+  background: var(--danger);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
   /* 관리자 패널 컨테이너 */
   .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
@@ -118,8 +129,12 @@
 <!-- 출금 요청 모달 -->
 <div id="withdrawModal" class="modal">
   <div class="modal-content">
-    <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
-    <h2>출금 요청</h2>
+    <!-- 제목과 닫기 버튼을 한 줄에 배치 -->
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0;">출금 요청</h2>
+      <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
+    </div>
+
     <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
     <input type="text" id="withdrawName" placeholder="이름 입력"><br>
     <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
@@ -1243,5 +1258,6 @@
 </script>
 </body>
 </html>
+
 
 
