@@ -426,8 +426,9 @@
     marketState.bias[name] = (type === 'buy') ? 1 : -1;
   }
 
-  function buy(name, qty){
+   function buy(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
+    if(!marketOpen) return alert("지금은 장 오픈이 아닙니다");
     const c = findCompanyById(name); if(!c) return;
     const p = getDisplayPrice(c);
     if(player.cash<p*qty) return alert('현금 부족');
@@ -438,8 +439,10 @@
     renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
     impactPrice(name, qty, 'buy');
   }
-  function sell(name, qty){
+  
+    function sell(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
+    if(!marketOpen) return alert("지금은 장 오픈이 아닙니다");
     const c = findCompanyById(name); if(!c) return;
     const p = getDisplayPrice(c);
     if((player.holdings[name]||0)<qty) return alert('보유 부족');
@@ -449,7 +452,7 @@
     syncUserToServer();
     renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
     impactPrice(name, qty, 'sell');
-  }
+    }
 
   async function requestDeposit(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
@@ -1276,5 +1279,6 @@
 </script>
 </body>
 </html>
+
 
 
