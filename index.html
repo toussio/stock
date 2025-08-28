@@ -78,156 +78,6 @@
     </div>
   </div>
 
-  <!-- 출금 모달 -->
-  <div id="withdrawModal" class="modal">
-    <div class="modal-content">
-      <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
-      <h2>출금 요청</h2>
-      <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
-      <input type="text" id="withdrawName" placeholder="이름 입력"><br>
-      <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
-      <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
-      <input type="text" id="withdrawMemo" placeholder="메모 (선택)"><br>
-      <button onclick="submitWithdraw()">요청</button>
-    </div>
-  </div>
-
-  <!-- 뉴스 모달 -->
-  <div id="newsModal" class="modal">
-    <div class="modal-content">
-      <button class="xbtn" onclick="closeNewsModal()">✕</button>
-      <h2>📢 최신 뉴스</h2>
-      <div id="newsContent" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:10px;">
-        <p>현재 등록된 뉴스가 없습니다.</p>
-      </div>
-      <button onclick="closeNewsModal()">닫기</button>
-    </div>
-  </div>
-
-  <!-- 관리자 로그인 -->
-  <div id="adminLogin">
-    <input type="password" id="adminCode" placeholder="관리자 코드 입력">
-    <button onclick="checkAdmin()">관리자 로그인</button>
-  </div>
-
-  <!-- 관리자 패널 -->
-  <div id="adminPanelGraph" class="admin-panel"></div>
-  <div id="adminPanelUsers" class="admin-panel"></div>
-  <div id="adminPanelFinance" class="admin-panel"></div>
-  <div id="adminPanelStock" class="admin-panel"></div>
-  <div id="adminPanelChange" class="admin-panel"></div>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>떡잎방범대 주식 센터</title>
-
-  <style>
-    :root{
-      --bg:#0f172a; --card:#1f2937; --ink:#e5e7eb; --ink2:#cbd5e1;
-      --accent:#334155; --accentH:#475569; --danger:#7f1d1d; --ok:#065f46;
-    }
-    *{box-sizing:border-box}
-    body { font-family: Arial, sans-serif; background:var(--bg); color:var(--ink); margin:0; padding:20px; }
-    h1 { text-align:center; margin:4px 0 16px }
-
-    #userRow,#log { margin:20px auto; max-width:1100px; }
-    #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
-    #userInfo { font-size:16px; }
-
-    #depositForm {
-      display:flex; justify-content:center; align-items:center;
-      gap:10px; margin:20px auto; max-width:1100px;
-    }
-    #depositForm input {
-      padding:8px; border-radius:8px; border:1px solid #374151;
-      background:#0b1220; color:var(--ink);
-    }
-    #depositForm .memo { min-width:220px; }
-
-    button { padding:8px 12px; cursor:pointer; border-radius:8px; background:var(--accent); color:var(--ink); border:none; }
-    button:hover { background:var(--accentH); }
-
-    #chartWrap {
-      position:relative; margin:20px auto; max-width:1100px; height:400px;
-      background:#111827; border-radius:10px; overflow:hidden;
-    }
-    #chart { position:absolute; inset:0; width:100% !important; height:100% !important; }
-
-    #companies {
-      display:grid; grid-template-columns:repeat(3,1fr);
-      gap:12px; margin:20px auto; max-width:1100px;
-    }
-    .company {
-      background:var(--card); border-radius:10px; padding:12px;
-      display:flex; flex-direction:column; gap:10px;
-    }
-    .company .info { display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; align-items:center; font-weight:600; }
-    .company .info small{ color:var(--ink2); font-weight:400 }
-    .company .actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .company .actions input[type="number"] {
-      grid-column:span 2; padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink);
-    }
-
-    #log { max-height:240px; overflow-y:auto; background:#111827; padding:12px; border-radius:10px; }
-
-    .req-card { background:var(--card); border-radius:10px; padding:12px; margin:8px 0;
-                display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
-    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:50; }
-    .modal-content { background:var(--card); padding:20px; border-radius:10px; text-align:center; width:min(90%,440px); position:relative; }
-    .modal-content input { margin:8px 0; padding:8px; width:85%; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
-    .xbtn {
-      position:absolute; top:8px; right:8px; background:var(--danger); border:none;
-      color:white; border-radius:50%; width:28px; height:28px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1;
-    }
-
-    .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
-    #adminLogin{ text-align:center; margin-top:20px }
-    #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
-
-    @media (max-width:900px){ #companies{ grid-template-columns:repeat(2,1fr) } }
-    @media (max-width:600px){ #companies{ grid-template-columns:1fr } }
-  </style>
-</head>
-<body>
-  <h1>떡잎방범대 주식 센터</h1>
-
-  <div id="userRow">
-    <div id="userInfo">⏳ 로그인 대기중...</div>
-    <div>
-      <button onclick="logout()">로그아웃</button>
-      <button onclick="openWithdrawModal()">출금 요청</button>
-      <button onclick="openNewsModal()">📰 뉴스 보기</button>
-    </div>
-  </div>
-
-  <div id="depositForm">
-    <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
-    <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
-    <input id="cashMemo" type="text" class="memo" placeholder="메모 (선택)">
-    <button onclick="requestDeposit()">입금 요청</button>
-  </div>
-
-  <div id="chartWrap"><canvas id="chart"></canvas></div>
-  <div id="companies"></div>
-  <div id="log"></div>
-
-  <!-- 로그인 모달 -->
-  <div id="loginModal" class="modal">
-    <div class="modal-content">
-      <h2>정보 입력 후 시작</h2>
-      <input type="text" id="customId" placeholder="고유번호 입력"><br>
-      <input type="text" id="customName" placeholder="이름 입력"><br>
-      <button id="startBtn">시작</button>
-    </div>
-  </div>
-
   <!-- 출금 요청 모달 -->
   <div id="withdrawModal" class="modal">
     <div class="modal-content">
@@ -350,7 +200,7 @@
     <div id="changePanel" style="margin-top:10px;"></div>
   </div>
 
-  <!-- Chart.js -->
+    <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- App Script -->
@@ -721,11 +571,11 @@
       });
       wrap.innerHTML = html || "회사 데이터 없음";
     }
-    async function adjustCompanyPrice(name){
+    async function adjustCompanyPrice(name, overrideDelta=null){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c = findCompanyById(name); if(!c) return;
       const inputEl = document.getElementById("adj-" + c.id);
-      const delta = parseInt(inputEl && inputEl.value) || 0;
+      const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
       const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
       await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
       c.livePrice=newVal;
@@ -783,7 +633,7 @@
       });
     }
 
-    // ========================= Deposit / Withdraw =========================
+        // ========================= Deposit / Withdraw =========================
     async function requestDeposit(){
       const id   = currentUser?.id || "";
       const name = currentUser?.name || "";
@@ -992,8 +842,7 @@
     async function applyStockTarget(name, delta){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
-      const next = Math.max(1,(c.livePrice||c.basePrice)+delta);
-      await setDoc(doc(db,"companyPrices", c.id), { current: next, updatedAt: Date.now() }, { merge:true });
+      await adjustCompanyPrice(c.name, delta);
     }
 
     // 📈 배율/확률 관리 패널 구현
@@ -1095,8 +944,6 @@
     // 📈 시나리오
     function runScenario(type){ applyScenario(type); }
     function applyScenario(type){
-      // riseEnd: 잠시 상승세 유도 → 자연감쇠
-      // fallEnd: 잠시 하락세 유도 → 자연감쇠
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const force = (type==='riseEnd') ? -1 : 1; // -1 강제상승, 1 강제하락
       companies.forEach(c=>{ marketState.bias[c.id] = force; });
@@ -1106,7 +953,7 @@
     }
     function applyAutoScenario(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      // 예시: 30초 상승 → 30초 하락
+      // 예시: 30초 상승 → 30초 하락 → 해제
       companies.forEach(c=>{ marketState.bias[c.id] = -1; });
       setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 1; }); }, 30000);
       setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 0; }); }, 60000);
@@ -1227,7 +1074,6 @@
 
     window.renderFinanceQueues = renderFinanceQueues;
     window.renderUserList = renderUserList;
-
   </script>
 </body>
 </html>
