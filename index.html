@@ -30,8 +30,20 @@
     button:disabled { opacity:.45; cursor:not-allowed; }
 
     /* 차트 */
-    #chartWrap { position:relative; margin:20px auto; max-width:1100px; height:400px; background:#111827; border-radius:10px; overflow:hidden; }
+    #chartWrap { position:relative; margin:20px auto; max-width:1100px; height:420px; background:#111827; border-radius:10px; overflow:hidden; }
     #chart { position:absolute; inset:0; width:100% !important; height:100% !important; }
+
+    /* 그래프 퀵 조절 툴바(관리자 전용) */
+    .chart-tools{
+      position:absolute; right:12px; top:12px; z-index:5;
+      display:none; gap:6px; align-items:center; flex-wrap:wrap;
+      background:var(--card); border:1px solid #374151; border-radius:10px; padding:8px;
+      box-shadow:0 6px 20px rgba(0,0,0,.25);
+    }
+    .chart-tools select, .chart-tools input{
+      padding:6px 8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink);
+    }
+    .chart-tools .mini{ padding:6px 10px; }
 
     /* 기업 카드: 4열 */
     #companies { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:20px auto; max-width:1100px; }
@@ -88,7 +100,20 @@
   </div>
 
   <!-- 차트/종목/로그 -->
-  <div id="chartWrap"><canvas id="chart"></canvas></div>
+  <div id="chartWrap">
+    <canvas id="chart"></canvas>
+
+    <!-- 📌 그래프 위 퀵 조절 툴바 (관리자 전용) -->
+    <div id="chartTools" class="chart-tools">
+      <select id="toolCompany"></select>
+      <input type="number" id="toolDelta" value="10000" step="1000" style="width:110px;">
+      <button id="toolMinus" class="mini">-</button>
+      <button id="toolPlus"  class="mini">+</button>
+      <button id="toolReset" class="mini">초기화</button>
+      <button id="toolToggleMarket" class="mini">마감</button>
+    </div>
+  </div>
+
   <div id="companies"></div>
   <div id="log"></div>
 
@@ -275,12 +300,20 @@
     const loginBtn      = document.getElementById("startBtn");
     const loginModal    = document.getElementById("loginModal");
 
+    const chartTools    = document.getElementById("chartTools");
+    const toolCompany   = document.getElementById("toolCompany");
+    const toolDelta     = document.getElementById("toolDelta");
+    const toolMinus     = document.getElementById("toolMinus");
+    const toolPlus      = document.getElementById("toolPlus");
+    const toolReset     = document.getElementById("toolReset");
+    const toolToggle    = document.getElementById("toolToggleMarket");
+
     let chart = null;
     let priceTimer = null;
     let graphUpdateTimer = null;
     let updateInterval = 5000;
     let deltaMax = 1000000;
-    let marketOpenFlag = false;   // 기본 마감
+    let marketOpenFlag = false;   // ✅ 기본 마감
     let ADMIN_MODE = false;
 
     let volatility = 1.5;
@@ -347,10 +380,7 @@
       if(!currentUser) return alert('로그인 후 이용해주세요.');
       const p = getDisplayPrice(c);
       const need = p*qty;
-      if(player.cash < need){
-        alert('현금 부족');
-        return;
-      }
+      if(player.cash < need){ alert('현금 부족'); return; }
 
       player.cash -= need;
       player.holdings[c.name] = (player.holdings[c.name]||0) + qty;
@@ -366,10 +396,7 @@
       if(!currentUser) return alert('로그인 후 이용해주세요.');
       const p = getDisplayPrice(c);
       const have = (player.holdings[c.name]||0);
-      if(have <= 0 || have < qty){
-        alert('보유 부족');
-        return;
-      }
+      if(have <= 0 || have < qty){ alert('보유 부족'); return; }
 
       player.cash += p*qty;
       player.holdings[c.name] = have - qty;
@@ -397,20 +424,11 @@
     // ========================= Market State Sync =========================
     function subscribeMarketState(){
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
-        if(!snap.exists()) {
-          marketOpenFlag = false;
-          renderMarketStatus();
-          return;
-        }
+        if(!snap.exists()) { marketOpenFlag = false; renderMarketStatus(); return; }
         const d = snap.data();
-
         marketOpenFlag = !!d.isOpen;
         renderMarketStatus();
-
-        if(typeof d.interval === "number" && d.interval >= 1000){
-          updateInterval = d.interval;
-        }
-
+        if(typeof d.interval === "number" && d.interval >= 1000){ updateInterval = d.interval; }
         if(ADMIN_MODE){
           if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
           if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
@@ -436,12 +454,9 @@
 
     // ========================= Price Simulation (관리자) =========================
     async function updatePrices(){
-      if(!ADMIN_MODE) return;
-      if(!marketOpenFlag) return;
-
+      if(!ADMIN_MODE || !marketOpenFlag) return;
       for(const c of companies){
         const prev = c.livePrice || c.basePrice;
-
         const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
         const denom = Math.max(1e-6, (chance.profit + chance.loss));
         let isUp = Math.random() < (chance.profit / denom);
@@ -459,7 +474,6 @@
         if(Math.abs(diff) > deltaMax){ nextRaw = prev + Math.sign(diff) * deltaMax; }
 
         const next = Math.max(1, Math.round(nextRaw));
-
         try{
           await setDoc(doc(db,"companyPrices", c.id), { current: next, updatedAt: Date.now() }, { merge:true });
           c.livePrice = next;
@@ -469,8 +483,8 @@
       }
     }
     function startPriceSimulation(){
-      if(!ADMIN_MODE) return;
-      if(priceTimer || !marketOpenFlag) return;
+      if(!ADMIN_MODE || !marketOpenFlag) return;
+      if(priceTimer) clearInterval(priceTimer);
       priceTimer = setInterval(updatePrices, updateInterval);
     }
     function stopPriceSimulation(){
@@ -508,11 +522,34 @@
     }
     function scheduleGraphUpdate(){
       if(graphUpdateTimer){ clearTimeout(graphUpdateTimer); }
-      graphUpdateTimer = setTimeout(()=>{
-        appendChartPoint();
-        graphUpdateTimer=null;
-      }, Math.max(200, updateInterval/2));
+      graphUpdateTimer = setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, Math.max(200, updateInterval/2));
     }
+
+    // ========================= Chart Quick Tools =========================
+    function populateChartTools(){
+      // 회사 목록 채우기
+      toolCompany.innerHTML = companies.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+      updateChartToolsState();
+    }
+    function updateChartToolsState(){
+      // 버튼 텍스트/상태 반영
+      toolToggle.textContent = marketOpenFlag ? "마감" : "개장";
+    }
+    toolMinus?.addEventListener('click', async ()=>{
+      const name = toolCompany.value; const delta = -Math.abs(parseInt(toolDelta.value)||0);
+      await adjustCompanyPrice(name, delta);
+    });
+    toolPlus?.addEventListener('click', async ()=>{
+      const name = toolCompany.value; const delta =  Math.abs(parseInt(toolDelta.value)||0);
+      await adjustCompanyPrice(name, delta);
+    });
+    toolReset?.addEventListener('click', async ()=>{
+      await forceResetPrices(); // 전체 초기화
+    });
+    toolToggle?.addEventListener('click', async ()=>{
+      if(marketOpenFlag) await marketClose(); else await marketOpen();
+      updateChartToolsState();
+    });
 
     // ========================= Market Status & 버튼 활성/비활성 =========================
     function updateTradeButtons(){
@@ -532,6 +569,7 @@
         if(el) el.textContent = statusText;
       });
       updateTradeButtons();
+      updateChartToolsState();
     }
 
     // ========================= Firestore Subscriptions =========================
@@ -596,10 +634,7 @@
     function renderNewsModal(){
       const host = document.getElementById('newsContent');
       if(!host) return;
-      if(!newsData.length){
-        host.innerHTML = `<p>현재 등록된 뉴스가 없습니다.</p>`;
-        return;
-      }
+      if(!newsData.length){ host.innerHTML = `<p>현재 등록된 뉴스가 없습니다.</p>`; return; }
       host.innerHTML = newsData.map(n=>{
         const dt = new Date(n.createdAt||Date.now()).toLocaleString();
         const title = (n.title||'제목 없음');
@@ -616,10 +651,7 @@
     function renderNewsAdminList(){
       const list = document.getElementById('newsList');
       if(!list) return;
-      if(!newsDataAll.length){
-        list.textContent = '등록된 뉴스가 없습니다.';
-        return;
-      }
+      if(!newsDataAll.length){ list.textContent = '등록된 뉴스가 없습니다.'; return; }
       list.innerHTML = newsDataAll.map(n=>{
         const dt = new Date(n.createdAt||Date.now()).toLocaleString();
         const title = (n.title||'제목 없음');
@@ -630,9 +662,7 @@
             <div>
               <div><strong>${title}</strong> <small style="color:#9ca3af;">${dt}</small></div>
               <div style="color:#cbd5e1; font-size:14px;">${body}</div>
-              <div style="color:${vis?'#10b981':'#ef4444'}; font-size:12px; margin-top:4px;">
-                ${vis?'표시중':'숨김'}
-              </div>
+              <div style="color:${vis?'#10b981':'#ef4444'}; font-size:12px; margin-top:4px;">${vis?'표시중':'숨김'}</div>
             </div>
             <div style="display:flex; gap:6px;">
               <button onclick="toggleNewsVisibility('${n.id}', ${vis})">${vis?'숨김':'표시'}</button>
@@ -647,10 +677,7 @@
       const bodyEl  = document.getElementById('newsBodyInput');
       const title = (titleEl?.value||'').trim();
       const content = (bodyEl?.value||'').trim();
-      if(!title || !content){
-        alert('제목과 내용을 입력해주세요.');
-        return;
-      }
+      if(!title || !content){ alert('제목과 내용을 입력해주세요.'); return; }
       try{
         await addDoc(collection(db,'news'), {
           title, content,
@@ -662,27 +689,16 @@
         if(titleEl) titleEl.value='';
         if(bodyEl) bodyEl.value='';
         alert('📰 뉴스가 등록되었습니다.');
-      }catch(e){
-        console.error(e);
-        alert('뉴스 등록 중 오류가 발생했습니다.');
-      }
+      }catch(e){ console.error(e); alert('뉴스 등록 중 오류가 발생했습니다.'); }
     }
     async function toggleNewsVisibility(id, currentVisible){
-      try{
-        await updateDoc(doc(db,'news',id), { visible: !currentVisible, updatedAt: Date.now() });
-      }catch(e){
-        console.error(e);
-        alert('표시/숨김 변경 중 오류가 발생했습니다.');
-      }
+      try{ await updateDoc(doc(db,'news',id), { visible: !currentVisible, updatedAt: Date.now() }); }
+      catch(e){ console.error(e); alert('표시/숨김 변경 중 오류가 발생했습니다.'); }
     }
     async function deleteNews(id){
       if(!confirm('정말 삭제하시겠습니까?')) return;
-      try{
-        await deleteDoc(doc(db,'news',id));
-      }catch(e){
-        console.error(e);
-        alert('삭제 중 오류가 발생했습니다.');
-      }
+      try{ await deleteDoc(doc(db,'news',id)); }
+      catch(e){ console.error(e); alert('삭제 중 오류가 발생했습니다.'); }
     }
 
     // ========================= Companies / User UI =========================
@@ -713,8 +729,7 @@
       });
       companiesDiv.innerHTML = html;
     }
-
-    // ✅ 이벤트 위임으로 매수/매도 클릭을 안정적으로 처리
+    // 매수/매도: 이벤트 위임
     companiesDiv.addEventListener('click', (e)=>{
       const btn = e.target.closest('button[data-action]');
       if(!btn) return;
@@ -809,6 +824,9 @@
     }
     async function resetGraph(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      await forceResetPrices();
+    }
+    async function forceResetPrices(){
       for(const c of companies){
         c.livePrice=c.basePrice;
         await setDoc(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
@@ -822,6 +840,8 @@
         const el = document.getElementById("price-" + c.id);
         if(el) el.textContent = getDisplayPrice(c).toLocaleString();
       });
+      scheduleGraphUpdate();
+      alert('✅ 전체 금액을 초기화했습니다.');
     }
 
     // ========================= Deposit / Withdraw (유저 요청) =========================
@@ -851,7 +871,7 @@
     function closeWithdrawModal(){ document.getElementById('withdrawModal').style.display='none'; }
     function updateWithdrawFee(){
       const amount = parseNumber(document.getElementById('withdrawAmount').value);
-      const fee = Math.floor(amount * 0.30); // 30%
+      const fee = Math.floor(amount * 0.30);
       const info = document.getElementById('withdrawFeeInfo');
       if(amount>0) info.textContent = "예상 수수료: " + fee.toLocaleString() + " KRW (실지급: " + Math.max(0,(amount-fee)).toLocaleString() + " KRW)";
       else info.textContent = "";
@@ -880,6 +900,8 @@
         const panel = document.getElementById('adminPanelGraph');
         if(panel) panel.style.display='block';
         renderGraphAdjustPanel();
+        // 그래프 툴바 노출 & 구성
+        if(chartTools){ chartTools.style.display='flex'; populateChartTools(); }
         if(marketOpenFlag && !priceTimer){ startPriceSimulation(); }
         alert("✅ 그래프 제어가 활성화되었습니다. (관리자 전용)");
       }else if(code==='SECRET1234'){
@@ -962,7 +984,7 @@
       const d = document.getElementById('depositRequests');
       const w = document.getElementById('withdrawRequests');
       if(d) d.textContent = '불러오는 중...';
-      if(w) w.text내용 = '불러오는 중...'; // harmless typo fix ignored by JS (left to avoid confusion)
+      if(w) w.textContent = '불러오는 중...';
 
       if(startListen){
         if(unsubDeposits){ try{unsubDeposits();}catch(e){} unsubDeposits=null; }
@@ -1057,10 +1079,7 @@
         const usnap = await getDoc(uref);
         const cur = (usnap.exists() && typeof usnap.data().cash==='number') ? usnap.data().cash : 0;
         const amt = (r.amount||0);
-        if(cur < amt){
-          alert('유저 보유 현금이 부족합니다. (출금 승인 불가)');
-          return;
-        }
+        if(cur < amt){ alert('유저 보유 현금이 부족합니다. (출금 승인 불가)'); return; }
         const nextCash = Math.max(0, cur - amt);
 
         await updateDoc(uref, { cash: nextCash, updatedAt: Date.now() });
@@ -1279,15 +1298,42 @@
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt: Date.now()}); } }catch(e){}
     });
 
+    // ========================= 초기 진입: 강제 마감 + 금액 초기화 =========================
+    async function forceClosedAndResetOnLoad(){
+      try{
+        // 1) 장 마감으로 강제 설정
+        await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
+        marketOpenFlag = false;
+        // 2) 모든 회사 가격 초기화
+        for(const c of companies){
+          c.livePrice = c.basePrice;
+          await setDoc(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: Date.now() }, { merge:true });
+        }
+        // 3) UI 갱신
+        renderMarketStatus();
+        companies.forEach(c=>{
+          const el = document.getElementById("price-" + c.id);
+          if(el) el.textContent = getDisplayPrice(c).toLocaleString();
+        });
+        if(chart){
+          chart.data.labels = [];
+          chart.data.datasets.forEach(d=> d.data = []);
+          chart.update();
+        }
+      }catch(e){
+        console.warn("초기 마감/리셋 중 경고:", e);
+      }
+    }
+
     // ========================= Init =========================
-    window.onload = () => {
+    window.onload = async () => {
       const saved = localStorage.getItem('stockUser');
       if(saved){
         try{
           const parsed = JSON.parse(saved);
           if(parsed && parsed.id && parsed.name){
             currentUser = { id: parsed.id, name: parsed.name };
-            sessionStartAt = null; // 자동 진입 세션은 강제로그아웃 안내 비활성
+            sessionStartAt = null;
             loginModal.style.display='none';
             renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(parsed.id);
           }else{ loginModal.style.display='flex'; }
@@ -1297,6 +1343,10 @@
       }else{
         loginModal.style.display='flex';
       }
+
+      // ✅ 최초 진입: 장 마감 + 금액 초기화
+      await forceClosedAndResetOnLoad();
+
       initChart();
       subscribeCompanyPrices();
       subscribeCompanySettings();
