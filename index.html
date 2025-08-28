@@ -389,21 +389,28 @@
       stopPriceSimulation(); renderMarketStatus(); alert("📉 장 마감");
     }
     function subscribeMarketState(){
-      onSnapshot(doc(db,"marketState","main"), (snap)=>{
-        if(!snap.exists()) return;
-        const d = snap.data();
-        marketOpenFlag = !!d.isOpen;
-        if(typeof d.interval === "number" && d.interval > 0){
-          updateInterval = d.interval;
-          if(priceTimer){
-            clearInterval(priceTimer); priceTimer = null;
-            if(marketOpenFlag) priceTimer = setInterval(updatePrices, updateInterval);
-          }
-        }
-        renderMarketStatus();
-        if(marketOpenFlag) startPriceSimulation(); else stopPriceSimulation();
-      });
+  onSnapshot(doc(db,"marketState","main"), (snap)=>{
+    if(!snap.exists()) return;
+    const d = snap.data();
+    marketOpenFlag = !!d.isOpen;
+
+    // 🔥 interval 값이 1000ms 이상일 때만 반영 (잘못된 값 방지)
+    if(typeof d.interval === "number" && d.interval >= 1000){
+      updateInterval = d.interval;
+      if(priceTimer){
+        clearInterval(priceTimer);
+        priceTimer = null;
+      }
+      if(marketOpenFlag){
+        priceTimer = setInterval(updatePrices, updateInterval);
+      }
     }
+
+    renderMarketStatus();
+    if(marketOpenFlag) startPriceSimulation();
+    else stopPriceSimulation();
+  });
+}
 
     // ========================= Price Simulation =========================
     async function updatePrices(){
@@ -576,14 +583,21 @@
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
       deltaMax = Math.max(1, val);
     }
-    function applyGraphInterval(){
-      const sec = parseInt(document.getElementById("intervalInput").value) || 5;
-      updateInterval = Math.max(1, sec) * 1000;
-      if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
+   function applyGraphInterval(){
+  const sec = parseInt(document.getElementById("intervalInput").value) || 5;
+  updateInterval = Math.max(1, sec) * 1000;
+
+  // 🔥 Firestore에 저장 (모든 유저 동기화)
+  setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
+    .then(()=>{
+      // 저장 성공 후 관리자 클라이언트에도 즉시 반영
+      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
       if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
-      setDoc(doc(db,"marketState","main"), { interval:updateInterval }, { merge:true }).catch(()=>{});
-      alert("✅ 변동주기 적용됨: " + sec + "초");
-    }
+      alert("✅ 변동주기 적용됨: " + sec + "초 (전체 유저 동기화)");
+    })
+    .catch(e=>console.error("변동주기 저장 실패:", e));
+}
+
     async function resetGraph(){
       for(const c of companies){
         c.livePrice=c.basePrice;
@@ -916,3 +930,4 @@
   </script>
 </body>
 </html>
+
