@@ -910,6 +910,18 @@
   function stopPriceSimulation(){
     if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
   }
+
+  
+function marketStart(){
+  marketOpen();           // 장 시작
+  startPriceSimulation(); // 시세 시작
+}
+
+function marketEnd(){
+  marketClose();          // 장 마감
+  stopPriceSimulation();  // 시세 정지
+}
+  
   async function resetGraph(){
     for(const c of companies){
       c.livePrice=c.basePrice;
@@ -1101,6 +1113,7 @@
 </script>
 </body>
 </html>
+
 
 
 
