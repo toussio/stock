@@ -838,7 +838,7 @@ function closeWithdrawModal(){ document.getElementById('withdrawModal').style.di
 
 function updateWithdrawFee(){
   const amount = parseNumber(document.getElementById('withdrawAmount').value);
-  const fee = Math.floor(amount * 0.02); // 2% 수수료 예시
+  const fee = Math.floor(amount * 0.30); // 2% 수수료 예시
   const info = document.getElementById('withdrawFeeInfo');
   if(amount>0) info.textContent = `예상 수수료: ${fee.toLocaleString()} KRW (실지급: ${(amount-fee).toLocaleString()} KRW)`;
   else info.textContent = '';
@@ -1022,3 +1022,4 @@ window.openNewsModal = openNewsModal; window.closeNewsModal = closeNewsModal;
 </script>
 </body>
 </html>
+
