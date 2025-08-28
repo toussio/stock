@@ -105,7 +105,7 @@
 <!-- 하단 로그 -->
 <div id="log"></div>
 
-<!-- 로그인 모달 -->
+  <!-- 로그인 모달 -->
 <div id="loginModal" class="modal">
   <div class="modal-content">
     <h2>정보 입력 후 시작</h2>
@@ -147,14 +147,14 @@
   <button onclick="checkAdmin()">관리자 로그인</button>
 </div>
 
-<!-- 👑 강제 로그아웃 패널 (SECRET1234) -->
+<!-- 👑 강제 로그아웃 패널 -->
 <div id="adminPanelUsers" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelUsers')">✕</button>
   <h3>👑 강제 로그아웃 패널</h3>
   <div id="userList"></div>
 </div>
 
-<!-- 💰 입출금 관리 패널 (ADMIN123) -->
+<!-- 💰 입출금 관리 패널 -->
 <div id="adminPanelFinance" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelFinance')">✕</button>
   <h3>💰 입출금 요청 패널</h3>
@@ -164,12 +164,12 @@
   <div id="withdrawRequests"></div>
 </div>
 
-<!-- 📊 그래프/금액 제어 패널 (graph123) -->
+<!-- 📊 그래프/금액 제어 패널 -->
 <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
   <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
   <h3>📊 그래프/금액 제어 패널</h3>
 
-  <!-- ✅ 그래프 제어 + 전체 종목 금액 조정 한 줄 배치 -->
+  <!-- 그래프 제어 + 전체 조정 -->
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
     <button onclick="startPriceSimulation()">시작</button>
     <button onclick="stopPriceSimulation()">정지</button>
@@ -193,26 +193,22 @@
   </div>
 
   <hr style="opacity:.2">
-
   <h4>📈 개별 종목 금액 조정</h4>
   <div id="graphCompanyAdjust"></div>
-
-  <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다.</p>
+  <p style="color:#9ca3af; margin-top:8px;">※ '현재가(livePrice)' 직접 조정</p>
 </div>
 
-<!-- 🎛️ 주가 조작 패널 (stock123) -->
+<!-- 🎛️ 주가 조작 패널 -->
 <div id="adminPanelStock" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelStock')">✕</button>
-  <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
+  <h3>🎛️ 주가 조작 패널</h3>
   <div id="stockTuner"></div>
 </div>
 
-<!-- 📈 배율/확률 관리 패널 (change123) -->
+<!-- 📈 배율/확률 관리 패널 -->
 <div id="adminPanelChange" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
   <h3>📈 배율 & 확률 관리 패널</h3>
-
-  <!-- 전체 배율 -->
   <div class="req-card">
     <div><strong>전체 배율</strong></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -220,25 +216,19 @@
       <button onclick="setAllMultipliers()">전체 배율 일괄 설정</button>
     </div>
   </div>
-
-  <!-- ✅ 전체 확률 일괄 적용 -->
   <div class="req-card">
     <div><strong>전체 확률</strong></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <label>이득%</label>
-      <input type="number" id="globalProfit" step="0.01" min="0" max="1" value="0.3" style="width:70px;">
-      <label>손해%</label>
-      <input type="number" id="globalLoss" step="0.01" min="0" max="1" value="0.7" style="width:70px;">
+      <label>이득%</label><input type="number" id="globalProfit" step="0.01" min="0" max="1" value="0.3" style="width:70px;">
+      <label>손해%</label><input type="number" id="globalLoss" step="0.01" min="0" max="1" value="0.7" style="width:70px;">
       <button onclick="setAllChances()">전체 확률 일괄 적용</button>
     </div>
-    <small style="color:#9ca3af;">* 합계 ≤ 1, 남는 확률은 “변화 없음”입니다.</small>
+    <small style="color:#9ca3af;">합계 ≤ 1, 나머지는 변화 없음</small>
   </div>
-
-  <!-- 개별 종목 배율/확률 -->
   <div id="changePanel"></div>
 </div>
 
-  <!-- 라이브러리 -->
+    <!-- 라이브러리 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
   /* =========================
@@ -393,7 +383,7 @@
   }
 
   /* =========================
-   *  시장 파라미터 (임계치/쿨다운/편향)
+   *  시장 파라미터
    * ========================= */
   const IMPACT_THRESHOLD = 30;     // 30주 이상부터 영향
   const IMPACT_SCALE = 550;        // √효과 스케일
@@ -402,17 +392,15 @@
   const COOLDOWN_MS = 8000;        // 동일 종목 연속 거래 완충
   const PRESSURE_DECAY_MS = 30000; // 누적 압력 감쇠
 
-  // 종목별 이득/손해 확률 (기본 3:7). Firestore 동기화됨.
+  // 종목별 확률 (기본 3:7)
   const companyChances = {};
-  companies.forEach(c=>{
-    companyChances[c.name] = { profit:0.3, loss:0.7 };
-  });
+  companies.forEach(c=>{ companyChances[c.name] = { profit:0.3, loss:0.7 }; });
 
   // 반조작 상태
   const marketState = { pressure:{}, lastTradeTs:{}, bias:{} };
 
   /* =========================
-   *  서버 동기화 (users)
+   *  서버 동기화
    * ========================= */
   async function syncUserToServer(){
     if(!currentUser) return;
@@ -422,7 +410,7 @@
   }
 
   /* =========================
-   *  거래 영향 공식 (임계치/루트/쿨다운/편향)
+   *  거래 영향 공식
    * ========================= */
   async function impactPrice(name, qty, type){
     const c = findCompanyById(name);
@@ -454,7 +442,7 @@
     ratio = Math.max(-MAX_TRADE_IMPACT, Math.min(MAX_TRADE_IMPACT, ratio));
     let nextPrice = Math.max(1, Math.round(prevPrice * (1 + ratio)));
 
-    // 🎲 종목별 확률 (3:7) — 작은 이득(+0~1%), 손실(–0~2%)
+    // 확률 (3:7)
     const chance = companyChances[name] || {profit:0.3, loss:0.7};
     const roll = Math.random();
     if(roll < chance.profit){
@@ -464,19 +452,17 @@
     }
 
     try{
-      await setDoc(doc(db,"companyPrices", name),
-        { current: nextPrice, updatedAt: now }, { merge:true });
+      await setDoc(doc(db,"companyPrices", name), { current: nextPrice, updatedAt: now }, { merge:true });
       c.livePrice = nextPrice;
       updateCompanyPriceDOM(name);
       scheduleGraphUpdate();
     }catch(e){ console.error("가격 영향 반영 실패:", e); }
 
-    // 편향(반전 트릭에 활용)
     marketState.bias[name] = (type === 'buy') ? 1 : -1;
   }
 
-    /* =========================
-   *  거래 (buy/sell)
+  /* =========================
+   *  거래 함수
    * ========================= */
   function buy(name, qty){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
@@ -502,7 +488,6 @@
     renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
     impactPrice(name, qty, 'sell');
   }
-
   /* =========================
    *  입/출금 요청
    * ========================= */
@@ -517,14 +502,22 @@
       userId:currentUser.id, userName:currentUser.name,
       acct, amount, memo, status:'대기', type:'입금'
     };
-    try{ await addDoc(collection(db,'pendingDeposits'),req); }catch(e){ console.warn("⚠️ 입금 DB 저장 실패:",e); }
-    alert("✅ 입금 요청이 완료되었습니다.");
+    try{
+      await addDoc(collection(db,'pendingDeposits'),req);
+      alert("✅ 입금 요청이 완료되었습니다.");
+    }catch(e){
+      console.warn("⚠️ 입금 DB 저장 실패:",e);
+      alert("오류가 발생했습니다. 다시 시도해주세요.");
+    }
   }
 
   function openWithdrawModal(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     withdrawId.value=currentUser.id;
     withdrawName.value=currentUser.name;
+    withdrawAmount.value = '';
+    withdrawMemo.value = '';
+    document.getElementById("withdrawFeeInfo").innerText = '';
     withdrawModal.style.display='flex';
   }
   function closeWithdrawModal(){ withdrawModal.style.display='none'; }
@@ -563,10 +556,14 @@
       amount: receive, fee, original: amount,
       memo, status:'대기', type:'출금'
     };
-    try{ await addDoc(collection(db,'pendingWithdrawals'),req); }
-    catch(e){ console.warn("⚠️ 출금 DB 저장 실패:",e); }
-    alert("✅ 출금 요청이 완료되었습니다.");
-    closeWithdrawModal();
+    try{
+      await addDoc(collection(db,'pendingWithdrawals'),req);
+      alert("✅ 출금 요청이 완료되었습니다.");
+      closeWithdrawModal();
+    }catch(e){
+      console.warn("⚠️ 출금 DB 저장 실패:",e);
+      alert("오류가 발생했습니다. 다시 시도해주세요.");
+    }
   }
 
   /* =========================
@@ -594,11 +591,11 @@
     } else {
       loginModal.style.display='flex';
     }
-    // 그래프 + 중앙시세/회사설정 구독
+    // 그래프 + 중앙시세/회사설정/확률 구독
     initChart();
     subscribeCompanyPrices();
     subscribeCompanySettings();
-    subscribeCompanyChances();   // ✅ 종목별 확률 구독
+    subscribeCompanyChances();
   };
 
   document.getElementById("startBtn").onclick = async ()=>{
@@ -620,7 +617,7 @@
       await setDoc(userRef,{ ...currentUser, holdings:nextHoldings },{merge:true});
       localStorage.setItem("stockUser",JSON.stringify(currentUser));
       loginModal.style.display='none'; renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid);
-    }catch(e){ console.warn("⚠️ Firestore 오류:",e); }
+    }catch(e){ console.warn("⚠️ Firestore 오류:",e); alert("로그인 중 오류가 발생했습니다."); }
   };
 
   async function logout(){
@@ -649,11 +646,11 @@
     } else if(code.toLowerCase()==="stock123"){
       document.getElementById("adminPanelStock").style.display="block";
       document.getElementById("adminLogin").style.display="none";
-      renderStockTuner(); // ✅ 새 UI 포함
+      renderStockTuner();
     } else if(code.toLowerCase()==="change123"){
       document.getElementById("adminPanelChange").style.display="block";
       document.getElementById("adminLogin").style.display="none";
-      renderChangePanel(); // ✅ 배율+확률 통합 UI
+      renderChangePanel();
     } else {
       alert("관리자 코드가 올바르지 않습니다.");
     }
@@ -775,7 +772,7 @@
   }
 
   /* =========================
-   *  배율 & 확률 패널 (change123)
+   *  관리자: 배율 & 확률 패널 (change123)
    * ========================= */
   function renderChangePanel(){
     const wrap=document.getElementById("changePanel"); let html='';
@@ -803,7 +800,6 @@
     });
     wrap.innerHTML = html || "회사 데이터 없음";
   }
-
   async function applyMultiplier(name){
     const mid=`m-${name}`;
     const multiplier = parseFloat(document.getElementById(mid).value);
@@ -836,7 +832,17 @@
     companies.forEach(c => updateCompanyPriceDOM(c.name));
     scheduleGraphUpdate();
   }
-
+  async function setAllChances(){
+    const gp = parseFloat(document.getElementById("globalProfit").value);
+    const gl = parseFloat(document.getElementById("globalLoss").value);
+    if(isNaN(gp)||isNaN(gl)||gp<0||gl<0||(gp+gl)>1){ alert("이득/손해 값이 잘못되었습니다. (0~1, 합계≤1)"); return; }
+    for (const c of companies){
+      await setDoc(doc(db,'companyChances', c.name), { profit:gp, loss:gl, updatedAt: Date.now() }, { merge:true });
+      companyChances[c.name] = { profit:gp, loss:gl };
+    }
+    alert("✅ 전체 확률이 적용되었습니다.");
+    renderChangePanel();
+  }
   function subscribeCompanySettings(){
     onSnapshot(collection(db,'companySettings'), (snap)=>{
       let changed=false;
@@ -849,8 +855,6 @@
       if(changed){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
     });
   }
-
-  // 종목별 확률 Firestore 동기화
   function subscribeCompanyChances(){
     onSnapshot(collection(db,'companyChances'), (snap)=>{
       snap.forEach(docu=>{
@@ -865,33 +869,7 @@
     });
   }
 
-  async function applyCompanyChance(name){
-    const p=parseFloat(document.getElementById(`profit-${name}`).value);
-    const l=parseFloat(document.getElementById(`loss-${name}`).value);
-    if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
-    try{
-      await setDoc(doc(db,'companyChances', name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
-      companyChances[name] = { profit:p, loss:l };
-      alert(`✅ ${name} 확률 변경: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
-    }catch(e){ console.error("확률 저장 실패:", e); }
-  }
-
-  // ✅ 전체 확률 일괄 적용
-  async function setAllChances(){
-    const p = parseFloat(document.getElementById('globalProfit').value);
-    const l = parseFloat(document.getElementById('globalLoss').value);
-    if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)."); return; }
-    try{
-      for(const c of companies){
-        await setDoc(doc(db,'companyChances', c.name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
-        companyChances[c.name] = { profit:p, loss:l };
-      }
-      alert(`✅ 전체 확률 적용: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
-      renderChangePanel();
-    }catch(e){ console.error("전체 확률 적용 실패:", e); }
-  }
-
-    /* =========================
+  /* =========================
    *  중앙 시세 구독
    * ========================= */
   function subscribeCompanyPrices(){
@@ -950,7 +928,7 @@
   }
 
   /* =========================
-   *  시세 시뮬레이션 (작은 이득 후 손실 경향 + 반전)
+   *  시세 시뮬레이션 (음편향 + 가끔 반전)
    * ========================= */
   async function updatePrices(){
     for(const c of companies){
@@ -959,8 +937,8 @@
 
       let isUp = Math.random() < chance.profit;
       const b = marketState.bias[c.name] || 0;
-      if(b === 1) isUp = false;      // 직전 매수 → 살짝 하락 유도
-      if(b === -1) isUp = true;      // 직전 매도 → 살짝 반등 유도
+      if(b === 1) isUp = false;      // 직전 매수 → 하락 확률↑
+      if(b === -1) isUp = true;      // 직전 매도 → 반등 확률↑
       marketState.bias[c.name] = b * 0.5; // 서서히 소거
       if(Math.random() < 0.15) isUp = !isUp; // 가끔 반전
 
@@ -996,7 +974,6 @@
   }
   function startPriceSimulation(){
     if(priceTimer) return;
-    // 음편향 시뮬레이터 사용
     priceTimer=setInterval(updatePrices, updateInterval);
   }
   function stopPriceSimulation(){
@@ -1169,7 +1146,7 @@
   }
 
   /* =========================
-   *  뉴스 모달
+   *  뉴스 모달 (기본)
    * ========================= */
   function openNewsModal(){ document.getElementById("newsModal").style.display = "flex"; }
   function closeNewsModal(){ document.getElementById("newsModal").style.display = "none"; }
@@ -1180,7 +1157,7 @@
   }
 
   /* =========================
-   *  전역 바인딩 (stray 문자 제거)
+   *  전역 바인딩
    * ========================= */
   window.buy=buy; window.sell=sell; window.requestDeposit=requestDeposit;
   window.openWithdrawModal=openWithdrawModal; window.closeWithdrawModal=closeWithdrawModal;
@@ -1212,5 +1189,3 @@
   window.refreshAllPanelPrices = refreshAllPanelPrices;
 
 </script>
-</body>
-</html>
