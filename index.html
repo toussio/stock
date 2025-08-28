@@ -390,7 +390,7 @@
     }
   }
 
-  function buildCompanyCard(c){
+ function buildCompanyCard(c){
   const safe = safeId(c.name);
   const held = player.holdings[c.name]||0;
   const nowPrice = getDisplayPrice(c);
@@ -400,9 +400,9 @@
   div.className = 'company';
   div.id = `card-${safe}`;
   div.innerHTML = `
-    <div class="info">
+    <div class="info" style="flex-direction:column; align-items:flex-start; gap:4px;">
       <strong>${c.name}</strong>
-      <div class="market-badge" id="badge-${safe}" style="margin:4px 0; font-size:13px;"></div>
+      <div class="market-badge" id="badge-${safe}" style="font-size:13px;"></div>
       <span>
         <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
         <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
@@ -415,6 +415,13 @@
     </div>
   `;
   companiesDiv.appendChild(div);
+
+  const qtyInput = div.querySelector(`#qty-${safe}`);
+  qtyInput.addEventListener('input', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    qtyState[c.name] = (Number.isFinite(v) && v > 0) ? v : 1;
+  });
+}
 
   const qtyInput = div.querySelector(`#qty-${safe}`);
   qtyInput.addEventListener('input', (e)=>{
@@ -1244,6 +1251,7 @@
 </script>
 </body>
 </html>
+
 
 
 
