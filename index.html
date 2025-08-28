@@ -66,22 +66,22 @@
   .modal-content { background:var(--card); padding:20px; border-radius:10px; text-align:center; width:min(90%,440px); position:relative; }
   .modal-content input { margin:8px 0; padding:8px; width:85%; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
   .xbtn {
-  position:absolute;
-  top:8px;
-  right:8px;
-  background:var(--danger);
-  border:none;
-  color:white;
-  border-radius:50%;
-  width:28px;
-  height:28px;
-  cursor:pointer;
-  display:flex;               /* 추가 */
-  align-items:center;         /* 추가 */
-  justify-content:center;     /* 추가 */
-  font-size:16px;             /* 글자 크기 보정 */
-  line-height:1;              /* 줄 간격 보정 */
-}
+    position:absolute;
+    top:8px;
+    right:8px;
+    background:var(--danger);
+    border:none;
+    color:white;
+    border-radius:50%;
+    width:28px;
+    height:28px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:16px;
+    line-height:1;
+  }
 
   /* 관리자 패널 컨테이너 */
   .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
@@ -168,17 +168,17 @@
   <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
   <h3>📊 그래프/금액 제어 패널</h3>
 
-  <!-- ✅ 장 시작/마감 버튼 추가 -->
- <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-  <button onclick="marketStart()">장 시작 + 시세 시작</button>   <!-- ✅ 통합 -->
-  <button onclick="marketEnd()">장 마감 + 시세 정지</button>     <!-- ✅ 통합 -->
-  <button onclick="resetGraph()">그래프 초기화</button>
-  <label style="margin-left:20px;">전체 조정 ±금액</label>
-  <input type="number" id="allDelta" value="100" style="width:100px;">
-  <button onclick="adjustAllPrices()">적용</button>
-</div>
+  <!-- ✅ 장 시작/마감 버튼 (통합) -->
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+    <button onclick="marketStart()">장 시작 + 시세 시작</button>
+    <button onclick="marketEnd()">장 마감 + 시세 정지</button>
+    <button onclick="resetGraph()">그래프 초기화</button>
+    <label style="margin-left:20px;">전체 조정 ±금액</label>
+    <input type="number" id="allDelta" value="100" style="width:100px;">
+    <button onclick="adjustAllPrices()">적용</button>
+  </div>
 
-    <div style="margin-top:10px;">
+  <div style="margin-top:10px;">
     <strong>⏱️ 변동 주기 (초):</strong>
     <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
     <button onclick="applyGraphInterval()">적용</button>
@@ -198,6 +198,23 @@
   <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다.</p>
 </div>
 
+<!-- 👥 유저 패널 (SECRET1234) -->
+<div id="adminPanelUsers" class="admin-panel" style="max-width:800px;">
+  <button class="xbtn" onclick="closeAdmin('adminPanelUsers')">✕</button>
+  <h3>👥 유저 상태 패널</h3>
+  <div id="userList">로드 중...</div>
+</div>
+
+<!-- 💳 재무 패널 (ADMIN123) -->
+<div id="adminPanelFinance" class="admin-panel" style="max-width:800px;">
+  <button class="xbtn" onclick="closeAdmin('adminPanelFinance')">✕</button>
+  <h3>💳 입/출금 요청 패널</h3>
+  <h4>입금 요청</h4>
+  <div id="depositRequests">대기중인 입금 요청 없음</div>
+  <h4 style="margin-top:12px;">출금 요청</h4>
+  <div id="withdrawRequests">대기중인 출금 요청 없음</div>
+</div>
+
 <!-- 🎛️ 주가 조작 패널 (stock123) -->
 <div id="adminPanelStock" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelStock')">✕</button>
@@ -209,6 +226,15 @@
 <div id="adminPanelChange" class="admin-panel">
   <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
   <h3>📈 배율 & 확률 관리 패널</h3>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+    <label>전체 이득%</label><input id="globalProfit" type="number" step="0.01" min="0" max="1" value="0.3" style="width:80px;">
+    <label>전체 손해%</label><input id="globalLoss" type="number" step="0.01" min="0" max="1" value="0.7" style="width:80px;">
+    <button onclick="setAllChances()">전체 확률 적용</button>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+    <label>전체 배율</label><input id="allMultiplierVal" type="number" step="0.01" value="1" style="width:120px;">
+    <button onclick="setAllMultipliers()">전체 배율 적용</button>
+  </div>
   <div id="changePanel"></div>
 </div>
 
@@ -256,15 +282,20 @@
   // 그래프 / 타이머
   let chart = null;
   let priceTimer = null;
-  let updateInterval = 5000;      
-  let graphUpdateTimer = null;    
-  let deltaMax = 1000000;         
+  let updateInterval = 5000;
+  let graphUpdateTimer = null;
+  let deltaMax = 1000000;
+
+  // 전역 시뮬/확률/바이어스 관련 (누락 방지)
+  const MAX_TRADE_IMPACT = 0.05;     // 개별 틱 변동 상한 (비율)
+  const marketState = { bias: {} };  // 매수/매도에 따른 편향
+  const companyChances = {};         // {회사명: {profit, loss}}
 
   // stock123 보간 타이머
   const smoothTimers = {};
 
   // 구매 수량 상태
-  const qtyState = {};  
+  const qtyState = {};
 
   // ✅ 장 상태 플래그
   let marketOpenFlag = false;
@@ -344,7 +375,7 @@
     div.innerHTML = `
       <div class="info">
         <strong>${c.name}</strong>
-        <span id="marketStatus-${safe}" style="margin-left:6px; font-size:12px; color:#9ca3af;"></span> <!-- ✅ 장 상태 -->
+        <span id="marketStatus-${safe}" style="margin-left:6px; font-size:12px; color:#9ca3af;"></span>
         <span>
           <span id="price-${safe}">${nowPrice.toLocaleString()}</span> KRW
           <small>| 보유:<span id="held-${safe}">${held}</span>주</small>
@@ -370,11 +401,40 @@
     companies.forEach(buildCompanyCard);
   }
 
-    /* =========================
+  /* =========================
+   *  서버 동기화 / 매매 영향
+   * ========================= */
+  async function syncUserToServer(){
+    if(!currentUser) return;
+    try{
+      await setDoc(doc(db,"users",currentUser.id), {
+        cash: player.cash,
+        holdings: player.holdings,
+        active: true,
+        name: currentUser.name,
+        id: currentUser.id,
+        updatedAt: Date.now()
+      }, { merge:true });
+    }catch(e){
+      console.warn("⚠️ 유저 동기화 실패:", e);
+    }
+  }
+
+  function impactPrice(name, qty, mode){
+    // 매수 시 ↑, 매도 시 ↓ 편향을 다음 틱에 반영
+    // updatePrices()에서 bias: -1 => 상승 유도, +1 => 하락 유도
+    const size = Math.max(1, qty);
+    const step = Math.min(0.5, size / 1000); // 수량 기준 가중치 (최대 0.5)
+    const sign = (mode === 'buy') ? -1 : +1; // buy:-, sell:+
+    const next = (marketState.bias[name] || 0) + sign * step;
+    marketState.bias[name] = Math.max(-1, Math.min(1, next));
+  }
+
+  /* =========================
    *  거래 (buy/sell) — 장 마감 시 차단
    * ========================= */
   function buy(name, qty){
-    if(!marketOpenFlag) return alert('⛔ 현재는 장 마감 상태라 매수할 수 없습니다.'); // ✅ 추가
+    if(!marketOpenFlag) return alert('⛔ 현재는 장 마감 상태라 매수할 수 없습니다.');
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     const c = findCompanyById(name); if(!c) return;
     const p = getDisplayPrice(c);
@@ -387,7 +447,7 @@
     impactPrice(name, qty, 'buy');
   }
   function sell(name, qty){
-    if(!marketOpenFlag) return alert('⛔ 현재는 장 마감 상태라 매도할 수 없습니다.'); // ✅ 추가
+    if(!marketOpenFlag) return alert('⛔ 현재는 장 마감 상태라 매도할 수 없습니다.');
     if(!currentUser) return alert('로그인 후 이용해주세요.');
     const c = findCompanyById(name); if(!c) return;
     const p = getDisplayPrice(c);
@@ -406,16 +466,20 @@
   function marketOpen(){
     marketOpenFlag = true;
     startPriceSimulation();
-    renderMarketStatus(); // ✅ 상태 갱신
+    renderMarketStatus();
     alert("✅ 장이 시작되었습니다. 매수·매도가 가능합니다.");
   }
   async function marketClose(){
     marketOpenFlag = false;
     stopPriceSimulation();
-    await updatePrices(); // ✅ 마지막 변동 반영
-    renderMarketStatus(); // ✅ 상태 갱신
+    await updatePrices(); // 마지막 변동 반영
+    renderMarketStatus();
     alert("📉 장이 마감되었습니다. 매수·매도가 차단됩니다.");
   }
+
+  // 래퍼 (중복 호출 방지: start/stop은 marketOpen/Close 내부에서 처리)
+  function marketStart(){ marketOpen(); }
+  function marketEnd(){ marketClose(); }
 
   /* =========================
    *  회사 DOM 업데이트
@@ -519,8 +583,8 @@
     initChart();
     subscribeCompanyPrices();
     subscribeCompanySettings();
-    subscribeCompanyChances();   // ✅ 종목별 확률 구독
-    renderMarketStatus();        // ✅ 장 상태 표시
+    subscribeCompanyChances();
+    renderMarketStatus();
   };
   document.getElementById("startBtn").onclick = async ()=>{
     const cid=document.getElementById("customId").value.trim();
@@ -555,11 +619,13 @@
   function checkAdmin(){
     const code=document.getElementById("adminCode").value.trim();
     if(code==="SECRET1234"){
-      document.getElementById("adminPanelUsers").style.display="block";
+      const panel=document.getElementById("adminPanelUsers");
+      if(panel){ panel.style.display="block"; }
       document.getElementById("adminLogin").style.display="none";
       subscribeUsers();
     } else if(code==="ADMIN123"){
-      document.getElementById("adminPanelFinance").style.display="block";
+      const panel=document.getElementById("adminPanelFinance");
+      if(panel){ panel.style.display="block"; }
       document.getElementById("adminLogin").style.display="none";
       subscribeRequests();
     } else if(code.toLowerCase()==="graph123"){
@@ -579,11 +645,12 @@
     }
   }
   function closeAdmin(panelId){
-    document.getElementById(panelId).style.display="none";
+    const p = document.getElementById(panelId);
+    if(p) p.style.display="none";
     document.getElementById("adminLogin").style.display="block";
   }
 
-    /* =========================
+  /* =========================
    *  관리자: 유저(강제 로그아웃) + 보유종목 표시
    * ========================= */
   function subscribeUsers(){
@@ -594,15 +661,15 @@
         const holdingsText = formatHoldings(u.holdings);
         html += `<div class="req-card">
           <div>
-            <strong>${u.name}</strong> (${u.id}) |
+            <strong>${u.name||'-'}</strong> (${u.id||'-'}) |
             현금: ${(u.cash??0).toLocaleString()} |
             상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}<br>
             📦 보유종목: ${holdingsText}
           </div>
-          <div><button onclick="forceLogout('${u.id}')">강제 로그아웃</button></div>
+          <div><button onclick="forceLogout('${u.id||''}')">강제 로그아웃</button></div>
         </div>`;
       });
-      userList.innerHTML=html||"등록된 유저 없음";
+      if(userList) userList.innerHTML=html||"등록된 유저 없음";
     });
   }
   async function forceLogout(userId){
@@ -627,7 +694,7 @@
           </div>
         </div>`;
       });
-      depDiv.innerHTML = html || "대기중인 입금 요청 없음";
+      if(depDiv) depDiv.innerHTML = html || "대기중인 입금 요청 없음";
     });
 
     const witQ=query(collection(db,"pendingWithdrawals"),where("status","==","대기"));
@@ -652,7 +719,7 @@
           </div>
         </div>`;
       });
-      witDiv.innerHTML = html || "대기중인 출금 요청 없음";
+      if(witDiv) witDiv.innerHTML = html || "대기중인 출금 요청 없음";
     });
   }
 
@@ -721,7 +788,7 @@
           </div>
         </div>`;
     });
-    wrap.innerHTML = html || "회사 데이터 없음";
+    if(wrap) wrap.innerHTML = html || "회사 데이터 없음";
   }
 
   async function applyMultiplier(name){
@@ -870,13 +937,17 @@
       const prev = c.livePrice || c.basePrice;
       const chance = companyChances[c.name] || {profit:0.3, loss:0.7};
       let isUp = Math.random() < chance.profit;
-      const b = marketState.bias[c.name] || 0;
+
+      const b = marketState.bias[c.name] || 0; // -1:상승, +1:하락 유도
       if(b === 1) isUp = false;
       if(b === -1) isUp = true;
-      marketState.bias[c.name] = b * 0.5;
+      marketState.bias[c.name] = b * 0.5; // 서서히 소거
+
       if(Math.random() < 0.15) isUp = !isUp;
-      let amp = (Math.random() * 0.5 + 0.1) / 100;
+
+      let amp = (Math.random() * 0.5 + 0.1) / 100; // 0.1% ~ 0.6%
       if(isUp) amp *= 0.8; else amp *= -1.2;
+
       const ratio = Math.max(-MAX_TRADE_IMPACT, Math.min(MAX_TRADE_IMPACT, amp));
       const next = Math.max(1, Math.round(prev * (1 + ratio)));
       try{
@@ -911,17 +982,6 @@
     if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
   }
 
-  
-function marketStart(){
-  marketOpen();           // 장 시작
-  startPriceSimulation(); // 시세 시작
-}
-
-function marketEnd(){
-  marketClose();          // 장 마감
-  stopPriceSimulation();  // 시세 정지
-}
-  
   async function resetGraph(){
     for(const c of companies){
       c.livePrice=c.basePrice;
@@ -955,7 +1015,7 @@ function marketEnd(){
           </div>
         </div>`;
     });
-    wrap.innerHTML=html || "회사 데이터 없음";
+    if(wrap) wrap.innerHTML=html || "회사 데이터 없음";
   }
   async function adjustCompanyPrice(name){
     const id=`adj-${name}`;
@@ -1031,7 +1091,7 @@ function marketEnd(){
           </div>
         </div>`;
     });
-    wrap.innerHTML = html || "회사 데이터 없음";
+    if(wrap) wrap.innerHTML = html || "회사 데이터 없음";
   }
   function splitStepsByDistance(current, mid, fin, stepsTotal){
     const totalDist = Math.max(1, Math.abs(fin - current));
@@ -1099,21 +1159,16 @@ function marketEnd(){
   window.applyScenario=applyScenario; window.applyAutoScenario=applyAutoScenario;
   window.startPriceSimulation=startPriceSimulation; window.stopPriceSimulation=stopPriceSimulation; window.resetGraph=resetGraph; window.applyGraphInterval=applyGraphInterval;
   window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
-  function refreshAllPanelPrices(){
+  window.refreshAllPanelPrices = function(){
     companies.forEach(c=>{
       const id1 = document.getElementById(`panel-price-${safeId(c.name)}`);
       if(id1) id1.textContent = getDisplayPrice(c).toLocaleString();
       const id2 = document.getElementById(`tuner-price-${safeId(c.name)}`);
       if(id2) id2.textContent = getDisplayPrice(c).toLocaleString();
     });
-  }
-  window.refreshAllPanelPrices = refreshAllPanelPrices;
+  };
   window.marketStart = marketStart;
   window.marketEnd = marketEnd;
 </script>
 </body>
 </html>
-
-
-
-
