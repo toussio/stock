@@ -14,10 +14,12 @@
   body { font-family: Arial, sans-serif; background:var(--bg); color:var(--ink); margin:0; padding:20px; }
   h1 { text-align:center; margin:4px 0 16px }
 
+  /* 상단 사용자/입출금 */
   #userRow,#log { margin:20px auto; max-width:1100px; }
   #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
   #userInfo { font-size:16px; }
 
+  /* 입금 요청 폼 */
   #depositForm {
     display:flex; justify-content:center; align-items:center;
     gap:10px; margin:20px auto; max-width:1100px;
@@ -31,12 +33,14 @@
   button { padding:8px 12px; cursor:pointer; border-radius:8px; background:var(--accent); color:var(--ink); border:none; }
   button:hover { background:var(--accentH); }
 
+  /* 차트 컨테이너 */
   #chartWrap {
     position:relative; margin:20px auto; max-width:1100px; height:400px;
     background:#111827; border-radius:10px; overflow:hidden;
   }
   #chart { position:absolute; inset:0; width:100% !important; height:100% !important; }
 
+  /* 기업 카드 3열 */
   #companies {
     display:grid; grid-template-columns:repeat(3,1fr);
     gap:12px; margin:20px auto; max-width:1100px;
@@ -52,8 +56,10 @@
     grid-column:span 2; padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink);
   }
 
+  /* 로그 */
   #log { max-height:240px; overflow-y:auto; background:#111827; padding:12px; border-radius:10px; }
 
+  /* 공통 카드/모달/UI */
   .req-card { background:var(--card); border-radius:10px; padding:12px; margin:8px 0;
               display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
   .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:50; }
@@ -61,6 +67,7 @@
   .modal-content input { margin:8px 0; padding:8px; width:85%; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
   .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; }
 
+  /* 관리자 패널 컨테이너 */
   .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
   #adminLogin{ text-align:center; margin-top:20px }
   #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
@@ -81,6 +88,7 @@
   </div>
 </div>
 
+<!-- 입금 요청 폼 -->
 <div id="depositForm">
   <input id="acctNo" type="text" placeholder="인게임 계좌번호 (예: ACC-00123)">
   <input id="cashAmount" type="text" placeholder="금액 (예: 1000000)">
@@ -88,8 +96,13 @@
   <button onclick="requestDeposit()">입금 요청</button>
 </div>
 
+<!-- 그래프 -->
 <div id="chartWrap"><canvas id="chart"></canvas></div>
+
+<!-- 기업 카드 -->
 <div id="companies"></div>
+
+<!-- 하단 로그 -->
 <div id="log"></div>
 
 <!-- 로그인 모달 -->
@@ -151,11 +164,12 @@
   <div id="withdrawRequests"></div>
 </div>
 
-  <!-- 📊 그래프/금액 제어 패널 (graph123) -->
+<!-- 📊 그래프/금액 제어 패널 (graph123) -->
 <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
   <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
   <h3>📊 그래프/금액 제어 패널</h3>
 
+  <!-- 그래프 제어 + 전체 종목 금액 조정 -->
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
     <button onclick="marketOpen()">장 시작</button>
     <button onclick="marketClose()">🔴 마감</button>
@@ -198,6 +212,7 @@
   <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
   <h3>📈 배율 & 확률 관리 패널</h3>
 
+  <!-- 전체 배율 -->
   <div class="req-card">
     <div><strong>전체 배율</strong></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -206,6 +221,7 @@
     </div>
   </div>
 
+  <!-- 전체 확률 -->
   <div class="req-card">
     <div><strong>전체 확률</strong></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -218,12 +234,16 @@
     <small style="color:#9ca3af;">* 합계 ≤ 1, 남는 확률은 “변화 없음”입니다.</small>
   </div>
 
+  <!-- 개별 종목 배율/확률 -->
   <div id="changePanel"></div>
 </div>
 
 <!-- 라이브러리 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="module">
+  /* =========================
+   *  Firebase & Firestore
+   * ========================= */
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import {
     getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc,
@@ -242,107 +262,8 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  let currentUser = null;
-  let player = { holdings:{}, cash:5000000 };
-
   /* =========================
-   *  Firestore 기반 자동 로그인
-   * ========================= */
-  async function tryAutoLogin(){
-    const lastId = localStorage.getItem("lastUserId");
-    const lastToken = localStorage.getItem("sessionToken");
-    if(!lastId || !lastToken){
-      loginModal.style.display='flex';
-      return;
-    }
-
-    const userRef = doc(db,"users",lastId);
-    const snap = await getDoc(userRef);
-    if(snap.exists()){
-      const data = snap.data();
-      if(data.active && data.sessionToken === lastToken){
-        currentUser={ id:lastId, name:data.name, cash:data.cash, active:true };
-        player.cash=data.cash;
-        player.holdings=data.holdings||{};
-        loginModal.style.display='none';
-        renderUserInfo();
-        initCompaniesUI();
-        subscribeCurrentUser(lastId);
-        updateAllMarketBadges();
-        return;
-      }
-    }
-    loginModal.style.display='flex';
-  }
-
-  window.onload = ()=>{
-    tryAutoLogin();
-    initChart();
-    subscribeCompanyPrices();
-    subscribeCompanySettings();
-    subscribeCompanyChances();
-    updateAllMarketBadges();
-  };
-
-    document.getElementById("startBtn").onclick = async ()=>{
-    const cid=document.getElementById("customId").value.trim();
-    const cname=document.getElementById("customName").value.trim();
-    if(!cid||!cname){ alert("고유번호와 이름을 입력하세요."); return; }
-
-    const userRef=doc(db,"users",cid);
-    const snap=await getDoc(userRef);
-
-    if(snap.exists() && snap.data().active){
-      alert("이미 다른 기기에서 로그인된 사용자입니다.");
-      return;
-    }
-
-    const token = crypto.randomUUID();
-
-    currentUser={ id:cid, name:cname, cash:5000000, active:true };
-    await setDoc(userRef,{
-      ...currentUser,
-      holdings: snap.exists()? (snap.data().holdings||{}) : {},
-      active:true,
-      sessionToken: token,
-      lastLoginAt: Date.now()
-    },{merge:true});
-
-    localStorage.setItem("lastUserId", cid);
-    localStorage.setItem("sessionToken", token);
-
-    loginModal.style.display='none';
-    renderUserInfo();
-    initCompaniesUI();
-    subscribeCurrentUser(cid);
-    updateAllMarketBadges();
-  };
-
-  async function logout(){
-    if(currentUser){
-      try{ 
-        await updateDoc(doc(db,"users",currentUser.id),{
-          active:false, 
-          sessionToken:null
-        });
-      }catch(e){}
-    }
-    currentUser=null;
-    localStorage.removeItem("lastUserId");
-    localStorage.removeItem("sessionToken");
-    location.reload();
-  }
-
-  window.addEventListener("beforeunload", async ()=>{
-    if(currentUser){
-      try{ await updateDoc(doc(db,"users",currentUser.id),{active:false, sessionToken:null}); }catch(e){}
-    }
-  });
-
-  window.logout=logout;
-
-  /* =========================
-   *  공통 상태
+   *  상태/참조
    * ========================= */
   const userInfo = document.getElementById("userInfo");
   const companiesDiv = document.getElementById("companies");
@@ -357,33 +278,40 @@
   const withdrawAmount = document.getElementById("withdrawAmount");
   const withdrawMemo = document.getElementById("withdrawMemo");
 
+  let player = { holdings:{}, cash:5000000 };
+  let currentUser = null;
+  let unsubscribeUser = null;
+
+  // 그래프 / 타이머
   let chart = null;
   let priceTimer = null;
-  let updateInterval = 5000;
-  let graphUpdateTimer = null;
-  let deltaMax = 1000000;
+  let updateInterval = 5000;      // ms
+  let graphUpdateTimer = null;    // onSnapshot 디바운스용
+  let deltaMax = 1000000;         // 변동폭 최대치
+
+  // stock123 보간 타이머(종목별)
   const smoothTimers = {};
-  const qtyState = {};
+
+  // 구매 수량 상태 기억 (종목별)
+  const qtyState = {};  // { [companyName]: number }
 
   /* =========================
    *  시장 상태 (장 시작/마감)
    * ========================= */
-  let marketOpen = false;
+  let marketIsOpen = false;
 
   function marketOpenFn(){
-    marketOpen = true;
+    marketIsOpen = true;
     alert("🟢 장이 시작되었습니다.");
     updateAllMarketBadges();
     startPriceSimulation();
   }
-
   function marketClose(){
-    marketOpen = false;
+    marketIsOpen = false;
     alert("🔴 지금은 장 오픈이 아닙니다.");
     updateAllMarketBadges();
     stopPriceSimulation();
   }
-
   function updateAllMarketBadges(){
     companies.forEach(c=>{
       const card = document.getElementById(`card-${safeId(c.name)}`);
@@ -398,7 +326,7 @@
         badge.style.fontSize = "12px";
         card.querySelector(".info strong").appendChild(badge);
       }
-      if(marketOpen){
+      if(marketIsOpen){
         badge.textContent = "🟢 열림";
         badge.style.background = "#064e3b";
         badge.style.color = "#d1fae5";
@@ -411,7 +339,7 @@
   }
 
   /* =========================
-   *  유틸 함수
+   *  유틸
    * ========================= */
   const ci = s => String(s||'').toLowerCase();
   function log(msg){ logDiv.innerHTML = `<div>${msg}</div>` + logDiv.innerHTML; }
@@ -444,6 +372,9 @@
   ];
   function findCompanyById(id){ return companies.find(x => ci(x.name)===ci(id)); }
 
+  /* =========================
+   *  표시가격: multiplier 은밀 반영
+   * ========================= */
   function getDisplayPrice(c){
     const base = (typeof c.livePrice === 'number') ? c.livePrice : c.basePrice;
     if (typeof c.multiplier !== 'number') return Math.max(1, Math.floor(base));
@@ -457,7 +388,7 @@
   }
 
   /* =========================
-   *  기업 카드 UI
+   *  기업 카드 구성
    * ========================= */
   function buildCompanyCard(c){
     const safe = safeId(c.name);
@@ -506,38 +437,16 @@
   }
 
   /* =========================
-   *  매수 / 매도 (장 상태 체크)
+   *  시장 파라미터 (간단 버전)
    * ========================= */
-  function buy(name, qty){
-    if(!currentUser) return alert('로그인 후 이용해주세요.');
-    if(!marketOpen) return alert("지금은 장 오픈이 아닙니다");
-    const c = findCompanyById(name); if(!c) return;
-    const p = getDisplayPrice(c);
-    if(player.cash<p*qty) return alert('현금 부족');
-    player.cash -= p*qty;
-    player.holdings[name] = (player.holdings[name]||0) + qty;
-    qtyState[name] = qty;
-    syncUserToServer();
-    renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
-    impactPrice(name, qty, 'buy');
-  }
+  // 종목별 이득/손해 확률 (기본 3:7). Firestore 동기화됨.
+  const companyChances = {};
+  companies.forEach(c=>{
+    companyChances[c.name] = { profit:0.3, loss:0.7 };
+  });
 
-  function sell(name, qty){
-    if(!currentUser) return alert('로그인 후 이용해주세요.');
-    if(!marketOpen) return alert("지금은 장 오픈이 아닙니다");
-    const c = findCompanyById(name); if(!c) return;
-    const p = getDisplayPrice(c);
-    if((player.holdings[name]||0)<qty) return alert('보유 부족');
-    player.cash += p*qty;
-    player.holdings[name] -= qty;
-    qtyState[name] = qty;
-    syncUserToServer();
-    renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
-    impactPrice(name, qty, 'sell');
-  }
-
-    /* =========================
-   *  사용자 동기화
+  /* =========================
+   *  서버 동기화 (users)
    * ========================= */
   async function syncUserToServer(){
     if(!currentUser) return;
@@ -547,7 +456,7 @@
   }
 
   /* =========================
-   *  거래 영향 (impactPrice)
+   *  거래 영향 (간단 랜덤)
    * ========================= */
   async function impactPrice(name, qty, type){
     const c = findCompanyById(name);
@@ -555,7 +464,6 @@
     const prevPrice = c.livePrice || c.basePrice;
     let nextPrice = prevPrice;
 
-    const roll = Math.random();
     if(type==="buy"){
       nextPrice = Math.round(prevPrice * (1 + Math.random()*0.01));
     } else {
@@ -572,7 +480,37 @@
   }
 
   /* =========================
-   *  입금/출금 요청
+   *  거래 (buy/sell)
+   * ========================= */
+  function buy(name, qty){
+    if(!currentUser) return alert('로그인 후 이용해주세요.');
+    if(!marketIsOpen) return alert("지금은 장 오픈이 아닙니다");
+    const c = findCompanyById(name); if(!c) return;
+    const p = getDisplayPrice(c);
+    if(player.cash<p*qty) return alert('현금 부족');
+    player.cash -= p*qty;
+    player.holdings[name] = (player.holdings[name]||0) + qty;
+    qtyState[name] = qty;
+    syncUserToServer();
+    renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
+    impactPrice(name, qty, 'buy');
+  }
+  function sell(name, qty){
+    if(!currentUser) return alert('로그인 후 이용해주세요.');
+    if(!marketIsOpen) return alert("지금은 장 오픈이 아닙니다");
+    const c = findCompanyById(name); if(!c) return;
+    const p = getDisplayPrice(c);
+    if((player.holdings[name]||0)<qty) return alert('보유 부족');
+    player.cash += p*qty;
+    player.holdings[name] -= qty;
+    qtyState[name] = qty;
+    syncUserToServer();
+    renderUserInfo(); updateCompanyHoldingDOM(name); updateCompanyPriceDOM(name);
+    impactPrice(name, qty, 'sell');
+  }
+
+  /* =========================
+   *  입/출금 요청
    * ========================= */
   async function requestDeposit(){
     if(!currentUser) return alert('로그인 후 이용해주세요.');
@@ -638,13 +576,234 @@
   }
 
   /* =========================
-   *  관리자: 요청 승인/거절
+   *  로그인 & 현재 유저 구독
    * ========================= */
+  function subscribeCurrentUser(uid){
+    if(unsubscribeUser){ unsubscribeUser(); unsubscribeUser=null; }
+    const uref=doc(db,"users",uid);
+    unsubscribeUser = onSnapshot(uref,(snap)=>{
+      if(snap.exists()){
+        const data=snap.data();
+        if(typeof data.cash==='number') player.cash=data.cash;
+        if(data.holdings && typeof data.holdings==='object') player.holdings = data.holdings;
+        renderUserInfo();
+        companies.forEach(c => { updateCompanyHoldingDOM(c.name); updateCompanyPriceDOM(c.name); });
+      }
+    });
+  }
+
+  async function tryAutoLogin(){
+    const lastId = localStorage.getItem("lastUserId");
+    const lastToken = localStorage.getItem("sessionToken");
+    if(!lastId || !lastToken){
+      loginModal.style.display='flex';
+      return;
+    }
+
+    const userRef = doc(db,"users",lastId);
+    const snap = await getDoc(userRef);
+    if(snap.exists()){
+      const data = snap.data();
+      if(data.active && data.sessionToken === lastToken){
+        currentUser={ id:lastId, name:data.name, cash:data.cash, active:true };
+        player.cash=data.cash;
+        player.holdings=data.holdings||{};
+        loginModal.style.display='none';
+        renderUserInfo();
+        initCompaniesUI();
+        subscribeCurrentUser(lastId);
+        updateAllMarketBadges();
+        return;
+      }
+    }
+    loginModal.style.display='flex';
+  }
+
+  window.onload = ()=>{
+    tryAutoLogin();
+    initChart();
+    subscribeCompanyPrices();
+    subscribeCompanySettings();
+    subscribeCompanyChances();
+    updateAllMarketBadges();
+  };
+
+  document.getElementById("startBtn").onclick = async ()=>{
+    const cid=document.getElementById("customId").value.trim();
+    const cname=document.getElementById("customName").value.trim();
+    if(!cid||!cname){ alert("고유번호와 이름을 입력하세요."); return; }
+
+    const userRef=doc(db,"users",cid);
+    const snap=await getDoc(userRef);
+
+    if(snap.exists() && snap.data().active){
+      alert("이미 다른 기기에서 로그인된 사용자입니다.");
+      return;
+    }
+
+    const token = crypto.randomUUID();
+
+    // 기존 보유/현금 유지
+    let nextCash = snap.exists() ? (snap.data().cash ?? 5000000) : 5000000;
+    let nextHoldings = snap.exists() ? (snap.data().holdings ?? {}) : {};
+
+    currentUser={ id:cid, name:cname, cash:nextCash, active:true };
+    player.cash=nextCash; player.holdings=nextHoldings;
+
+    await setDoc(userRef,{
+      ...currentUser,
+      holdings: nextHoldings,
+      active:true,
+      sessionToken: token,
+      lastLoginAt: Date.now()
+    },{merge:true});
+
+    // F5만 자동 로그인 허용
+    localStorage.setItem("lastUserId", cid);
+    localStorage.setItem("sessionToken", token);
+
+    loginModal.style.display='none';
+    renderUserInfo();
+    initCompaniesUI();
+    subscribeCurrentUser(cid);
+    updateAllMarketBadges();
+  };
+
+  async function logout(){
+    if(currentUser){
+      try{
+        await updateDoc(doc(db,"users",currentUser.id),{
+          active:false,
+          sessionToken:null
+        });
+      }catch(e){}
+    }
+    if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} }
+    currentUser=null;
+    localStorage.removeItem("lastUserId");
+    localStorage.removeItem("sessionToken");
+    location.reload();
+  }
+
+  window.addEventListener("beforeunload", async ()=>{
+    if(currentUser){
+      try{ await updateDoc(doc(db,"users",currentUser.id),{active:false, sessionToken:null}); }catch(e){}
+    }
+  });
+
+  /* =========================
+   *  관리자 코드 분기 + 패널
+   * ========================= */
+  function checkAdmin(){
+    const code=document.getElementById("adminCode").value.trim();
+    if(code==="SECRET1234"){
+      document.getElementById("adminPanelUsers").style.display="block";
+      document.getElementById("adminLogin").style.display="none";
+      subscribeUsers();
+    } else if(code==="ADMIN123"){
+      document.getElementById("adminPanelFinance").style.display="block";
+      document.getElementById("adminLogin").style.display="none";
+      subscribeRequests();
+    } else if(code.toLowerCase()==="graph123"){
+      document.getElementById("adminPanelGraph").style.display="block";
+      document.getElementById("adminLogin").style.display="none";
+      renderGraphAdjustPanel();
+    } else if(code.toLowerCase()==="stock123"){
+      document.getElementById("adminPanelStock").style.display="block";
+      document.getElementById("adminLogin").style.display="none";
+      renderStockTuner();
+    } else if(code.toLowerCase()==="change123"){
+      document.getElementById("adminPanelChange").style.display="block";
+      document.getElementById("adminLogin").style.display="none";
+      renderChangePanel();
+    } else {
+      alert("관리자 코드가 올바르지 않습니다.");
+    }
+  }
+  function closeAdmin(panelId){
+    document.getElementById(panelId).style.display="none";
+    document.getElementById("adminLogin").style.display="block";
+  }
+
+  /* =========================
+   *  관리자: 유저(강제 로그아웃)
+   * ========================= */
+  function subscribeUsers(){
+    onSnapshot(collection(db,"users"),(snap)=>{
+      const userList=document.getElementById("userList"); let html="";
+      snap.forEach(docu=>{
+        const u=docu.data();
+        const holdingsText = formatHoldings(u.holdings);
+        html += `<div class="req-card">
+          <div>
+            <strong>${u.name||"-"}</strong> (${u.id||docu.id}) |
+            현금: ${(u.cash??0).toLocaleString()} |
+            상태: ${u.active?"🟢 로그인중":"⚪ 로그아웃"}<br>
+            📦 보유종목: ${holdingsText}
+          </div>
+          <div><button onclick="forceLogout('${u.id||docu.id}')">강제 로그아웃</button></div>
+        </div>`;
+      });
+      userList.innerHTML=html||"등록된 유저 없음";
+    });
+  }
+  async function forceLogout(userId){
+    try{
+      await updateDoc(doc(db,"users",userId),{active:false, sessionToken:null});
+    }catch(e){ console.error("강제 로그아웃 실패:",e); }
+  }
+
+  /* =========================
+   *  관리자: 입/출금 실시간 & 승인/거절
+   * ========================= */
+  function subscribeRequests(){
+    const depQ=query(collection(db,"pendingDeposits"),where("status","==","대기"));
+    onSnapshot(depQ,(snap)=>{
+      const depDiv=document.getElementById("depositRequests"); let html="";
+      snap.forEach(docu=>{
+        const d=docu.data();
+        html += `<div class="req-card">
+          <div><strong>${d.userName}</strong> (${d.userId}) | ${Number(d.amount||0).toLocaleString()}원 | 메모: ${d.memo||""}</div>
+          <div>
+            <button onclick="approveDeposit('${docu.id}','${d.userId}',${Number(d.amount||0)})">승인</button>
+            <button onclick="rejectRequest('pendingDeposits','${docu.id}')">거절</button>
+          </div>
+        </div>`;
+      });
+      depDiv.innerHTML = html || "대기중인 입금 요청 없음";
+    });
+
+    const witQ=query(collection(db,"pendingWithdrawals"),where("status","==","대기"));
+    onSnapshot(witQ,(snap)=>{
+      const witDiv=document.getElementById("withdrawRequests"); let html="";
+      snap.forEach(docu=>{
+        const w=docu.data();
+        const net = Number(w.amount||0);
+        const fee = (typeof w.fee==='number') ? Number(w.fee) : 0;
+        const original = (typeof w.original==='number') ? Number(w.original) : (net + fee);
+        html += `<div class="req-card">
+          <div>
+            <strong>${w.userName}</strong> (${w.userId}) |
+            원요청: ${original.toLocaleString()}원 |
+            수수료: ${fee.toLocaleString()}원 |
+            실제 수령: ${net.toLocaleString()}원
+            ${w.memo?`| 메모: ${w.memo}`:""}
+          </div>
+          <div>
+            <button onclick="approveWithdraw('${docu.id}')">승인</button>
+            <button onclick="rejectRequest('pendingWithdrawals','${docu.id}')">거절</button>
+          </div>
+        </div>`;
+      });
+      witDiv.innerHTML = html || "대기중인 출금 요청 없음";
+    });
+  }
+
   async function approveDeposit(reqId,userId,amount){
     try{
-      const uref=doc(db,"users",userId); 
+      const uref=doc(db,"users",userId);
       const usnap=await getDoc(uref);
-      const prev=usnap.exists()?(usnap.data().cash||0):0; 
+      const prev=usnap.exists()?(usnap.data().cash||0):0;
       const updated=prev+Number(amount||0);
       await setDoc(uref,{cash:updated},{merge:true});
       await updateDoc(doc(db,"pendingDeposits",reqId),{status:"승인"});
@@ -681,7 +840,48 @@
   }
 
   /* =========================
-   *  그래프 (Chart.js)
+   *  회사 설정/확률/시세 구독
+   * ========================= */
+  function subscribeCompanySettings(){
+    onSnapshot(collection(db,'companySettings'), (snap)=>{
+      let changed=false;
+      snap.forEach(d=>{
+        const data=d.data();
+        const c=findCompanyById(d.id);
+        if(!c) return;
+        if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; changed=true; }
+      });
+      if(changed){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
+    });
+  }
+
+  function subscribeCompanyChances(){
+    onSnapshot(collection(db,'companyChances'), (snap)=>{
+      snap.forEach(docu=>{
+        const data = docu.data();
+        if(typeof data.profit==='number' && typeof data.loss==='number'){
+          companyChances[docu.id] = { profit:data.profit, loss:data.loss };
+        }
+      });
+      const panel = document.getElementById("adminPanelChange");
+      if(panel && panel.style.display==="block"){ renderChangePanel(); }
+    });
+  }
+
+  function subscribeCompanyPrices(){
+    onSnapshot(collection(db,"companyPrices"), (snap)=>{
+      let any=false;
+      snap.forEach(docu=>{
+        const data=docu.data();
+        const c=findCompanyById(docu.id);
+        if(c && typeof data.current==='number'){ c.livePrice=data.current; any=true; }
+      });
+      if(any){ companies.forEach(c => updateCompanyPriceDOM(c.name)); scheduleGraphUpdate(); }
+    });
+  }
+
+  /* =========================
+   *  그래프(Chart.js)
    * ========================= */
   function initChart(){
     if(chart) return;
@@ -723,17 +923,24 @@
     graphUpdateTimer=setTimeout(()=>{ appendChartPoint(); graphUpdateTimer=null; }, 200);
   }
 
+  // 시뮬레이션 틱
+  function simulateTick(){
+    companies.forEach(c=>{
+      const prev = c.livePrice||c.basePrice||1000;
+      const chance = companyChances[c.name] || {profit:0.3, loss:0.7};
+      const up = Math.random() < chance.profit;
+      const amp = (Math.random()*0.6+0.1)/100; // 0.1%~0.7%
+      const ratio = up ? amp : -amp*1.2;
+      const next = Math.max(1, Math.round(prev*(1+ratio)));
+      c.livePrice = next;
+      updateCompanyPriceDOM(c.name);
+    });
+    scheduleGraphUpdate();
+  }
+
   function startPriceSimulation(){
     if(priceTimer) return;
-    priceTimer=setInterval(()=>{ 
-      companies.forEach(c=>{
-        const prev = c.livePrice||c.basePrice;
-        const next = Math.max(1, Math.round(prev*(1+(Math.random()-0.5)*0.02)));
-        c.livePrice=next;
-        updateCompanyPriceDOM(c.name);
-      });
-      scheduleGraphUpdate();
-    }, updateInterval);
+    priceTimer=setInterval(simulateTick, updateInterval);
   }
   function stopPriceSimulation(){
     if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
@@ -755,15 +962,18 @@
     updateInterval = Math.max(1, sec) * 1000;
     if(priceTimer){
       clearInterval(priceTimer);
-      priceTimer = setInterval(startPriceSimulation, updateInterval);
+      priceTimer=null;
+      startPriceSimulation();
     }
   }
 
-    /* =========================
-   *  graph123 회사별 금액 조정
+  /* =========================
+   *  그래프/금액 제어 (graph123)
    * ========================= */
   function renderGraphAdjustPanel(){
     const wrap=document.getElementById("graphCompanyAdjust"); let html="";
+
+    // 상단 컨트롤 박스 존재하므로 여기서는 종목별 조정만 그림
     companies.forEach(c=>{
       const id=`adj-${c.name}`;
       html += `
@@ -808,7 +1018,7 @@
   }
 
   /* =========================
-   *  stock123: 주가 조작
+   *  🎛️ 주가 조작 (stock123): 단순/복합/자동
    * ========================= */
   function clearSmoothTimer(name){
     if(smoothTimers[name]){ clearInterval(smoothTimers[name]); delete smoothTimers[name]; }
@@ -892,13 +1102,14 @@
   function applyAutoScenario(name){
     const c = findCompanyById(name); if(!c) return;
     const steps = parseInt(document.getElementById(`steps2-${name}`).value) || 20;
+
     const dataset = chart.data.datasets.find(d=>d.label===name);
     const len = dataset?.data?.length ?? 0;
     const recent = len ? dataset.data.slice(Math.max(0,len-5)) : [];
     const slope = (recent.length>=2)? (recent[recent.length-1]-recent[0]) : 0;
     const mode = slope >= 0 ? "riseFall" : "fallRise";
 
-    const current = c.livePrice || c.basePrice;
+    const current = c.livePrice || c.basePrice || 1000;
     const mid = mode==="riseFall" ? Math.round(current*1.05) : Math.round(current*0.95);
     const fin = mode==="riseFall" ? Math.round(current*0.85) : Math.round(current*1.15);
 
@@ -915,12 +1126,23 @@
     const wrap=document.getElementById("changePanel"); let html='';
     companies.forEach(c=>{
       const mid=`m-${c.name}`;
+      const profit=(companyChances[c.name]?.profit ?? 0.3);
+      const loss=(companyChances[c.name]?.loss ?? 0.7);
       html += `
         <div class="req-card">
           <div><strong>${c.name}</strong> | 현재 배율: x${(c.multiplier??1).toFixed(2)}</div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <input type="number" id="${mid}" value="${c.multiplier??1}" step="0.01" style="width:120px;">
             <button onclick="applyMultiplier('${c.name}')">배율 적용</button>
+            <button onclick="bumpCompany('${c.name}',1.1)">+10%</button>
+            <button onclick="bumpCompany('${c.name}',0.9)">-10%</button>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+            <label>이득%</label>
+            <input type="number" id="profit-${c.name}" step="0.01" min="0" max="1" value="${profit}" style="width:70px;">
+            <label>손해%</label>
+            <input type="number" id="loss-${c.name}" step="0.01" min="0" max="1" value="${loss}" style="width:70px;">
+            <button onclick="applyCompanyChance('${c.name}')">확률 적용</button>
           </div>
         </div>`;
     });
@@ -939,7 +1161,16 @@
       scheduleGraphUpdate();
     }catch(e){ console.error('배율 저장 실패:',e); }
   }
-
+  async function bumpCompany(name, factor){
+    const c=findCompanyById(name); if(!c) return;
+    const newMultiplier=parseFloat(((c.multiplier??1)*factor).toFixed(4));
+    try{
+      await setDoc(doc(db,'companySettings', name), { multiplier:newMultiplier, updatedAt: Date.now() }, { merge:true });
+      c.multiplier=newMultiplier;
+      updateCompanyPriceDOM(name);
+      scheduleGraphUpdate();
+    }catch(e){ console.error('배율 변경 실패:',e); }
+  }
   async function setAllMultipliers(){
     const val = parseFloat(document.getElementById("allMultiplierVal").value);
     if(isNaN(val)){ alert("배율 값을 확인하세요."); return; }
@@ -951,6 +1182,17 @@
     scheduleGraphUpdate();
   }
 
+  async function applyCompanyChance(name){
+    const p=parseFloat(document.getElementById(`profit-${name}`).value);
+    const l=parseFloat(document.getElementById(`loss-${name}`).value);
+    if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)>1){ alert("잘못된 값입니다 (0~1, 합계≤1)"); return; }
+    try{
+      await setDoc(doc(db,'companyChances', name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
+      companyChances[name] = { profit:p, loss:l };
+      alert(`✅ ${name} 확률 변경: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
+    }catch(e){ console.error("확률 저장 실패:", e); }
+  }
+
   async function setAllChances(){
     const p = parseFloat(document.getElementById('globalProfit').value);
     const l = parseFloat(document.getElementById('globalLoss').value);
@@ -958,6 +1200,7 @@
     try{
       for(const c of companies){
         await setDoc(doc(db,'companyChances', c.name), { profit:p, loss:l, updatedAt: Date.now() }, { merge:true });
+        companyChances[c.name] = { profit:p, loss:l };
       }
       alert(`✅ 전체 확률 적용: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
       renderChangePanel();
@@ -984,13 +1227,19 @@
   window.logout=logout; window.checkAdmin=checkAdmin; window.closeAdmin=closeAdmin;
   window.forceLogout=forceLogout; window.approveDeposit=approveDeposit; window.approveWithdraw=approveWithdraw; window.rejectRequest=rejectRequest;
 
-  window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; window.setAllMultipliers=setAllMultipliers;
-  window.setAllChances=setAllChances;
+  // change123
+  window.renderChangePanel=renderChangePanel; window.applyMultiplier=applyMultiplier; window.bumpCompany=bumpCompany; window.setAllMultipliers=setAllMultipliers;
+  window.applyCompanyChance=applyCompanyChance; window.setAllChances=setAllChances;
+
+  // stock123
   window.renderStockTuner=renderStockTuner; window.applyStockTarget=applyStockTarget;
   window.applyScenario=applyScenario; window.applyAutoScenario=applyAutoScenario;
-  window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
 
+  // graph123
   window.marketOpen=marketOpenFn; window.marketClose=marketClose;
+  window.renderGraphAdjustPanel=renderGraphAdjustPanel; window.adjustCompanyPrice=adjustCompanyPrice; window.adjustAllPrices=adjustAllPrices; window.applyDeltaMax=applyDeltaMax;
+  window.applyGraphInterval=applyGraphInterval;
+
 </script>
 </body>
 </html>
