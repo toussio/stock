@@ -38,7 +38,7 @@
     .company { background:var(--card); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:10px; }
     .company .info { display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; align-items:center; font-weight:600; }
     .status-badge{
-      font-size:14px; line-height:1; padding:4px 10px; border-radius:999px;
+      font-size:16px; line-height:1; padding:5px 12px; border-radius:999px;
       background:#0b1220; border:1px solid #374151; color:var(--ink2);
     }
     .company .actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
@@ -250,7 +250,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import {
       getFirestore, collection, addDoc, doc, setDoc, getDoc, updateDoc, onSnapshot,
-      query, orderBy, deleteDoc, runTransaction
+      query, orderBy, deleteDoc
     } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -276,17 +276,17 @@
     const loginModal    = document.getElementById("loginModal");
 
     let chart = null;
-    let priceTimer = null;
-    let graphUpdateTimer = null;
-    let updateInterval = 5000;
-    let deltaMax = 1000000;
-    let marketOpenFlag = false;
-    let ADMIN_MODE = false;
+    let priceTimer = null;          // 시세 시뮬레이터 타이머 (관리자만 사용)
+    let graphUpdateTimer = null;    // 차트 가벼운 디바운스용
+    let updateInterval = 5000;      // 기본 5초 (ms)
+    let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
+    let marketOpenFlag = false;     // ✅ 기본은 '마감'
+    let ADMIN_MODE = false;         // 🔒 관리자만 시세쓰기
 
-    let volatility = 1.5;
+    let volatility = 1.5;           // 전역 변동폭 (%)
 
     const marketState = { bias: {} };
-    const companyChances = {};
+    const companyChances = {};      // { [safeId]: {profit, loss} }
 
     let player = { holdings:{}, cash:0 };
     let currentUser = null;
@@ -297,9 +297,12 @@
     let unsubGlobals = null;
 
     // 뉴스
-    let newsData = [];
-    let newsDataAll = [];
+    let newsData = [];     // visible=true만 (유저 모달)
+    let newsDataAll = [];  // 전체 (관리자 목록)
     let unsubNews = null;
+
+    // 강제 로그아웃 감지를 위한 세션 시작 시각
+    let sessionStartAt = null;
 
     // ========================= Utils =========================
     const ci = s => String(s||"").toLowerCase();
@@ -343,16 +346,13 @@
       const c = findCompanyById(name); if(!c) return;
       if(!currentUser) return alert('로그인 후 이용해주세요.');
       const p = getDisplayPrice(c);
-      const required = p * qty;
-
-      if(player.cash <= 0){
-        return alert('❌ 보유 현금이 0원입니다. 입금 후 매수해주세요.');
-      }
-      if(player.cash < required){
-        return alert(`❌ 보유 현금 부족\n보유: ${player.cash.toLocaleString()}원 / 필요: ${required.toLocaleString()}원`);
+      const need = p*qty;
+      if(player.cash < need){
+        alert('현금 부족');
+        return;
       }
 
-      player.cash -= required;
+      player.cash -= need;
       player.holdings[c.name] = (player.holdings[c.name]||0) + qty;
       try{
         await setDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings, updatedAt:Date.now() },{merge:true});
@@ -364,17 +364,15 @@
       if(!marketOpenFlag) return alert('⛔ 장 마감 중');
       const c = findCompanyById(name); if(!c) return;
       if(!currentUser) return alert('로그인 후 이용해주세요.');
-      const owned = player.holdings[c.name] || 0;
-      if(owned <= 0){
-        return alert('❌ 보유 주식이 없습니다.');
-      }
-      if(owned < qty){
-        return alert(`❌ 보유 수량 부족\n보유: ${owned}주 / 필요: ${qty}주`);
+      const p = getDisplayPrice(c);
+      const have = (player.holdings[c.name]||0);
+      if(have <= 0 || have < qty){
+        alert('보유 부족');
+        return;
       }
 
-      const p = getDisplayPrice(c);
       player.cash += p*qty;
-      player.holdings[c.name] = owned - qty;
+      player.holdings[c.name] = have - qty;
       try{
         await setDoc(doc(db,"users",currentUser.id),{ cash:player.cash, holdings:player.holdings, updatedAt:Date.now() },{merge:true});
       }catch(e){ console.error("매도 저장 실패:", e); }
@@ -396,11 +394,11 @@
       stopPriceSimulation(); renderMarketStatus(); alert("📉 장 마감");
     }
 
-    // ========================= Market State Sync =========================
+    // ========================= Market State Sync (모든 유저 공통) =========================
     function subscribeMarketState(){
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
         if(!snap.exists()) {
-          marketOpenFlag = false;
+          marketOpenFlag = false;   // 문서가 없어도 기본은 '마감'
           renderMarketStatus();
           return;
         }
@@ -413,6 +411,7 @@
           updateInterval = d.interval;
         }
 
+        // ✅ 타이머는 관리자만 운용
         if(ADMIN_MODE){
           if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
           if(marketOpenFlag){ priceTimer = setInterval(updatePrices, updateInterval); }
@@ -436,7 +435,7 @@
       });
     }
 
-    // ========================= Price Simulation (관리자만) =========================
+    // ========================= Price Simulation (관리자만 Firestore 쓰기) =========================
     async function updatePrices(){
       if(!ADMIN_MODE) return;
       if(!marketOpenFlag) return;
@@ -444,19 +443,23 @@
       for(const c of companies){
         const prev = c.livePrice || c.basePrice;
 
+        // 확률 (profit/loss 정규화)
         const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
         const denom = Math.max(1e-6, (chance.profit + chance.loss));
         let isUp = Math.random() < (chance.profit / denom);
 
+        // 시나리오/체결 바이어스 (-1 = 무조건 상승, 1 = 무조건 하락)
         const b = marketState.bias[c.id] || 0;
         if(b === -1) isUp = true;
         if(b ===  1) isUp = false;
-        marketState.bias[c.id] = b * 0.5;
+        marketState.bias[c.id] = b * 0.5; // 점감
 
+        // 변동폭(%): 0 ~ volatility 범위 랜덤, 배율(multiplier) 반영
         const stepPct = (Math.random() * volatility / 100) * Math.max(0, c.multiplier || 1);
         const signed = isUp ? stepPct : -stepPct;
         let nextRaw = prev * (1 + signed);
 
+        // 1틱 상한(±deltaMax)
         const diff = nextRaw - prev;
         if(Math.abs(diff) > deltaMax){ nextRaw = prev + Math.sign(diff) * deltaMax; }
 
@@ -516,7 +519,7 @@
       }, Math.max(200, updateInterval/2));
     }
 
-    // ========================= Market Status & 버튼 활성/비활성 =========================
+    // ========================= Market Status Text & 버튼 활성/비활성 =========================
     function updateTradeButtons(){
       companies.forEach(c=>{
         const qty = document.getElementById("qty-" + c.id);
@@ -817,7 +820,7 @@
       });
     }
 
-    // ========================= Deposit / Withdraw =========================
+    // ========================= Deposit / Withdraw (유저 요청) =========================
     async function requestDeposit(){
       const id   = currentUser?.id || "";
       const name = currentUser?.name || "";
@@ -910,18 +913,7 @@
       }
     }
 
-    // 강제 로그아웃 (SECRET1234)
-    async function forceLogout(uid){
-      try{
-        await updateDoc(doc(db,"users",uid), { active:false, forcedLogoutAt: Date.now() });
-        alert(`🚪 ${uid} 강제 로그아웃 완료`);
-      }catch(e){
-        console.error(e);
-        alert('강제 로그아웃 중 오류가 발생했습니다.');
-      }
-    }
-
-    // 유저 목록 + 강제 로그아웃 버튼
+    // 유저 목록 실시간 (SECRET1234)
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
       box.textContent = '불러오는 중...';
@@ -942,13 +934,22 @@
                   <div style="font-size:12px;color:#9ca3af;">업데이트: ${new Date(u.updatedAt||u.lastLoginAt||Date.now()).toLocaleString()}</div>
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
-                  <button onclick="forceLogout('${docu.id}')" style="background:#7f1d1d;">강제 로그아웃</button>
+                  <button onclick="forceLogout('${docu.id}')">강제 로그아웃</button>
                 </div>
               </div>
             `;
           });
           box.innerHTML = html || "유저 없음";
         });
+      }
+    }
+    async function forceLogout(uid){
+      try{
+        await setDoc(doc(db,'users',uid), { active:false, forceLogoutAt: Date.now() }, { merge:true });
+        alert('해당 사용자를 강제로 로그아웃 시켰습니다.');
+      }catch(e){
+        console.error(e);
+        alert('강제 로그아웃 중 오류가 발생했습니다.');
       }
     }
 
@@ -978,7 +979,7 @@
                 </div>
                 <div style="display:flex; gap:6px;">
                   <button onclick="approveDeposit('${docu.id}')">승인</button>
-                  <button onclick="rejectDeposit('${docu.id}')" style="background:#7f1d1d;">거절</button>
+                  <button onclick="rejectDeposit('${docu.id}')">거절</button>
                 </div>
               </div>`;
           });
@@ -1000,7 +1001,7 @@
                 </div>
                 <div style="display:flex; gap:6px;">
                   <button onclick="approveWithdraw('${docu.id}')">승인</button>
-                  <button onclick="rejectWithdraw('${docu.id}')" style="background:#7f1d1d;">거절</button>
+                  <button onclick="rejectWithdraw('${docu.id}')">거절</button>
                 </div>
               </div>`;
           });
@@ -1009,78 +1010,68 @@
       }
     }
 
-    // ====== ADMIN123: 승인/거절 처리 (트랜잭션 + UI 제거) ======
+    // 🔧 입금 승인/거절: 유저 현금 반영 + 카드 제거(스냅샷으로도 사라짐)
     async function approveDeposit(id){
       try{
-        await runTransaction(db, async (tx)=>{
-          const reqRef = doc(db,"depositRequests",id);
-          const reqSnap = await tx.get(reqRef);
-          if(!reqSnap.exists()) throw new Error("요청 없음");
-          const r = reqSnap.data();
-          if(r.status !== 'pending') return;
+        const ref = doc(db,"depositRequests",id);
+        const snap = await getDoc(ref);
+        if(!snap.exists()){ alert('요청을 찾을 수 없습니다.'); return; }
+        const r = snap.data();
+        if(r.status !== 'pending'){ alert('이미 처리된 요청입니다.'); return; }
 
-          const userRef = doc(db,"users", String(r.userId));
-          const userSnap = await tx.get(userRef);
-          const curCash = (userSnap.exists() && typeof userSnap.data().cash==='number') ? userSnap.data().cash : 0;
-          const amt = Number(r.amount)||0;
+        const uref = doc(db,"users", r.userId);
+        const usnap = await getDoc(uref);
+        const cur = (usnap.exists() && typeof usnap.data().cash==='number') ? usnap.data().cash : 0;
+        const nextCash = cur + (r.amount||0);
 
-          tx.set(userRef, { cash: curCash + amt, updatedAt: Date.now() }, { merge:true });
-          tx.update(reqRef, { status:'approved', processedAt: Date.now() });
-        });
-        const el = document.getElementById('dep-'+id); if(el) el.remove();
-        alert('✅ 입금 승인 완료 (현금 반영)');
+        await updateDoc(uref, { cash: nextCash, updatedAt: Date.now() });
+        await updateDoc(ref, { status:'approved', updatedAt: Date.now() });
+        document.getElementById('dep-'+id)?.remove();
       }catch(e){
-        console.error(e);
-        alert('입금 승인 중 오류가 발생했습니다: ' + (e?.message||e));
+        console.error(e); alert('입금 승인 중 오류가 발생했습니다.');
       }
     }
     async function rejectDeposit(id){
       try{
         await updateDoc(doc(db,"depositRequests",id),{status:'rejected', updatedAt:Date.now()});
-        const el = document.getElementById('dep-'+id); if(el) el.remove();
+        document.getElementById('dep-'+id)?.remove();
       }catch(e){
-        console.error(e);
-        alert('입금 거절 중 오류가 발생했습니다: ' + (e?.message||e));
+        console.error(e); alert('입금 거절 중 오류가 발생했습니다.');
       }
     }
+
+    // 🔧 출금 승인/거절: 유저 현금 반영 + 카드 제거
     async function approveWithdraw(id){
       try{
-        await runTransaction(db, async (tx)=>{
-          const reqRef = doc(db,"withdrawRequests",id);
-          const reqSnap = await tx.get(reqRef);
-          if(!reqSnap.exists()) throw new Error("요청 없음");
-          const r = reqSnap.data();
-          if(r.status !== 'pending') return;
+        const ref = doc(db,"withdrawRequests",id);
+        const snap = await getDoc(ref);
+        if(!snap.exists()){ alert('요청을 찾을 수 없습니다.'); return; }
+        const r = snap.data();
+        if(r.status !== 'pending'){ alert('이미 처리된 요청입니다.'); return; }
 
-          const userRef = doc(db,"users", String(r.userId));
-          const userSnap = await tx.get(userRef);
-          const curCash = (userSnap.exists() && typeof userSnap.data().cash==='number') ? userSnap.data().cash : 0;
-          const amt = Number(r.amount)||0;
-
-          if(curCash < amt){
-            throw new Error("유저 현금 부족");
-          }
-          tx.set(userRef, { cash: curCash - amt, updatedAt: Date.now() }, { merge:true });
-          tx.update(reqRef, { status:'approved', processedAt: Date.now() });
-        });
-        const el = document.getElementById('wd-'+id); if(el) el.remove();
-        alert('✅ 출금 승인 완료 (현금 차감)');
-      }catch(e){
-        if(String(e).includes('유저 현금 부족')){
-          alert('❌ 출금 승인 실패: 유저 현금이 부족합니다.');
-        }else{
-          console.error(e);
-          alert('출금 승인 중 오류가 발생했습니다: ' + (e?.message||e));
+        const uref = doc(db,"users", r.userId);
+        const usnap = await getDoc(uref);
+        const cur = (usnap.exists() && typeof usnap.data().cash==='number') ? usnap.data().cash : 0;
+        const amt = (r.amount||0);
+        if(cur < amt){
+          alert('유저 보유 현금이 부족합니다. (출금 승인 불가)');
+          return;
         }
+        const nextCash = Math.max(0, cur - amt);
+
+        await updateDoc(uref, { cash: nextCash, updatedAt: Date.now() });
+        await updateDoc(ref, { status:'approved', updatedAt: Date.now() });
+        document.getElementById('wd-'+id)?.remove();
+      }catch(e){
+        console.error(e); alert('출금 승인 중 오류가 발생했습니다.');
       }
     }
     async function rejectWithdraw(id){
       try{
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
-        const el = document.getElementById('wd-'+id); if(el) el.remove();
+        document.getElementById('wd-'+id)?.remove();
       }catch(e){
-        console.error(e);
-        alert('출금 거절 중 오류가 발생했습니다: ' + (e?.message||e));
+        console.error(e); alert('출금 거절 중 오류가 발생했습니다.');
       }
     }
 
@@ -1108,7 +1099,7 @@
       await adjustCompanyPrice(c.name, delta);
     }
 
-    // 📈 배율/확률 관리 패널
+    // 📈 배율/확률 관리 패널 구현
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
       let html = "";
@@ -1208,9 +1199,10 @@
     function runScenario(type){ applyScenario(type); }
     function applyScenario(type){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const force = (type==='riseEnd') ? -1 : 1;
+      const force = (type==='riseEnd') ? -1 : 1; // -1 강제상승, 1 강제하락
       companies.forEach(c=>{ marketState.bias[c.id] = force; });
       alert(type==='riseEnd' ? "📈 단기 상승 유도 시작" : "📉 단기 하락 유도 시작");
+      // 60초 후 자동 완화
       setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 0; }); }, 60000);
     }
     function applyAutoScenario(){
@@ -1241,7 +1233,8 @@
         currentUser = { id:cid, name:cname, cash:nextCash, active:true };
         player.cash=nextCash; player.holdings=nextHoldings;
 
-        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true, forcedLogoutAt:null },{merge:true});
+        sessionStartAt = Date.now();
+        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:sessionStartAt, active:true },{merge:true});
         localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
         loginModal.style.display='none';
@@ -1250,47 +1243,50 @@
         console.warn("⚠️ 로그인 처리 오류:", e); alert("로그인 중 오류가 발생했습니다.");
       }
     };
-
     function subscribeCurrentUser(uid){
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
       const uref=doc(db,"users",uid);
       unsubscribeUser = onSnapshot(uref,(snap)=>{
         if(!snap.exists()) return;
         const d=snap.data();
-        if(typeof d.cash==='number') player.cash=d.cash;
-        if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
 
-        // ✅ 강제 로그아웃만 알림 (단순 새로고침으로 active:false였던 경우는 제외)
-        const wasForced = !!d.forcedLogoutAt && (!d.lastLoginAt || d.forcedLogoutAt > d.lastLoginAt);
-        if(currentUser && currentUser.id===uid && d.active===false && wasForced){
-          alert('관리자에 의해 로그아웃되었습니다.');
-          localStorage.removeItem('stockUser');
-          location.reload();
+        // 강제 로그아웃 감지: forceLogoutAt 이 현재 세션 이후에 기록되면 강제 로그아웃
+        if(typeof d.forceLogoutAt==='number' && sessionStartAt && d.forceLogoutAt > sessionStartAt){
+          alert('관리자에 의해 로그아웃 되었습니다.');
+          localLogout();
           return;
         }
+
+        if(typeof d.cash==='number') player.cash=d.cash;
+        if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
         renderUserInfo(); updateHoldingsUI();
       });
     }
-
-    async function logout(){
-      try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
-      if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-      localStorage.removeItem('stockUser'); location.reload();
+    async function logout(){ localLogout(true); }
+    function localLogout(updateRemote=false){
+      const doUpdate = async ()=>{
+        try{ if(updateRemote && currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
+      };
+      doUpdate().finally(()=>{
+        if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
+        localStorage.removeItem('stockUser');
+        location.reload();
+      });
     }
     window.addEventListener("beforeunload", async ()=> {
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt: Date.now()}); } }catch(e){}
     });
 
     // ========================= Init =========================
-    window.onload = async () => {
+    window.onload = () => {
       const saved = localStorage.getItem('stockUser');
       if(saved){
         try{
           const parsed = JSON.parse(saved);
           if(parsed && parsed.id && parsed.name){
+            // 자동 복구 시에는 active를 건드리지 않음(강제 로그아웃 안내가 뜨지 않도록)
             currentUser = { id: parsed.id, name: parsed.name };
-            // 🔧 새로고침 복귀 시 즉시 active=true로 전환하여 강제 로그아웃 오탐 제거
-            try{ await setDoc(doc(db,"users",parsed.id), { active:true, lastLoginAt:Date.now(), forcedLogoutAt:null }, { merge:true }); }catch(_e){}
+            sessionStartAt = null; // 자동 진입세션은 강제로그아웃 안내 비활성
             loginModal.style.display='none';
             renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(parsed.id);
           }else{ loginModal.style.display='flex'; }
@@ -1306,9 +1302,9 @@
       subscribeCompanyChances();
       subscribeMarketState();
       subscribeGlobals();
-      subscribeNews();
+      subscribeNews();           // 📰 뉴스 구독
       renderMarketStatus();
-      initCompaniesUI();
+      initCompaniesUI();         // 기본은 '마감' 상태로 렌더
     };
 
     // ========================= Global Bindings =========================
@@ -1355,14 +1351,14 @@
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
 
-    // 강제 로그아웃 바인딩
+    // 유저 강제 로그아웃 바인딩
     window.forceLogout = forceLogout;
 
-    // ✅ ADMIN123 승인/거절 전역 바인딩 (모듈 스코프 이슈 해결)
-    window.approveDeposit  = approveDeposit;
-    window.rejectDeposit   = rejectDeposit;
-    window.approveWithdraw = approveWithdraw;
-    window.rejectWithdraw  = rejectWithdraw;
+    // 재무 승인/거절 바인딩
+    window.approveDeposit = approveDeposit;
+    window.rejectDeposit  = rejectDeposit;
+    window.approveWithdraw= approveWithdraw;
+    window.rejectWithdraw = rejectWithdraw;
   </script>
 </body>
 </html>
