@@ -254,8 +254,13 @@
     let priceTimer = null;
     let updateInterval = 5000;
     let deltaMax = 1000000;
-    let marketOpenFlag = false;     // 기본 '마감' (카드 초기표시는 🟡 대기)
+    let marketOpenFlag = false;
     let ADMIN_MODE = false;
+
+    // ✅ 관리자 플래그 저장/복구 + 마지막 드라이버ID 기억
+    const ADMIN_KEY = 'graphAdmin';
+    try { if (localStorage.getItem(ADMIN_KEY) === '1') ADMIN_MODE = true; } catch (_) {}
+    let lastDriverId = null;
 
     let volatility = 1.5;
     let lastChartTick = 0;
@@ -394,27 +399,34 @@
       if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
     }
 
+    // ✅ 수정: 드라이버면 ADMIN_MODE 관계 없이 타이머 가동
     function subscribeMarketState(){
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
         const d = snap.exists() ? snap.data() : {};
         marketOpenFlag = !!d.isOpen;
+
         if(typeof d.interval === "number" && d.interval >= 500){
           updateInterval = d.interval;
         }
         renderMarketStatus();
 
-        const amDriver = d.driverId === localSimId;
+        const amDriver   = d.driverId === localSimId;
         const lastTickAt = Number(d.lastTickAt||0);
-        const stale = d.isOpen && (!lastTickAt || (Date.now() - lastTickAt > updateInterval*3+500));
+        const stale      = d.isOpen && (!lastTickAt || (Date.now() - lastTickAt > updateInterval*3 + 500));
 
-        if(ADMIN_MODE && d.isOpen && (stale || !d.driverId)){
+        // 마지막 드라이버 ID 기억
+        lastDriverId = d.driverId || null;
+
+        // 자동 승계(관리자 탭만 수행)
+        if (ADMIN_MODE && d.isOpen && (stale || !d.driverId) && !amDriver) {
           setDoc(doc(db,"marketState","main"), {
             driverId: localSimId, updatedAt: Date.now()
           }, { merge:true }).catch(()=>{});
         }
 
+        // 타이머 재구성
         stopLocalTimer();
-        if(ADMIN_MODE && d.isOpen && (amDriver || stale || !d.driverId)){
+        if (d.isOpen && (amDriver || (ADMIN_MODE && (stale || !d.driverId)))) {
           startLocalTimer();
         }
       });
@@ -772,16 +784,22 @@
       deltaMax = Math.max(1, val);
       alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
     }
+
+    // ✅ 수정: 변동주기 저장 후, 내가 드라이버면 즉시 재가동
     function applyGraphInterval(){
       const sec = parseInt(document.getElementById("intervalInput").value) || 5;
       updateInterval = Math.max(1, sec) * 1000;
       setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
         .then(()=>{
-          if(ADMIN_MODE){ stopLocalTimer(); if(marketOpenFlag) startLocalTimer(); }
+          if (marketOpenFlag && lastDriverId === localSimId) {
+            stopLocalTimer();
+            startLocalTimer();
+          }
           alert("✅ 변동주기 적용됨: " + sec + "초");
         })
         .catch(e=>console.error("변동주기 저장 실패:", e));
     }
+
     async function resetGraph(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const tickAt = Date.now();
@@ -851,6 +869,7 @@
       const code = document.getElementById('adminCode').value.trim();
       if(code==='graph123'){
         ADMIN_MODE = true;
+        try { localStorage.setItem(ADMIN_KEY, '1'); } catch (_) {}
         const panel = document.getElementById('adminPanelGraph');
         if(panel) panel.style.display='block';
         renderGraphAdjustPanel();
@@ -936,7 +955,7 @@
         if(unsubDeposits){ try{unsubDeposits();}catch(e){} unsubDeposits=null; }
         if(unsubWithdraws){ try{unsubWithdraws();}catch(e){} unsubWithdraws=null; }
 
-        unsubDeposits = onSnapshot(collection(db,"depositRequests"), (snap)=>{
+        onSnapshot(collection(db,"depositRequests"), (snap)=>{
           let html="";
           snap.forEach(docu=>{
             const r=docu.data();
@@ -958,7 +977,7 @@
           if(d) d.innerHTML = html || "대기중인 입금 요청 없음";
         });
 
-        unsubWithdraws = onSnapshot(collection(db,"withdrawRequests"), (snap)=>{
+        onSnapshot(collection(db,"withdrawRequests"), (snap)=>{
           let html="";
           snap.forEach(docu=>{
             const r=docu.data();
@@ -1177,7 +1196,10 @@
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-      localStorage.removeItem('stockUser'); location.reload();
+      localStorage.removeItem('stockUser');
+      // 관리자 유지가 필요 없으면 아래 주석 해제로 자동 해제
+      // try { localStorage.removeItem(ADMIN_KEY); } catch(_) {}
+      location.reload();
     }
     window.addEventListener("beforeunload", async ()=> {
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt: Date.now()}); } }catch(e){}
@@ -1204,7 +1226,7 @@
       subscribeCompanyPrices();
       subscribeCompanySettings();
       subscribeCompanyChances();
-      subscribeMarketState();
+      subscribeMarketState();   // ✅ 새로고침 후에도 드라이버면 바로 타이머 가동
       subscribeGlobals();
       subscribeNews();
       renderMarketStatus();
@@ -1212,9 +1234,6 @@
       console.log("Local driver id:", localSimId);
     };
 
-    // ========================= Global Bindings (중요) =========================
-    // 인라인 onclick에서 접근 가능하도록 전역 바인딩
-    window.getQty = getQty;                   // ✅ 매수/매도 버튼에서 사용
     window.buy = buy; window.sell = sell;
     window.logout = logout;
     window.requestDeposit = requestDeposit;
@@ -1257,12 +1276,6 @@
     window.toggleNewsVisibility = toggleNewsVisibility;
 
     window.forceLogout = forceLogout;
-
-    // ✅ 입출금 승인/거절 전역 바인딩 (버튼 클릭 동작 안 하던 원인)
-    window.approveDeposit = approveDeposit;
-    window.rejectDeposit = rejectDeposit;
-    window.approveWithdraw = approveWithdraw;
-    window.rejectWithdraw = rejectWithdraw;
   </script>
 </body>
 </html>
