@@ -67,6 +67,7 @@
     <div>
       <button onclick="logout()">로그아웃</button>
       <button onclick="openWithdrawModal()">출금 요청</button>
+      <button onclick="openNoticeModal()">📢 공지사항</button>
       <button onclick="openNewsModal()">📰 뉴스 보기</button>
     </div>
   </div>
@@ -108,11 +109,23 @@
     </div>
   </div>
 
-  <!-- 뉴스 모달 -->
-  <div id="newsModal" class="modal">
+  <!-- 공지사항 모달 -->
+  <div id="noticeModal" class="modal">
     <div class="modal-content">
+      <button class="xbtn" onclick="closeNoticeModal()">✕</button>
+      <h2>📢 공지사항</h2>
+      <div id="noticeContent" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:10px;">
+        <p>현재 등록된 공지사항이 없습니다.</p>
+      </div>
+      <button onclick="closeNoticeModal()">닫기</button>
+    </div>
+  </div>
+
+  <!-- 뉴스 모달 (조금 아래로 내림) -->
+  <div id="newsModal" class="modal">
+    <div class="modal-content" style="margin-top:40px;">
       <button class="xbtn" onclick="closeNewsModal()">✕</button>
-      <h2>📢 최신 뉴스</h2>
+      <h2>📰 최신 뉴스</h2>
       <div id="newsContent" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:10px;">
         <p>현재 등록된 뉴스가 없습니다.</p>
       </div>
@@ -126,7 +139,7 @@
     <button onclick="checkAdmin()">관리자 로그인</button>
   </div>
 
-  <!-- 📊 그래프/금액 제어 패널 (graph123) -->
+  <!-- 📊 그래프/금액 제어 패널 (graph703) -->
   <div id="adminPanelGraph" class="admin-panel" style="max-width:800px;">
     <button class="xbtn" onclick="closeAdmin('adminPanelGraph')">✕</button>
     <h3>📊 그래프/금액 제어 패널</h3>
@@ -159,7 +172,7 @@
     <p style="color:#9ca3af; margin-top:8px;">※ 이 패널은 '현재가(livePrice)' 자체를 직접 조정합니다. (관리자 전용)</p>
   </div>
 
-  <!-- 👥 유저 상태 패널 (SECRET1234) -->
+  <!-- 👥 유저 상태 패널 (SECRET6487) -->
   <div id="adminPanelUsers" class="admin-panel" style="max-width:800px;">
     <button class="xbtn" onclick="closeAdmin('adminPanelUsers')">✕</button>
     <h3>👥 유저 상태 패널</h3>
@@ -181,7 +194,7 @@
     <div id="userList">로드 중...</div>
   </div>
 
-  <!-- 💳 재무 패널 (ADMIN123) -->
+  <!-- 💳 재무 패널 (ADMIN749) -->
   <div id="adminPanelFinance" class="admin-panel" style="max-width:800px;">
     <button class="xbtn" onclick="closeAdmin('adminPanelFinance')">✕</button>
     <h3>💳 입/출금 요청 패널</h3>
@@ -198,7 +211,7 @@
     <div id="stockTuner"></div>
   </div>
 
-  <!-- 📈 배율/확률 관리 패널 (change123) -->
+  <!-- 📈 배율/확률 관리 패널 (change632) -->
   <div id="adminPanelChange" class="admin-panel">
     <button class="xbtn" onclick="closeAdmin('adminPanelChange')">✕</button>
     <h3>📈 배율 & 확률 관리 패널</h3>
@@ -246,6 +259,23 @@
 
     <h4>등록된 뉴스</h4>
     <div id="newsList">불러오는 중...</div>
+  </div>
+
+  <!-- 📢 공지사항 관리 패널 (notice123) -->
+  <div id="adminPanelNotice" class="admin-panel" style="max-width:800px;">
+    <button class="xbtn" onclick="closeAdmin('adminPanelNotice')">✕</button>
+    <h3>📢 공지사항 관리 패널</h3>
+
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+      <input type="text" id="noticeTitleInput" placeholder="공지 제목">
+      <textarea id="noticeBodyInput" placeholder="공지 내용"></textarea>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button onclick="postNotice()">등록</button>
+      </div>
+    </div>
+
+    <h4>등록된 공지사항</h4>
+    <div id="noticeList">불러오는 중...</div>
   </div>
 
   <!-- Chart.js -->
@@ -303,6 +333,7 @@
     let unsubWithdraws = null;
     let unsubGlobals = null;
     let unsubNews = null;
+    let unsubNotices = null; // 공지사항
 
     // 드라이버(시세 갱신 담당) 로컬 ID
     const localSimId = (() => {
@@ -586,6 +617,9 @@
           if(el) el.textContent = getDisplayPrice(c).toLocaleString();
         });
 
+        // 가격이 바뀌면 최대 매수 가능 주수도 갱신
+        updateMaxBuyUI();
+
         if(maxTick && maxTick > lastChartTick){
           lastChartTick = maxTick;
           appendChartPoint(maxTick);
@@ -729,6 +763,97 @@
       }
     }
 
+    // ========================= Notices (공지사항) =========================
+    let noticeDataAll = [];
+    function subscribeNotices(){
+      if(unsubNotices){ try{unsubNotices();}catch(e){} unsubNotices=null; }
+      const qy = query(collection(db,'notices'), orderBy('createdAt','desc'));
+      unsubNotices = onSnapshot(qy, (snap)=>{
+        const allList=[];
+        snap.forEach(docu=>{
+          const n = { id:docu.id, ...(docu.data()||{}) };
+          allList.push(n);
+        });
+        noticeDataAll = allList;
+        renderNoticeModal();
+        renderNoticeAdminList();
+      });
+    }
+    function renderNoticeModal(){
+      const host=document.getElementById('noticeContent');
+      if(!host) return;
+      if(!noticeDataAll.length){
+        host.innerHTML="<p>현재 등록된 공지사항이 없습니다.</p>";
+        return;
+      }
+      host.innerHTML = noticeDataAll.map(n=>{
+        const dt=new Date(n.createdAt||Date.now()).toLocaleString();
+        const title=(n.title||'공지사항');
+        const body=(n.content||'').replace(/\n/g,'<br>');
+        return `
+          <div style="padding:8px 0; border-bottom:1px solid #374151;">
+            <div style="font-weight:700;">${title}</div>
+            <div style="color:#9ca3af; font-size:12px;">${dt}</div>
+            <div style="margin-top:6px;">${body}</div>
+          </div>
+        `;
+      }).join('');
+    }
+    function renderNoticeAdminList(){
+      const list=document.getElementById('noticeList');
+      if(!list) return;
+      if(!noticeDataAll.length){
+        list.textContent="등록된 공지사항이 없습니다.";
+        return;
+      }
+      list.innerHTML=noticeDataAll.map(n=>{
+        const dt=new Date(n.createdAt||Date.now()).toLocaleString();
+        const title=(n.title||'공지사항');
+        const body=(n.content||'').slice(0,140)+((n.content||'').length>140?'...':'');
+        return `
+          <div class="req-card" data-id="${n.id}">
+            <div>
+              <div><strong>${title}</strong> <small style="color:#9ca3af;">${dt}</small></div>
+              <div style="color:#cbd5e1; font-size:14px;">${body}</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button onclick="deleteNotice('${n.id}')" style="background:#7f1d1d;">삭제</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    async function postNotice(){
+      const titleEl=document.getElementById('noticeTitleInput');
+      const bodyEl=document.getElementById('noticeBodyInput');
+      const title=(titleEl?.value||'').trim();
+      const content=(bodyEl?.value||'').trim();
+      if(!title||!content){ alert('제목과 내용을 입력해주세요.'); return; }
+      try{
+        await addDoc(collection(db,'notices'),{
+          title, content,
+          createdAt:Date.now(),
+          authorId: currentUser?.id||'admin',
+          authorName: currentUser?.name||'관리자'
+        });
+        if(titleEl) titleEl.value='';
+        if(bodyEl) bodyEl.value='';
+        alert('📢 공지사항이 등록되었습니다.');
+      }catch(e){
+        console.error(e);
+        alert('공지사항 등록 실패');
+      }
+    }
+    async function deleteNotice(id){
+      if(!confirm('정말 삭제하시겠습니까?')) return;
+      try{
+        await deleteDoc(doc(db,'notices',id));
+      }catch(e){
+        console.error(e);
+        alert('삭제 실패');
+      }
+    }
+
     // ========================= Companies / User UI =========================
     function getQty(name){
       const id = "qty-" + safeId(name);
@@ -746,7 +871,12 @@
               <span class="status-badge" id="marketStatus-${c.id}" data-initial="true">🟡 대기</span>
             </div>
             <div>가격: <strong><span id="price-${c.id}">${getDisplayPrice(c).toLocaleString()}</span> KRW</strong></div>
-            <div>보유: <span id="hold-${c.id}">${player.holdings[c.name]||0}</span> 주</div>
+            <div>
+              보유: <span id="hold-${c.id}">${player.holdings[c.name]||0}</span> 주
+              <span id="maxbuy-${c.id}" style="color:#10b981; font-size:13px; margin-left:6px;">
+                (최대 ${Math.floor((player.cash||0)/getDisplayPrice(c))}주 매수 가능)
+              </span>
+            </div>
             <div class="actions">
               <input type="number" id="qty-${c.id}" min="1" value="1" ${marketOpenFlag?'':'disabled'}>
               <button ${marketOpenFlag?'':'disabled'} onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
@@ -756,12 +886,14 @@
         `;
       });
       companiesDiv.innerHTML = html;
+      updateMaxBuyUI();
     }
     function updateHoldingsUI(){
       companies.forEach(c=>{
         const el = document.getElementById("hold-" + c.id);
         if(el) el.textContent = (player.holdings[c.name]||0);
       });
+      updateMaxBuyUI();
     }
     function renderUserInfo(){
       if(currentUser){
@@ -772,6 +904,19 @@
       }else{
         userInfo.textContent="⏳ 로그인 대기중...";
       }
+      updateMaxBuyUI();
+    }
+
+    // 최대 매수 가능 주수 업데이트
+    function updateMaxBuyUI(){
+      companies.forEach(c=>{
+        const el = document.getElementById("maxbuy-" + c.id);
+        if(el){
+          const price = getDisplayPrice(c);
+          const maxQty = Math.floor((player.cash||0) / price);
+          el.textContent = `(최대 ${maxQty}주 매수 가능)`;
+        }
+      });
     }
 
     // ========================= Graph/Price Admin Panel =========================
@@ -805,6 +950,7 @@
       if(p) p.textContent=getDisplayPrice(c).toLocaleString();
       const el = document.getElementById("price-" + c.id);
       if(el) el.textContent=getDisplayPrice(c).toLocaleString();
+      updateMaxBuyUI();
     }
     async function adjustAllPrices(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -818,6 +964,7 @@
       }
       await batch.commit();
       await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true }); // 차트 한 점만
+      updateMaxBuyUI();
     }
     function applyDeltaMax(){
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
@@ -850,6 +997,7 @@
         chart.update();
         lastChartTick = 0;
       }
+      updateMaxBuyUI();
     }
 
     // ========================= Deposit / Withdraw =========================
@@ -879,7 +1027,7 @@
     function closeWithdrawModal(){ document.getElementById('withdrawModal').style.display='none'; }
     function updateWithdrawFee(){
       const amount = parseNumber(document.getElementById('withdrawAmount').value);
-      const fee = Math.floor(amount * 0.10); // 30%
+      const fee = Math.floor(amount * 0.10); // 10%
       const info = document.getElementById('withdrawFeeInfo');
       if(amount>0) info.textContent = "예상 수수료: " + fee.toLocaleString() + " KRW (실지급: " + Math.max(0,(amount-fee)).toLocaleString() + " KRW)";
       else info.textContent = "";
@@ -931,6 +1079,10 @@
         const p = document.getElementById('adminPanelNews');
         if(p) p.style.display='block';
         renderNewsAdminList();
+      }else if(code==='notice123'){
+        const p = document.getElementById('adminPanelNotice');
+        if(p) p.style.display='block';
+        renderNoticeAdminList();
       }else{
         alert('❌ 잘못된 코드입니다.');
       }
@@ -980,7 +1132,7 @@
       }
     }
 
-    // 관리자 권한 부여/해제 (SECRET1234 패널의 입력 폼)
+    // 관리자 권한 부여/해제 (SECRET6487 패널의 입력 폼)
     async function promoteAdmin(uidOpt=null, nameOpt=null){
       const uid = uidOpt || document.getElementById('promoteIdInput')?.value.trim();
       const name= nameOpt || document.getElementById('promoteNameInput')?.value.trim();
@@ -1296,6 +1448,7 @@
       subscribeMarketState();
       subscribeGlobals();
       subscribeNews();
+      subscribeNotices(); // 공지사항 실시간 반영
       renderMarketStatus();
       initCompaniesUI();
       console.log("Local driver id:", localSimId);
@@ -1346,6 +1499,12 @@
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
 
+    // 공지사항 (모달 + 관리)
+    window.openNoticeModal  = () => { document.getElementById('noticeModal').style.display='flex'; };
+    window.closeNoticeModal = () => { document.getElementById('noticeModal').style.display='none'; };
+    window.postNotice = postNotice;
+    window.deleteNotice = deleteNotice;
+
     // 유저/권한/재무 패널
     window.renderFinanceQueues = renderFinanceQueues;
     window.renderUserList = renderUserList;
@@ -1362,8 +1521,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
