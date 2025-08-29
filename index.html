@@ -893,7 +893,7 @@
       try{
         await addDoc(collection(db,'withdrawRequests'), { userId:id, userName:name, amount, memo, status:'pending', createdAt: Date.now() });
         alert('📤 출금 요청이 접수되었습니다.');
-        const fee = Math.floor(amount*0.3);
+        const fee = Math.floor(amount*0.2);
         log(`<strong>📤 출금요청:</strong> ${amount.toLocaleString()} KRW (수수료 ${fee.toLocaleString()} / 실지급 ${(amount-fee).toLocaleString()})`);
         closeWithdrawModal();
       }catch(e){
@@ -1362,5 +1362,6 @@
   </script>
 </body>
 </html>
+
 
 
