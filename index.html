@@ -50,7 +50,7 @@
     .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
 
     .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
-    #adminLogin{ text-align:center; margin-top:20px }
+    #adminLogin{ text-align:center; margin-top:20px; display:none; } /* JS에서 표시/숨김 제어 */
     #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
 
     @media (max-width:1200px){ #companies{ grid-template-columns:repeat(3,1fr) } }
@@ -120,9 +120,9 @@
     </div>
   </div>
 
-  <!-- 관리자 로그인: isAdmin 아닐 때 숨김 -->
-  <div id="adminLogin" style="display:none">
-    <input type="password" id="adminCode" placeholder="관리자 코드 입력">
+  <!-- 관리자 로그인(코드 입력) — JS가 표시/숨김 제어 -->
+  <div id="adminLogin">
+    <input type="password" id="adminCode" placeholder="관리자 코드 입력" disabled>
     <button onclick="checkAdmin()">관리자 로그인</button>
   </div>
 
@@ -288,7 +288,6 @@
     let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
     let marketOpenFlag = false;     // 기본은 '마감' (초회 UI는 '🟡 대기'로 표시)
     let ADMIN_MODE = false;
-    let IS_ADMIN = false;           // 현재 로그인 사용자의 관리자 권한
 
     let volatility = 1.5;           // 전역 변동폭 (%)
     let lastChartTick = 0;          // 마지막 차트 반영 시간(중복 방지)
@@ -305,7 +304,12 @@
     let unsubGlobals = null;
     let unsubNews = null;
 
-    // 드라이버(시세 갱신 담당) 로컬 ID (새로고침해도 유지)
+    // --- NEW: 관리자 가드 & 부트스트랩 상태 ---
+    let IS_ADMIN = false;           // 현재 로그인 사용자가 관리자?
+    let ZERO_ADMIN = false;         // 시스템에 관리자가 1명도 없음?
+    let unsubAdminPresence = null;  // 관리자 존재 여부 구독 핸들
+
+    // 드라이버(시세 갱신 담당) 로컬 ID
     const localSimId = (() => {
       let id = localStorage.getItem('simId');
       if(!id){
@@ -324,17 +328,33 @@
     };
     const log = (msg) => { if(!logDiv) return; logDiv.innerHTML = "<div>" + msg + "</div>" + logDiv.innerHTML; };
 
+    // --- NEW: 관리자 코드 입력 박스 표시 제어 ---
     function setAdminGateUI(){
       const box = document.getElementById('adminLogin');
       const input = document.getElementById('adminCode');
       if(!box) return;
-      if(IS_ADMIN){
+
+      if (IS_ADMIN || ZERO_ADMIN){
         box.style.display = 'block';
-        if(input) input.disabled = false;
+        if(input){
+          input.disabled = false;
+          input.placeholder = ZERO_ADMIN ? '(최초 설정) 관리자 코드 입력' : '관리자 코드 입력';
+        }
       }else{
         box.style.display = 'none';
         if(input){ input.value = ''; input.disabled = true; }
       }
+    }
+
+    // --- NEW: 관리자 존재 여부 구독(부트스트랩 판단) ---
+    function subscribeAdminPresence(){
+      if (unsubAdminPresence){ try{unsubAdminPresence();}catch(e){} unsubAdminPresence=null; }
+      unsubAdminPresence = onSnapshot(collection(db, "users"), (snap)=>{
+        let anyAdmin = false;
+        snap.forEach(d => { if (d.data()?.isAdmin) anyAdmin = true; });
+        ZERO_ADMIN = !anyAdmin;
+        setAdminGateUI();
+      });
     }
 
     // ========================= Company Data =========================
@@ -418,7 +438,7 @@
         await setDoc(doc(db,"marketState","main"), {
           isOpen:true,
           interval:updateInterval,
-          driverId: localSimId,
+          driverId: localSimId,        // 드라이버 지정
           updatedAt: Date.now()
         }, { merge:true });
       }catch(e){ console.warn(e); }
@@ -454,6 +474,7 @@
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
         const d = snap.exists() ? snap.data() : {};
         marketOpenFlag = !!d.isOpen;
+
         if(typeof d.interval === "number" && d.interval >= 500){
           updateInterval = d.interval;
         }
@@ -492,30 +513,40 @@
       for(const c of companies){
         const prev = c.livePrice || c.basePrice;
 
+        // 확률 (profit/loss 정규화)
         const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
         const denom = Math.max(1e-6, (chance.profit + chance.loss));
         let isUp = Math.random() < (chance.profit / denom);
 
+        // 시나리오/체결 바이어스
         const b = marketState.bias[c.id] || 0;
         if(b === -1) isUp = true;
         if(b ===  1) isUp = false;
         marketState.bias[c.id] = b * 0.5;
 
+        // 변동폭(%): 0 ~ volatility, 배율(multiplier) 반영
         const stepPct = (Math.random() * volatility / 100) * Math.max(0, c.multiplier || 1);
         const signed = isUp ? stepPct : -stepPct;
         let nextRaw = prev * (1 + signed);
 
+        // 1틱 상한(±deltaMax)
         const diff = nextRaw - prev;
         if(Math.abs(diff) > deltaMax){ nextRaw = prev + Math.sign(diff) * deltaMax; }
 
         const next = Math.max(1, Math.round(nextRaw));
+
         c.livePrice = next;
         batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
       }
       try{
         await batch.commit();
+        // 드라이버 하트비트 (자동 승계용)
         await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
       }catch(e){ console.error("시뮬레이션 반영 실패:", e); }
+    }
+
+    function stopPriceSimulation(){
+      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
     }
 
     // ========================= Chart =========================
@@ -824,7 +855,7 @@
         batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
       }
       await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
+      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true }); // 차트 한 점만
     }
     function applyDeltaMax(){
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
@@ -836,9 +867,7 @@
       updateInterval = Math.max(1, sec) * 1000;
       setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
         .then(()=>{
-          if(priceTimer){ clearInterval(priceTimer); }
-          // 드라이버면 즉시 타이머 재시작
-          startLocalTimer();
+          if(ADMIN_MODE){ if(priceTimer){ clearInterval(priceTimer); } if(marketOpenFlag) startLocalTimer(); }
           alert("✅ 변동주기 적용됨: " + sec + "초");
         })
         .catch(e=>console.error("변동주기 저장 실패:", e));
@@ -913,7 +942,13 @@
 
     // ========================= Admin Panels =========================
     function checkAdmin(){
-      if(!IS_ADMIN){ alert('관리자 권한이 없습니다.'); return; } // 가드
+      // NEW: 관리자 없을 때(ZERO_ADMIN)는 누구나 부트스트랩 허용,
+      // 그 외에는 isAdmin 사용자만 코드 입력 가능
+      if (!IS_ADMIN && !ZERO_ADMIN){
+        alert('관리자 권한이 없습니다.');
+        return;
+      }
+
       const code = document.getElementById('adminCode').value.trim();
       if(code==='graph123'){
         ADMIN_MODE = true;
@@ -990,7 +1025,7 @@
       }
     }
 
-    // 관리자 권한 부여/해제
+    // 관리자 권한 부여/해제 (SECRET1234 패널의 입력 폼)
     async function promoteAdmin(uidOpt=null, nameOpt=null){
       const uid = uidOpt || document.getElementById('promoteIdInput')?.value.trim();
       const name= nameOpt || document.getElementById('promoteNameInput')?.value.trim();
@@ -1043,8 +1078,8 @@
                   <div>상태: ${r.status}</div>
                 </div>
                 <div style="display:flex; gap:6px;">
-                  <button onclick="approveDeposit('${docu.id}', ${Number(r.amount||0)}, '${r.userId}', '${(r.userName||'').replace(/'/g,"\\'")}')">승인</button>
-                  <button onclick="rejectDeposit('${docu.id}', '${(r.userName||'').replace(/'/g,"\\'")}')">거절</button>
+                  <button onclick="approveDeposit('${docu.id}', ${Number(r.amount||0)}, '${r.userId}')">승인</button>
+                  <button onclick="rejectDeposit('${docu.id}')">거절</button>
                 </div>
               </div>`;
           });
@@ -1065,8 +1100,8 @@
                   <div>상태: ${r.status}</div>
                 </div>
                 <div style="display:flex; gap:6px;">
-                  <button onclick="approveWithdraw('${docu.id}', ${Number(r.amount||0)}, '${r.userId}', '${(r.userName||'').replace(/'/g,"\\'")}')">승인</button>
-                  <button onclick="rejectWithdraw('${docu.id}', '${(r.userName||'').replace(/'/g,"\\'")}')">거절</button>
+                  <button onclick="approveWithdraw('${docu.id}', ${Number(r.amount||0)}, '${r.userId}')">승인</button>
+                  <button onclick="rejectWithdraw('${docu.id}')">거절</button>
                 </div>
               </div>`;
           });
@@ -1074,20 +1109,18 @@
         });
       }
     }
-    async function approveDeposit(id, amount, userId, userName=''){
+    async function approveDeposit(id, amount, userId){
       try{
         await updateDoc(doc(db,"users",userId), { cash: increment(amount), updatedAt: Date.now() });
         await updateDoc(doc(db,"depositRequests",id),{status:'approved', updatedAt:Date.now()});
-        log(`✅ <strong>입금 승인:</strong> ${userName} (${userId}) +${amount.toLocaleString()} KRW`);
       }catch(e){ console.error(e); alert('승인 처리 실패'); }
     }
-    async function rejectDeposit(id, userName=''){
+    async function rejectDeposit(id){
       try{
         await updateDoc(doc(db,"depositRequests",id),{status:'rejected', updatedAt:Date.now()});
-        log(`⛔ <strong>입금 거절:</strong> ${userName}`);
       }catch(e){ console.error(e); alert('거절 처리 실패'); }
     }
-    async function approveWithdraw(id, amount, userId, userName=''){
+    async function approveWithdraw(id, amount, userId){
       try{
         const uref = doc(db,"users",userId);
         const usnap = await getDoc(uref);
@@ -1095,13 +1128,11 @@
         if(cash < amount){ alert('사용자 보유 현금 부족으로 승인할 수 없습니다.'); return; }
         await updateDoc(uref, { cash: increment(-amount), updatedAt: Date.now() });
         await updateDoc(doc(db,"withdrawRequests",id),{status:'approved', updatedAt:Date.now()});
-        log(`💸 <strong>출금 승인:</strong> ${userName} (${userId}) -${amount.toLocaleString()} KRW`);
       }catch(e){ console.error(e); alert('승인 처리 실패'); }
     }
-    async function rejectWithdraw(id, userName=''){
+    async function rejectWithdraw(id){
       try{
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
-        log(`⛔ <strong>출금 거절:</strong> ${userName}`);
       }catch(e){ console.error(e); alert('거절 처리 실패'); }
     }
 
@@ -1205,7 +1236,7 @@
         }
         alert(`✅ 전체 확률 적용: 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
         renderChangePanel();
-      }catch(e){ console.error("전체 확률 적용 실패:", e); alert("오류: 변동폭 적용 실패"); }
+      }catch(e){ console.error("전체 확률 적용 실패:", e); alert("오류: 전체 확률 적용 실패"); }
     }
     async function applyVolatility(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -1245,17 +1276,15 @@
         const snap = await getDoc(userRef);
         if(snap.exists() && snap.data().active){ alert("이미 로그인된 사용자입니다. 기존 세션을 먼저 종료하세요."); return; }
 
-        let nextCash=0; let nextHoldings={}; let initAdmin=false;
+        let nextCash=0; let nextHoldings={};
         if(snap.exists()){
           const d=snap.data();
           if(typeof d.cash==='number') nextCash=d.cash;
           if(d.holdings && typeof d.holdings==='object') nextHoldings=d.holdings;
-          initAdmin = !!d.isAdmin;
         }
 
         currentUser = { id:cid, name:cname, cash:nextCash, active:true };
         player.cash=nextCash; player.holdings=nextHoldings;
-        IS_ADMIN = initAdmin; setAdminGateUI();
 
         await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
         localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
@@ -1274,14 +1303,18 @@
         const d=snap.data();
         if(typeof d.cash==='number') player.cash=d.cash;
         if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-        if(typeof d.isAdmin==='boolean'){ IS_ADMIN = d.isAdmin; setAdminGateUI(); }
+        // NEW: 관리자 플래그 반영
+        IS_ADMIN = !!d.isAdmin;
+        setAdminGateUI();
+
         renderUserInfo(); updateHoldingsUI();
       });
     }
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-      IS_ADMIN = false; setAdminGateUI();
+      IS_ADMIN = false; // NEW
+      setAdminGateUI(); // NEW
       localStorage.removeItem('stockUser'); location.reload();
     }
     window.addEventListener("beforeunload", async ()=> {
@@ -1290,6 +1323,10 @@
 
     // ========================= Init =========================
     window.onload = async () => {
+      // NEW: 최초 상태에서 코드 입력창은 가려두고(기본 CSS), 관리자 존재 여부 구독 시작
+      subscribeAdminPresence();
+      setAdminGateUI();
+
       const saved = localStorage.getItem('stockUser');
       if(saved){
         try{
@@ -1297,6 +1334,7 @@
           if(parsed && parsed.id && parsed.name){
             currentUser = { id: parsed.id, name: parsed.name };
             loginModal.style.display='none';
+            // 새로고침 후에도 active 유지
             try{ await updateDoc(doc(db,"users",parsed.id), { active:true, lastLoginAt: Date.now() }); }catch(e){}
             renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(parsed.id);
           }else{ loginModal.style.display='flex'; }
@@ -1315,13 +1353,10 @@
       subscribeNews();
       renderMarketStatus();
       initCompaniesUI();
-      setAdminGateUI();
       console.log("Local driver id:", localSimId);
     };
 
-    // ========================= Global Bindings (중요!) =========================
-    // 모듈 스코프 함수들을 window에 노출해야 onclick이 동작합니다.
-    window.getQty = getQty;
+    // ========================= Global Bindings =========================
     window.buy = buy; window.sell = sell;
     window.logout = logout;
     window.requestDeposit = requestDeposit;
@@ -1359,19 +1394,15 @@
     window.renderFinanceQueues = renderFinanceQueues;
     window.renderUserList = renderUserList;
 
+    // 뉴스 관리자 바인딩
     window.postNews = postNews;
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
 
+    // 강제 로그아웃 & 권한 승격/해제
     window.forceLogout = forceLogout;
     window.promoteAdmin = promoteAdmin;
     window.demoteAdmin = demoteAdmin;
-
-    // ★ 재무 패널 액션 전역 바인딩(클릭 안되던 원인 해결)
-    window.approveDeposit = approveDeposit;
-    window.rejectDeposit  = rejectDeposit;
-    window.approveWithdraw = approveWithdraw;
-    window.rejectWithdraw  = rejectWithdraw;
   </script>
 </body>
 </html>
