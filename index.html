@@ -204,7 +204,7 @@
     <div id="changePanel" style="margin-top:10px;"></div>
   </div>
 
-  <div id="adminPanelNews" class="admin-panel" style="max-width:800px;">
+  <div id="adminPanelNews" class="admin-panel" style="max-width:800px%;">
     <button class="xbtn" onclick="closeAdmin('adminPanelNews')">✕</button>
     <h3>📰 뉴스 관리 패널</h3>
 
@@ -257,7 +257,6 @@
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
 
-    // ✅ 관리자 플래그 저장/복구 + 마지막 드라이버ID 기억
     const ADMIN_KEY = 'graphAdmin';
     try { if (localStorage.getItem(ADMIN_KEY) === '1') ADMIN_MODE = true; } catch (_) {}
     let lastDriverId = null;
@@ -399,7 +398,6 @@
       if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
     }
 
-    // ✅ 수정: 드라이버면 ADMIN_MODE 관계 없이 타이머 가동
     function subscribeMarketState(){
       onSnapshot(doc(db,"marketState","main"), (snap)=>{
         const d = snap.exists() ? snap.data() : {};
@@ -414,17 +412,14 @@
         const lastTickAt = Number(d.lastTickAt||0);
         const stale      = d.isOpen && (!lastTickAt || (Date.now() - lastTickAt > updateInterval*3 + 500));
 
-        // 마지막 드라이버 ID 기억
         lastDriverId = d.driverId || null;
 
-        // 자동 승계(관리자 탭만 수행)
         if (ADMIN_MODE && d.isOpen && (stale || !d.driverId) && !amDriver) {
           setDoc(doc(db,"marketState","main"), {
             driverId: localSimId, updatedAt: Date.now()
           }, { merge:true }).catch(()=>{});
         }
 
-        // 타이머 재구성
         stopLocalTimer();
         if (d.isOpen && (amDriver || (ADMIN_MODE && (stale || !d.driverId)))) {
           startLocalTimer();
@@ -784,8 +779,6 @@
       deltaMax = Math.max(1, val);
       alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
     }
-
-    // ✅ 수정: 변동주기 저장 후, 내가 드라이버면 즉시 재가동
     function applyGraphInterval(){
       const sec = parseInt(document.getElementById("intervalInput").value) || 5;
       updateInterval = Math.max(1, sec) * 1000;
@@ -799,7 +792,6 @@
         })
         .catch(e=>console.error("변동주기 저장 실패:", e));
     }
-
     async function resetGraph(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const tickAt = Date.now();
@@ -1197,8 +1189,6 @@
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
       localStorage.removeItem('stockUser');
-      // 관리자 유지가 필요 없으면 아래 주석 해제로 자동 해제
-      // try { localStorage.removeItem(ADMIN_KEY); } catch(_) {}
       location.reload();
     }
     window.addEventListener("beforeunload", async ()=> {
@@ -1226,7 +1216,7 @@
       subscribeCompanyPrices();
       subscribeCompanySettings();
       subscribeCompanyChances();
-      subscribeMarketState();   // ✅ 새로고침 후에도 드라이버면 바로 타이머 가동
+      subscribeMarketState();
       subscribeGlobals();
       subscribeNews();
       renderMarketStatus();
@@ -1234,13 +1224,19 @@
       console.log("Local driver id:", localSimId);
     };
 
-    window.buy = buy; window.sell = sell;
+    // ✅ 전역 바인딩 (inline onclick이 모듈 스코프를 못 보기에 필수)
+    window.getQty = getQty;
+    window.buy = buy; 
+    window.sell = sell;
     window.logout = logout;
     window.requestDeposit = requestDeposit;
-    window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
-    window.submitWithdraw = submitWithdraw; window.updateWithdrawFee = updateWithdrawFee;
+    window.openWithdrawModal = openWithdrawModal; 
+    window.closeWithdrawModal = closeWithdrawModal;
+    window.submitWithdraw = submitWithdraw; 
+    window.updateWithdrawFee = updateWithdrawFee;
 
-    window.checkAdmin = checkAdmin; window.closeAdmin = closeAdmin;
+    window.checkAdmin = checkAdmin; 
+    window.closeAdmin = closeAdmin;
 
     window.renderGraphAdjustPanel = renderGraphAdjustPanel;
     window.adjustCompanyPrice = adjustCompanyPrice;
@@ -1274,6 +1270,12 @@
     window.postNews = postNews;
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
+
+    // ❗️승인/거절 전역 바인딩 (핵심 수정)
+    window.approveDeposit  = approveDeposit;
+    window.rejectDeposit   = rejectDeposit;
+    window.approveWithdraw = approveWithdraw;
+    window.rejectWithdraw  = rejectWithdraw;
 
     window.forceLogout = forceLogout;
   </script>
