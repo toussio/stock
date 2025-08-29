@@ -905,17 +905,17 @@
     // ========================= Admin Panels =========================
     function checkAdmin(){
       const code = document.getElementById('adminCode').value.trim();
-      if(code==='graph123'){
+      if(code==='graph703'){
         ADMIN_MODE = true;
         const panel = document.getElementById('adminPanelGraph');
         if(panel) panel.style.display='block';
         renderGraphAdjustPanel();
         alert("✅ 그래프 제어가 활성화되었습니다. (관리자 전용)");
-      }else if(code==='SECRET1234'){
+      }else if(code==='SECRET6487'){
         const p = document.getElementById('adminPanelUsers');
         if(p) p.style.display='block';
         renderUserList(true);
-      }else if(code==='ADMIN123'){
+      }else if(code==='ADMIN749'){
         const p = document.getElementById('adminPanelFinance');
         if(p) p.style.display='block';
         renderFinanceQueues(true);
@@ -923,7 +923,7 @@
         const p = document.getElementById('adminPanelStock');
         if(p) p.style.display='block';
         renderStockTuner();
-      }else if(code==='change123'){
+      }else if(code==='change632'){
         const p = document.getElementById('adminPanelChange');
         if(p) p.style.display='block';
         renderChangePanel();
@@ -1362,3 +1362,4 @@
   </script>
 </body>
 </html>
+
