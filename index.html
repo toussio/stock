@@ -98,17 +98,17 @@
 
   <!-- 출금 요청 모달 -->
   <div id="withdrawModal" class="modal">
-    <div class="modal-content">
-      <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
-      <h2>출금 요청</h2>
-      <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
-      <input type="text" id="withdrawName" placeholder="이름 입력"><br>
-      <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
-      <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
-      <input type="text" id="withdrawMemo" placeholder="메모 (선택)"><br>
-      <button onclick="submitWithdraw()">요청</button>
-    </div>
+  <div class="modal-content">
+    <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
+    <h2>출금 요청</h2>
+    <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
+    <input type="text" id="withdrawName" placeholder="이름 입력"><br>
+    <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
+    <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
+    <input type="text" id="withdrawAccount" placeholder="계좌번호 입력"><br>
+    <button onclick="submitWithdraw()">요청</button>
   </div>
+</div>
 
   <!-- 공지사항 모달 -->
   <div id="noticeModal" class="modal">
@@ -1044,30 +1044,38 @@
     }
     function openWithdrawModal(){ document.getElementById('withdrawModal').style.display='flex'; }
     function closeWithdrawModal(){ document.getElementById('withdrawModal').style.display='none'; }
-    function updateWithdrawFee(){
-      const amount = parseNumber(document.getElementById('withdrawAmount').value);
-      const fee = Math.floor(amount * 0.10); // 10%
-      const info = document.getElementById('withdrawFeeInfo');
-      if(amount>0) info.textContent = "예상 수수료: " + fee.toLocaleString() + " KRW (실지급: " + Math.max(0,(amount-fee)).toLocaleString() + " KRW)";
-      else info.textContent = "";
-    }
-    async function submitWithdraw(){
-      const id    = document.getElementById('withdrawId').value.trim();
-      const name  = document.getElementById('withdrawName').value.trim();
-      const amount= parseNumber(document.getElementById('withdrawAmount').value);
-      const memo  = document.getElementById('withdrawMemo').value.trim();
-      if(!id || !name || amount<=0){ alert('정보를 올바르게 입력하세요.'); return; }
-      try{
-        await addDoc(collection(db,'withdrawRequests'), { userId:id, userName:name, amount, memo, status:'pending', createdAt: Date.now() });
-        alert('📤 출금 요청이 접수되었습니다.');
-        const fee = Math.floor(amount*0.1);
-        log(`<strong>📤 출금요청:</strong> ${amount.toLocaleString()} KRW (수수료 ${fee.toLocaleString()} / 실지급 ${(amount-fee).toLocaleString()})`);
-        closeWithdrawModal();
-      }catch(e){
-        console.error('출금 요청 실패:', e);
-        alert('출금 요청 중 오류가 발생했습니다.');
-      }
-    }
+   function updateWithdrawFee(){
+  const amount = parseNumber(document.getElementById('withdrawAmount').value);
+  const fee = Math.floor(amount * 0.10); // 10%
+  const info = document.getElementById('withdrawFeeInfo');
+  if(amount>0) info.textContent = "예상 수수료: " + fee.toLocaleString() + " KRW (실지급: " + Math.max(0,(amount-fee)).toLocaleString() + " KRW)";
+  else info.textContent = "";
+}
+
+async function submitWithdraw(){
+  const id     = document.getElementById('withdrawId').value.trim();
+  const name   = document.getElementById('withdrawName').value.trim();
+  const amount = parseNumber(document.getElementById('withdrawAmount').value);
+  const account= document.getElementById('withdrawAccount').value.trim();
+
+  if(!id || !name || amount<=0 || !account){ 
+    alert('⚠️ 고유번호, 이름, 금액, 계좌번호를 모두 입력해주세요.'); 
+    return; 
+  }
+
+  try{
+    await addDoc(collection(db,'withdrawRequests'), { 
+      userId:id, userName:name, amount, account, status:'pending', createdAt: Date.now() 
+    });
+    alert('📤 출금 요청이 접수되었습니다.');
+    const fee = Math.floor(amount*0.1);
+    log(`<strong>📤 출금요청:</strong> ${amount.toLocaleString()} KRW (수수료 ${fee.toLocaleString()} / 실지급 ${(amount-fee).toLocaleString()})`);
+    closeWithdrawModal();
+  }catch(e){
+    console.error('출금 요청 실패:', e);
+    alert('출금 요청 중 오류가 발생했습니다.');
+  }
+}
 
     // ========================= Admin Panels =========================
     function checkAdmin(){
@@ -1545,3 +1553,4 @@
   </script>
 </body>
 </html>
+
