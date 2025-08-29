@@ -68,7 +68,8 @@
       <button onclick="logout()">로그아웃</button>
       <button onclick="openWithdrawModal()">출금 요청</button>
       <button onclick="openNoticeModal()">📢 공지사항</button>
-      <button onclick="openNewsModal()">📰 뉴스 보기</button>
+      <!-- ⬇⬇⬇ 카톡 스타일 숫자 뱃지 추가 -->
+      <button onclick="openNewsModal()">📰 뉴스 보기 <span id="newsBadge" style="display:none; color:#ef4444; font-weight:bold; margin-left:6px;">0</span></button>
     </div>
   </div>
 
@@ -152,7 +153,7 @@
       <button onclick="adjustAllPrices()">적용</button>
     </div>
 
-    <div style="margin-top:10px;">
+    <div style="margin-top:10px%;">
       <strong>⏱️ 변동 주기 (초):</strong>
       <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
       <button onclick="applyGraphInterval()">적용</button>
@@ -334,6 +335,9 @@
     let unsubGlobals = null;
     let unsubNews = null;
     let unsubNotices = null; // 공지사항
+
+    // 🔔 안 읽은 뉴스 카운트 기준시각 (로컬 저장)
+    let lastReadNewsAt = Number(localStorage.getItem('lastReadNewsAt') || 0);
 
     // 드라이버(시세 갱신 담당) 로컬 ID
     const localSimId = (() => {
@@ -654,6 +658,16 @@
     // ========================= News =========================
     let newsData = [];
     let newsDataAll = [];
+    function updateNewsBadge(count){
+      const badge = document.getElementById('newsBadge');
+      if(!badge) return;
+      if(count > 0){
+        badge.style.display = 'inline';
+        badge.textContent = count; // 숫자만
+      }else{
+        badge.style.display = 'none';
+      }
+    }
     function subscribeNews(){
       if(unsubNews){ try{unsubNews();}catch(e){} unsubNews=null; }
       const qy = query(collection(db,'news'), orderBy('createdAt','desc'));
@@ -667,6 +681,11 @@
         });
         newsData = visibleList;
         newsDataAll = allList;
+
+        // 🔔 안 읽은 뉴스 수 (로컬 기준)
+        const unread = visibleList.filter(n => (n.createdAt||0) > lastReadNewsAt).length;
+        updateNewsBadge(unread);
+
         renderNewsModal();
         renderNewsAdminList();
       });
@@ -1447,8 +1466,8 @@
       subscribeCompanyChances();
       subscribeMarketState();
       subscribeGlobals();
-      subscribeNews();
-      subscribeNotices(); // 공지사항 실시간 반영
+      subscribeNews();     // ← 뉴스 실시간 + 뱃지
+      subscribeNotices();  // ← 공지 실시간
       renderMarketStatus();
       initCompaniesUI();
       console.log("Local driver id:", localSimId);
@@ -1492,8 +1511,13 @@
     window.marketStart = () => { marketOpen(); };
     window.marketEnd   = () => { marketClose(); };
 
-    // 뉴스
-    window.openNewsModal  = () => { document.getElementById('newsModal').style.display='flex'; };
+    // 뉴스 (모달 열면 읽음 처리 + 뱃지 0)
+    window.openNewsModal  = () => {
+      document.getElementById('newsModal').style.display='flex';
+      lastReadNewsAt = Date.now();
+      localStorage.setItem('lastReadNewsAt', String(lastReadNewsAt));
+      updateNewsBadge(0);
+    };
     window.closeNewsModal = () => { document.getElementById('newsModal').style.display='none'; };
     window.postNews = postNews;
     window.deleteNews = deleteNews;
@@ -1521,5 +1545,3 @@
   </script>
 </body>
 </html>
-
-
