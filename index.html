@@ -38,6 +38,7 @@
     }
     .company .actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
     .company .actions input[type="number"] { grid-column:span 2; padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink); }
+    .company .actions input[type="number"]:disabled { opacity:.45; cursor:not-allowed; }
 
     #log { max-height:240px; overflow-y:auto; background:#111827; padding:12px; border-radius:10px; }
 
@@ -49,7 +50,7 @@
     .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
 
     .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
-    #adminLogin{ text-align:center; margin-top:20px; display:none; }
+    #adminLogin{ text-align:center; margin-top:20px }
     #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
 
     @media (max-width:1200px){ #companies{ grid-template-columns:repeat(3,1fr) } }
@@ -119,9 +120,9 @@
     </div>
   </div>
 
-  <!-- 관리자 로그인(코드 입력) — isAdmin 또는 최초(ZERO_ADMIN)만 노출 -->
+  <!-- 관리자 로그인 -->
   <div id="adminLogin">
-    <input type="password" id="adminCode" placeholder="관리자 코드 입력" disabled>
+    <input type="password" id="adminCode" placeholder="관리자 코드 입력">
     <button onclick="checkAdmin()">관리자 로그인</button>
   </div>
 
@@ -163,6 +164,7 @@
     <button class="xbtn" onclick="closeAdmin('adminPanelUsers')">✕</button>
     <h3>👥 유저 상태 패널</h3>
 
+    <!-- 관리자 권한 관리(승격/해제) -->
     <div class="req-card">
       <div>
         <div><strong>관리자 권한 관리</strong></div>
@@ -284,14 +286,14 @@
     let priceTimer = null;          // 시세 시뮬레이터 타이머
     let updateInterval = 5000;      // 기본 5초 (ms)
     let deltaMax = 1000000;         // 1,000,000원 상한(절대값)
-    let marketOpenFlag = false;
-    let ADMIN_MODE = false;         // 관리자 패널 동작 가능 토글
+    let marketOpenFlag = false;     // 기본은 '마감' (초회 UI는 '🟡 대기'로 표시)
+    let ADMIN_MODE = false;
 
     let volatility = 1.5;           // 전역 변동폭 (%)
-    let lastChartTick = 0;
+    let lastChartTick = 0;          // 마지막 차트 반영 시간(중복 방지)
 
     const marketState = { bias: {} };
-    const companyChances = {};
+    const companyChances = {};      // { [safeId]: {profit, loss} }
 
     let player = { holdings:{}, cash:0 };
     let currentUser = null;
@@ -301,11 +303,6 @@
     let unsubWithdraws = null;
     let unsubGlobals = null;
     let unsubNews = null;
-
-    // 권한 게이트 관련
-    let IS_ADMIN = false;       // 내 계정이 관리자냐
-    let ZERO_ADMIN = false;     // 시스템에 관리자 한 명도 없냐
-    let unsubAdminPresence = null;
 
     // 드라이버(시세 갱신 담당) 로컬 ID
     const localSimId = (() => {
@@ -325,30 +322,6 @@
       return isNaN(n) ? 0 : Math.max(0, n);
     };
     const log = (msg) => { if(!logDiv) return; logDiv.innerHTML = "<div>" + msg + "</div>" + logDiv.innerHTML; };
-
-    // ========================= Admin Gate (코드 입력 노출/숨김) =========================
-    function setAdminGateUI(){
-      const box = document.getElementById('adminLogin');
-      const input = document.getElementById('adminCode');
-      if(!box) return;
-      if (IS_ADMIN || ZERO_ADMIN){
-        box.style.display = 'block';
-        if(input){ input.disabled = false; input.placeholder = ZERO_ADMIN ? '(최초 설정) 관리자 코드 입력' : '관리자 코드 입력'; }
-      }else{
-        box.style.display = 'none';
-        if(input){ input.value = ''; input.disabled = true; }
-      }
-    }
-    function subscribeAdminPresence(){
-      if (unsubAdminPresence){ try{unsubAdminPresence();}catch(e){} unsubAdminPresence=null; }
-      // 시스템에 관리자 존재 여부 파악(최초 부트스트랩 허용)
-      unsubAdminPresence = onSnapshot(collection(db, "users"), (snap)=>{
-        let anyAdmin = false;
-        snap.forEach(d => { if (d.data()?.isAdmin) anyAdmin = true; });
-        ZERO_ADMIN = !anyAdmin;
-        setAdminGateUI();
-      });
-    }
 
     // ========================= Company Data =========================
     const companies = [
@@ -423,7 +396,7 @@
       impactPrice(c.id, qty, 'sell');
     }
 
-    // ========================= Market Open/Close + Driver =========================
+    // ========================= Market Open/Close + Driver 선출 =========================
     async function marketOpen(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       marketOpenFlag = true;
@@ -431,7 +404,7 @@
         await setDoc(doc(db,"marketState","main"), {
           isOpen:true,
           interval:updateInterval,
-          driverId: localSimId,
+          driverId: localSimId,        // 드라이버 지정
           updatedAt: Date.now()
         }, { merge:true });
       }catch(e){ console.warn(e); }
@@ -527,12 +500,13 @@
         if(Math.abs(diff) > deltaMax){ nextRaw = prev + Math.sign(diff) * deltaMax; }
 
         const next = Math.max(1, Math.round(nextRaw));
+
         c.livePrice = next;
         batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
       }
       try{
         await batch.commit();
-        // 드라이버 하트비트
+        // 드라이버 하트비트 (자동 승계용)
         await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
       }catch(e){ console.error("시뮬레이션 반영 실패:", e); }
     }
@@ -568,7 +542,21 @@
       chart.update("none");
     }
 
-    // ========================= Market Status =========================
+    // ========================= Market Status & 버튼 활성/비활성 =========================
+    function updateTradeButtons(){
+      companies.forEach(c=>{
+        const qty = document.getElementById("qty-" + c.id);
+        const card = document.getElementById("card-" + c.id);
+        if(!card) return;
+        const btns = card.querySelectorAll("button");
+        btns.forEach(b=>{
+          if(b.textContent.includes('매수') || b.textContent.includes('매도')){
+            b.disabled = !marketOpenFlag;
+          }
+        });
+        if(qty) qty.disabled = !marketOpenFlag;
+      });
+    }
     function renderMarketStatus(){
       const statusText = marketOpenFlag ? "🟢 개장 중" : "🔴 마감";
       companies.forEach(c=>{
@@ -581,7 +569,7 @@
         }
         el.dataset.initial="false";
       });
-      // 버튼은 항상 클릭 가능(함수 내부에서 마감 체크)
+      updateTradeButtons();
     }
 
     // ========================= Firestore Subscriptions =========================
@@ -760,9 +748,9 @@
             <div>가격: <strong><span id="price-${c.id}">${getDisplayPrice(c).toLocaleString()}</span> KRW</strong></div>
             <div>보유: <span id="hold-${c.id}">${player.holdings[c.name]||0}</span> 주</div>
             <div class="actions">
-              <input type="number" id="qty-${c.id}" min="1" value="1">
-              <button onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
-              <button onclick="sell('${c.name}', getQty('${c.name}'))">매도</button>
+              <input type="number" id="qty-${c.id}" min="1" value="1" ${marketOpenFlag?'':'disabled'}>
+              <button ${marketOpenFlag?'':'disabled'} onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
+              <button ${marketOpenFlag?'':'disabled'} onclick="sell('${c.name}', getQty('${c.name}'))">매도</button>
             </div>
           </div>
         `;
@@ -806,7 +794,7 @@
       wrap.innerHTML = html || "회사 데이터 없음";
     }
     async function adjustCompanyPrice(name, overrideDelta=null){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다."); // 패널 권한 체크 강화
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c = findCompanyById(name); if(!c) return;
       const inputEl = document.getElementById("adj-" + c.id);
       const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
@@ -819,7 +807,7 @@
       if(el) el.textContent=getDisplayPrice(c).toLocaleString();
     }
     async function adjustAllPrices(){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const delta = parseInt(document.getElementById("allDelta").value) || 0;
       const tickAt = Date.now();
       const batch = writeBatch(db);
@@ -847,7 +835,7 @@
         .catch(e=>console.error("변동주기 저장 실패:", e));
     }
     async function resetGraph(){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const tickAt = Date.now();
       const batch = writeBatch(db);
       for(const c of companies){
@@ -916,30 +904,33 @@
 
     // ========================= Admin Panels =========================
     function checkAdmin(){
-      // isAdmin이 아니고, 또 시스템 최초상태(ZERO_ADMIN)도 아니라면 막기
-      if (!IS_ADMIN && !ZERO_ADMIN){
-        alert('관리자 권한이 없습니다.');
-        return;
-      }
       const code = document.getElementById('adminCode').value.trim();
-      const open = (id, after) => { const p = document.getElementById(id); if(p) p.style.display='block'; if(after) after(); };
-
-      // 어떤 패널을 열든 실제 동작 위해 ADMIN_MODE ON
-      if(['graph123','stock123','change123','ADMIN123','news123'].includes(code)) ADMIN_MODE = true;
-
       if(code==='graph123'){
-        open('adminPanelGraph', renderGraphAdjustPanel);
-        alert("✅ 그래프 제어 활성화");
+        ADMIN_MODE = true;
+        const panel = document.getElementById('adminPanelGraph');
+        if(panel) panel.style.display='block';
+        renderGraphAdjustPanel();
+        alert("✅ 그래프 제어가 활성화되었습니다. (관리자 전용)");
       }else if(code==='SECRET1234'){
-        open('adminPanelUsers', ()=>renderUserList(true));
+        const p = document.getElementById('adminPanelUsers');
+        if(p) p.style.display='block';
+        renderUserList(true);
       }else if(code==='ADMIN123'){
-        open('adminPanelFinance', ()=>renderFinanceQueues(true));
+        const p = document.getElementById('adminPanelFinance');
+        if(p) p.style.display='block';
+        renderFinanceQueues(true);
       }else if(code==='stock123'){
-        open('adminPanelStock', renderStockTuner);
+        const p = document.getElementById('adminPanelStock');
+        if(p) p.style.display='block';
+        renderStockTuner();
       }else if(code==='change123'){
-        open('adminPanelChange', renderChangePanel);
+        const p = document.getElementById('adminPanelChange');
+        if(p) p.style.display='block';
+        renderChangePanel();
       }else if(code==='news123'){
-        open('adminPanelNews', renderNewsAdminList);
+        const p = document.getElementById('adminPanelNews');
+        if(p) p.style.display='block';
+        renderNewsAdminList();
       }else{
         alert('❌ 잘못된 코드입니다.');
       }
@@ -989,7 +980,7 @@
       }
     }
 
-    // 관리자 권한 부여/해제
+    // 관리자 권한 부여/해제 (SECRET1234 패널의 입력 폼)
     async function promoteAdmin(uidOpt=null, nameOpt=null){
       const uid = uidOpt || document.getElementById('promoteIdInput')?.value.trim();
       const name= nameOpt || document.getElementById('promoteNameInput')?.value.trim();
@@ -1075,15 +1066,13 @@
     }
     async function approveDeposit(id, amount, userId){
       try{
-        await setDoc(doc(db,"users",userId), { cash: increment(amount), updatedAt: Date.now() }, { merge:true });
+        await updateDoc(doc(db,"users",userId), { cash: increment(amount), updatedAt: Date.now() });
         await updateDoc(doc(db,"depositRequests",id),{status:'approved', updatedAt:Date.now()});
-        log(`✅ <strong>입금승인:</strong> ${amount.toLocaleString()} KRW (${userId})`);
       }catch(e){ console.error(e); alert('승인 처리 실패'); }
     }
     async function rejectDeposit(id){
       try{
         await updateDoc(doc(db,"depositRequests",id),{status:'rejected', updatedAt:Date.now()});
-        log(`⛔ <strong>입금거절</strong>`);
       }catch(e){ console.error(e); alert('거절 처리 실패'); }
     }
     async function approveWithdraw(id, amount, userId){
@@ -1092,15 +1081,13 @@
         const usnap = await getDoc(uref);
         const cash = Number(usnap.data()?.cash||0);
         if(cash < amount){ alert('사용자 보유 현금 부족으로 승인할 수 없습니다.'); return; }
-        await setDoc(uref, { cash: increment(-amount), updatedAt: Date.now() }, { merge:true });
+        await updateDoc(uref, { cash: increment(-amount), updatedAt: Date.now() });
         await updateDoc(doc(db,"withdrawRequests",id),{status:'approved', updatedAt:Date.now()});
-        log(`💸 <strong>출금승인:</strong> ${amount.toLocaleString()} KRW (${userId})`);
       }catch(e){ console.error(e); alert('승인 처리 실패'); }
     }
     async function rejectWithdraw(id){
       try{
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
-        log(`⛔ <strong>출금거절</strong>`);
       }catch(e){ console.error(e); alert('거절 처리 실패'); }
     }
 
@@ -1123,7 +1110,7 @@
       host.innerHTML = html;
     }
     async function applyStockTarget(name, delta){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
       await adjustCompanyPrice(c.name, delta);
     }
@@ -1157,7 +1144,7 @@
       host.innerHTML = html || "종목 없음";
     }
     async function applyMultiplier(name){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c = findCompanyById(name); if(!c) return;
       const el = document.getElementById("inp-mul-" + c.id);
       const val = Number(el?.value||1);
@@ -1169,7 +1156,7 @@
       alert(`✅ ${c.name} 배율 ${m} 적용`);
     }
     async function setAllMultipliers(){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const v = Number(document.getElementById("allMultiplierVal").value);
       const m = isNaN(v) ? 1 : Math.max(0, v);
       for(const c of companies){
@@ -1180,7 +1167,7 @@
       alert(`✅ 전체 배율 ${m} 적용`);
     }
     async function applyCompanyChance(name){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c = findCompanyById(name); if(!c) return;
       const upEl = document.getElementById("inp-up-" + c.id);
       const dnEl = document.getElementById("inp-down-" + c.id);
@@ -1193,7 +1180,7 @@
       alert(`✅ ${c.name} 확률 적용 (↑${(up*100).toFixed(1)}% / ↓${(dn*100).toFixed(1)}%)`);
     }
     async function setAllChances(){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const p = parseFloat(document.getElementById('globalProfit').value);
       const l = parseFloat(document.getElementById('globalLoss').value);
       if(isNaN(p)||isNaN(l)||p<0||l<0||(p+l)<=0){ alert("잘못된 값입니다 (0~1, 합계>0)."); return; }
@@ -1207,7 +1194,7 @@
       }catch(e){ console.error("전체 확률 적용 실패:", e); alert("오류: 전체 확률 적용 실패"); }
     }
     async function applyVolatility(){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const v = Number(document.getElementById('volatilityInput').value);
       const vv = isNaN(v) ? 1.5 : Math.max(0, v);
       try{
@@ -1217,7 +1204,7 @@
       }catch(e){ console.error(e); alert("오류: 변동폭 적용 실패"); }
     }
     async function bumpCompany(name){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c = findCompanyById(name); if(!c) return;
       const el = document.getElementById("inp-bump-" + c.id);
       const delta = parseInt(el?.value) || 0;
@@ -1227,7 +1214,7 @@
     // 📈 시나리오
     function runScenario(type){ applyScenario(type); }
     function applyScenario(type){
-      if(!IS_ADMIN) return alert("관리자만 가능합니다.");
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const force = (type==='riseEnd') ? -1 : 1; // -1 강제상승, 1 강제하락
       companies.forEach(c=>{ marketState.bias[c.id] = force; });
       alert(type==='riseEnd' ? "📈 단기 상승 유도 시작" : "📉 단기 하락 유도 시작");
@@ -1271,17 +1258,12 @@
         const d=snap.data();
         if(typeof d.cash==='number') player.cash=d.cash;
         if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-        IS_ADMIN = !!d.isAdmin;
-        setAdminGateUI();
-
         renderUserInfo(); updateHoldingsUI();
       });
     }
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
       if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-      IS_ADMIN = false;
-      setAdminGateUI();
       localStorage.removeItem('stockUser'); location.reload();
     }
     window.addEventListener("beforeunload", async ()=> {
@@ -1290,9 +1272,6 @@
 
     // ========================= Init =========================
     window.onload = async () => {
-      subscribeAdminPresence();
-      setAdminGateUI();
-
       const saved = localStorage.getItem('stockUser');
       if(saved){
         try{
@@ -1323,15 +1302,17 @@
     };
 
     // ========================= Global Bindings =========================
+    // 거래/세션/일반
     window.buy = buy; window.sell = sell;
     window.logout = logout;
-
     window.requestDeposit = requestDeposit;
     window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
     window.submitWithdraw = submitWithdraw; window.updateWithdrawFee = updateWithdrawFee;
 
+    // 관리자 패널 열기/닫기
     window.checkAdmin = checkAdmin; window.closeAdmin = closeAdmin;
 
+    // 그래프/가격 제어
     window.renderGraphAdjustPanel = renderGraphAdjustPanel;
     window.adjustCompanyPrice = adjustCompanyPrice;
     window.adjustAllPrices = adjustAllPrices;
@@ -1339,9 +1320,11 @@
     window.applyGraphInterval = applyGraphInterval;
     window.resetGraph = resetGraph;
 
+    // 주가 조작
     window.applyStockTarget = applyStockTarget;
     window.renderStockTuner = renderStockTuner;
 
+    // 배율/확률
     window.renderChangePanel = renderChangePanel;
     window.applyMultiplier = applyMultiplier;
     window.bumpCompany = bumpCompany;
@@ -1352,30 +1335,30 @@
     window.applyScenario = applyScenario;
     window.runScenario = runScenario;
 
+    // 마켓
     window.marketStart = () => { marketOpen(); };
     window.marketEnd   = () => { marketClose(); };
 
+    // 뉴스
     window.openNewsModal  = () => { document.getElementById('newsModal').style.display='flex'; };
     window.closeNewsModal = () => { document.getElementById('newsModal').style.display='none'; };
-
-    window.renderFinanceQueues = renderFinanceQueues;
-    window.renderUserList = renderUserList;
-
-    // 뉴스 관리자 바인딩
     window.postNews = postNews;
     window.deleteNews = deleteNews;
     window.toggleNewsVisibility = toggleNewsVisibility;
 
-    // 강제 로그아웃 & 권한 승격/해제
+    // 유저/권한/재무 패널
+    window.renderFinanceQueues = renderFinanceQueues;
+    window.renderUserList = renderUserList;
     window.forceLogout = forceLogout;
     window.promoteAdmin = promoteAdmin;
     window.demoteAdmin = demoteAdmin;
 
-    // 승인/거절 핸들러 전역 바인딩
-    window.approveDeposit = approveDeposit;
-    window.rejectDeposit  = rejectDeposit;
-    window.approveWithdraw= approveWithdraw;
-    window.rejectWithdraw = rejectWithdraw;
+    // 🔧 inline onclick에서 참조하는 함수 전역 노출(필수)
+    window.getQty = getQty;
+    window.approveDeposit  = approveDeposit;
+    window.rejectDeposit   = rejectDeposit;
+    window.approveWithdraw = approveWithdraw;
+    window.rejectWithdraw  = rejectWithdraw;
   </script>
 </body>
 </html>
