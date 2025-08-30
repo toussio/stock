@@ -1708,8 +1708,17 @@
     };
 
     // 페이지 이탈 시 세션 종료 표시
-    window.addEventListener("beforeunload", async ()=>{
-      try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt: Date.now()}); } }catch(e){}
+   window.addEventListener("beforeunload", async ()=>{
+      try {
+        if(currentUser){
+          await updateDoc(doc(db,"users",currentUser.id), {
+            active:false,
+            lastLogoutAt: Date.now()
+          });
+        }
+      } catch(e) {
+        console.warn("세션 종료 처리 실패:", e);
+      }
     });
   </script>
 </body>
