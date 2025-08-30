@@ -987,7 +987,6 @@
               <button ${(!marketOpenFlag || delisted)?'disabled':''} onclick="buy('${c.name}', getQty('${c.name}'))">매수</button>
               <button ${(!marketOpenFlag || delisted)?'disabled':''} onclick="sell('${c.name}', getQty('${c.name}'))">매도</button>
             </div>
-            <div class="tagline">${delisted?'거래 불가':'즐거운 투자 되세요!'}</div>
           </div>
         `;
       });
@@ -1011,9 +1010,7 @@
         btns.forEach(b=>{
           if(b.textContent.includes('매수')||b.textContent.includes('매도')) b.disabled = disabled;
         });
-        const tag = card.querySelector('.tagline');
-        if(tag) tag.textContent = delisted ? '거래 불가' : '즐거운 투자 되세요!';
-      });
+      
     }
     function updateHoldingsUI(){
       companies.forEach(c=>{
@@ -1787,3 +1784,4 @@
   </script>
 </body>
 </html>
+
