@@ -393,18 +393,18 @@
 
     // ======= 회사 목록 =======
     const companies = [
-      {name:"떡잎방범대", basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"카스틸로",   basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"사쿠라",     basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"청룡",       basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"경찰청",     basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"Ems",        basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"올드보이",   basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"작두",       basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"빅딕",       basePrice:10000000, multiplier:1, livePrice:10000000},
+      {name:"떡잎방범대", basePrice:9500000, multiplier:1, livePrice:9500000},
+      {name:"카스틸로",   basePrice:9300000, multiplier:1, livePrice:9300000},
+      {name:"사쿠라",     basePrice:9200000, multiplier:1, livePrice:9200000},
+      {name:"청룡",       basePrice:9300000, multiplier:1, livePrice:9300000},
+      {name:"경찰청",     basePrice:8800000, multiplier:1, livePrice:8800000},
+      {name:"Ems",        basePrice:9200000, multiplier:1, livePrice:9200000},
+      {name:"올드보이",   basePrice:8500000, multiplier:1, livePrice:8500000},
+      {name:"작두",       basePrice:9700000, multiplier:1, livePrice:9700000},
+      {name:"빅딕",       basePrice:8600000, multiplier:1, livePrice:8600000},
       {name:"차카니",   basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"inback",     basePrice:10000000, multiplier:1, livePrice:10000000},
-      {name:"리얼월드 관리자",  basePrice:10000000, multiplier:1, livePrice:10000000},
+      {name:"inback",     basePrice:9000000, multiplier:1, livePrice:9000000},
+      {name:"리얼월드 관리자",  basePrice:8800000, multiplier:1, livePrice:8800000},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const findCompanyById = id => companies.find(x => ci(x.id)===ci(id) || ci(x.name)===ci(id));
@@ -1723,6 +1723,7 @@
   </script>
 </body>
 </html>
+
 
 
 
