@@ -53,25 +53,37 @@
     #adminLogin{ text-align:center; margin-top:20px }
     #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
 
-    /* 드래그 가능한 관리자 통합 패널 (화면 밖 이동 허용) */
-    #adminPanelAll {
-      position:fixed; top:50px; left:50px; z-index:9999;
-      width:90%; max-width:1100px;
-      pointer-events:auto;
-    }
-    #adminPanelHeader {
-      background:#374151; padding:8px 44px 8px 12px; cursor:move;
-      border-radius:10px 10px 0 0; font-weight:700; user-select:none;
-      position:relative;
-      max-height: 80vh;     /* 브라우저 높이의 80%까지만 표시 */
-     overflow-y: auto;     /* 세로 스크롤 허용 */
-    }
-    #adminPanelAll .xbtn { top:6px; right:6px; }
+    /* 통합 관리자 패널 */
+  .admin-panel{
+    display:none; 
+    max-width:1100px; 
+    margin:20px auto; 
+    background:var(--card); 
+    padding:10px; 
+    border-radius:10px; 
+    position:relative;
+  }
+  #adminLogin{ text-align:center; margin-top:20px }
+  #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
 
-    @media (max-width:1200px){ #companies{ grid-template-columns:repeat(3,1fr) } }
-    @media (max-width:900px){ #companies{ grid-template-columns:repeat(2,1fr) } }
-    @media (max-width:600px){ #companies{ grid-template-columns:1fr } }
-  </style>
+  /* 드래그 가능한 관리자 통합 패널 (화면 밖 이동 허용) */
+  #adminPanelAll {
+    position:fixed; top:50px; left:50px; z-index:9999;
+    width:90%; max-width:1100px;
+    pointer-events:auto;
+  }
+  #adminPanelHeader {
+    background:#374151; padding:8px 44px 8px 12px; cursor:move;
+    border-radius:10px 10px 0 0; font-weight:700; user-select:none;
+    position:relative;
+  }
+
+  /* ✅ 추가할 부분: 각 탭에 스크롤 */
+  #adminPanelAll .tab-section {
+    max-height: 70vh;   /* 화면 높이의 70%까지만 */
+    overflow-y: auto;   /* 세로 스크롤 가능 */
+  }
+</style>
 </head>
 <body>
   <h1>떡잎방범대 주식 센터</h1>
@@ -1690,6 +1702,7 @@
   </script>
 </body>
 </html>
+
 
 
 
