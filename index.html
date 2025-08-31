@@ -63,6 +63,8 @@
       background:#374151; padding:8px 44px 8px 12px; cursor:move;
       border-radius:10px 10px 0 0; font-weight:700; user-select:none;
       position:relative;
+      max-height: 80vh;     /* 브라우저 높이의 80%까지만 표시 */
+     overflow-y: auto;     /* 세로 스크롤 허용 */
     }
     #adminPanelAll .xbtn { top:6px; right:6px; }
 
@@ -1688,6 +1690,7 @@
   </script>
 </body>
 </html>
+
 
 
 
