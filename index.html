@@ -1584,6 +1584,31 @@
       console.log("Local driver id:", localSimId);
     };
 
+      // ✅ 관리자 존재 여부 확인
+  checkAdminExistence();
+};
+
+// ======= 관리자 존재 여부 체크 =======
+async function checkAdminExistence(){
+  try{
+    const snap = await getDocs(collection(db,"users"));
+    let adminCount = 0;
+    snap.forEach(d=>{
+      if(d.data().isAdmin === true) adminCount++;
+    });
+    const adminLoginBox = document.getElementById("adminLogin");
+    if(adminLoginBox){
+      if(adminCount > 0){
+        adminLoginBox.style.display = "none";  // 관리자 있으면 숨김
+      }else{
+        adminLoginBox.style.display = "block"; // 없으면 누구나 보이게
+      }
+    }
+  }catch(e){
+    console.error("관리자 체크 실패:", e);
+  }
+}
+    
     // ======= 드래그(클릭 방해 방지 & 화면 밖 이동 허용) =======
     function enableDrag(panelId='adminPanelAll', handleId='adminPanelHeader'){
       const panel = document.getElementById(panelId);
@@ -1722,6 +1747,7 @@
   </script>
 </body>
 </html>
+
 
 
 
