@@ -1446,14 +1446,35 @@
     }
 
     async function delistCompany(name){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c = findCompanyById(name); if(!c) return;
-      await setDoc(doc(db,"companySettings",c.id), { delisted:true, updatedAt:Date.now() }, { merge:true });
-      c.delisted = true;
-      alert(`⚫ ${c.name} 상장폐지 완료`);
-      renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
-      renderMarketStatus(); initCompaniesUI();
-    }
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); if(!c) return;
+
+  // 1) companySettings에 delisted=true 반영
+  await setDoc(doc(db,"companySettings",c.id), { delisted:true, updatedAt:Date.now() }, { merge:true });
+  c.delisted = true;
+
+  // 2) 모든 유저 보유 주식에서 해당 종목을 0으로 처리
+  try {
+    const snap = await getDocs(collection(db, "users"));
+    const batch = writeBatch(db);
+    snap.forEach(docu => {
+      const u = docu.data();
+      if(u.holdings && u.holdings[c.name] > 0){
+        const newHoldings = {...u.holdings};
+        newHoldings[c.name] = 0;   // ✅ 보유량을 0으로 변경
+        batch.update(doc(db,"users",docu.id), { holdings:newHoldings, updatedAt:Date.now() });
+      }
+    });
+    await batch.commit();
+    console.log(`✅ 모든 유저 보유 ${c.name} 주식 0으로 처리 완료`);
+  } catch(e){
+    console.error("상장폐지 주식 제거 실패:", e);
+  }
+
+  alert(`⚫ ${c.name} 상장폐지 완료 (보유 주식 0으로 변경됨)`);
+  renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
+  renderMarketStatus(); initCompaniesUI();
+}
 
     async function restoreCompany(name){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -1702,6 +1723,7 @@
   </script>
 </body>
 </html>
+
 
 
 
