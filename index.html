@@ -394,16 +394,16 @@
     // ======= 회사 목록 =======
     const companies = [
       {name:"떡잎방범대", basePrice:4039930, multiplier:1, livePrice:4039930},
-      {name:"카스틸로",   basePrice:5432624, multiplier:1, livePrice:5432624},
-      {name:"사쿠라",     basePrice:4039930, multiplier:1, livePrice:9200000},
+      {name:"카스틸로",   basePrice:7843313 , multiplier:1, livePrice:7843313},
+      {name:"사쿠라",     basePrice:7875827 , multiplier:1, livePrice:7875827 },
       {name:"청룡",       basePrice:8780548, multiplier:1, livePrice:8780548},
-      {name:"경찰청",     basePrice:3756099, multiplier:1, livePrice:3756099},
-      {name:"Ems",        basePrice:9200000, multiplier:1, livePrice:9200000},
-      {name:"작두",       basePrice:3869239, multiplier:1, livePrice:3869239},
-      {name:"빅딕",       basePrice:3212502, multiplier:1, livePrice:3212502},
-      {name:"차카니",   basePrice:3975708, multiplier:1, livePrice:3975708},
-      {name:"inback",     basePrice:5694741, multiplier:1, livePrice:5694741},
-      {name:"리얼월드/ 관리자",  basePrice:8800000, multiplier:1, livePrice:8800000},
+      {name:"경찰청",     basePrice:7604028 , multiplier:1, livePrice:7604028},
+      {name:"Ems",        basePrice:7368996, multiplier:1, livePrice:7368996},
+      {name:"작두",       basePrice:5012916 , multiplier:1, livePrice:5012916 },
+      {name:"빅딕",       basePrice:7683470, multiplier:1, livePrice:7683470},
+      {name:"차카니",   basePrice:7749821, multiplier:1, livePrice:7749821},
+      {name:"inback",     basePrice:7585880, multiplier:1, livePrice:7585880},
+      {name:"리얼월드/ 관리자",  basePrice:6244327, multiplier:1, livePrice:6244327},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const findCompanyById = id => companies.find(x => ci(x.id)===ci(id) || ci(x.name)===ci(id));
