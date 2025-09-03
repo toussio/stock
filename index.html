@@ -174,7 +174,12 @@
     </div>
 
     <div style="padding:10px;">
-      <!-- 탭 버튼 -->
+      
+      <!-- ✅ 보유 주식 현황 (한 줄 표시) -->
+<div id="adminHoldingsInfo" style="margin-bottom:12px; font-size:14px; color:#e5e7eb; font-weight:600;">
+  보유 주식 현황: 불러오는 중...
+</div>
+         <!-- 탭 버튼 -->
       <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
         <button onclick="showTab('graph')">📊 그래프</button>
         <button onclick="showTab('users')">👥 유저</button>
@@ -469,7 +474,7 @@
         alert("매도 저장 실패: " + (e.message || e));
       }
 
-      renderUserInfo(); updateHoldingsUI();
+      ; updateHoldingsUI();
       impactPrice(c.id, qty, 'sell');
     }
 
@@ -962,7 +967,7 @@
       updateMaxBuyUI();
     }
 
-    function renderUserInfo(){
+    function {
       if(currentUser){
         userInfo.innerHTML = `
           👤 <strong>${currentUser.name}</strong> (${currentUser.id})
@@ -985,6 +990,21 @@
       });
     }
 
+  // ✅ 여기 밑에 추가
+function renderAdminHoldingsInfo(){
+  const el = document.getElementById("adminHoldingsInfo");
+  if(!el) return;
+  if(!currentUser || !player.holdings){
+    el.textContent = "보유 주식 현황: 데이터 없음";
+    return;
+  }
+  const holdingsArr = Object.entries(player.holdings)
+    .filter(([k,v]) => v > 0)
+    .map(([k,v]) => `${k}: ${v}주`);
+  const text = holdingsArr.length ? holdingsArr.join(", ") : "보유 없음";
+  el.textContent = "보유 주식 현황: " + text;
+}
+    
     // ======= 그래프/가격 관리 =======
     function renderGraphAdjustPanel(){
       const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
@@ -1524,7 +1544,7 @@
         localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
         loginModal.style.display='none';
-        renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
+        ; initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
       }catch(e){
         console.error("⚠️ 로그인 처리 오류:", e);
         alert("로그인 중 오류가 발생했습니다: " + (e.message || e));
@@ -1539,7 +1559,7 @@
         const d=snap.data();
         if(typeof d.cash==='number') player.cash=d.cash;
         if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-        renderUserInfo(); updateHoldingsUI();
+        ; updateHoldingsUI();
       });
     }
 
@@ -1563,7 +1583,7 @@
             currentUser = { id: parsed.id, name: parsed.name };
             loginModal.style.display='none';
             try{ await updateDoc(doc(db,"users",parsed.id), { active:true, lastLoginAt: Date.now() }); }catch(e){}
-            renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(parsed.id);
+            ; initCompaniesUI(); subscribeCurrentUser(parsed.id);
           }else{ loginModal.style.display='flex'; }
         }catch(e){
           localStorage.removeItem('stockUser'); loginModal.style.display='flex';
@@ -1723,6 +1743,7 @@
   </script>
 </body>
 </html>
+
 
 
 
