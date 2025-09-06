@@ -48,42 +48,117 @@
     textarea { width:100%; min-height:120px; }
     .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
 
-    /* 통합 관리자 패널 */
-    .admin-panel{display:none; max-width:1100px; margin:20px auto; background:var(--card); padding:10px; border-radius:10px; position:relative;}
-    #adminLogin{ text-align:center; margin-top:20px }
-    #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
+    /* ✅ 채팅창 고정/개선 */
+    #chatBox {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      width: 380px;           /* 가로는 유지 */
+      height: 600px;          /* 기본 더 크게 */
+      min-height: 300px;      /* 최소 높이 */
+      max-height: 900px;      /* 최대 높이 */
+      background: var(--card);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+      z-index: 3000; /* 관리자 패널보다 위 */
+    }
+    #chatHeader {
+      background: var(--accent);
+      color: var(--ink);
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      user-select: none;
+    }
+    #chatToggleBtn {
+      background: none;
+      border: none;
+      color: var(--ink);
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #chatBox.collapsed { height: 44px !important; }
+    #chatBox.collapsed #chatMessages,
+    #chatBox.collapsed #chatInputWrap,
+    #chatBox.collapsed #chatResizer { display: none; }
 
-    /* 통합 관리자 패널 */
-  .admin-panel{
-    display:none; 
-    max-width:1100px; 
-    margin:20px auto; 
-    background:var(--card); 
-    padding:10px; 
-    border-radius:10px; 
-    position:relative;
-  }
-  #adminLogin{ text-align:center; margin-top:20px }
-  #adminLogin input{ padding:8px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--ink) }
+    #chatMessages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;       /* 스크롤 가능 */
+      font-size: 14px;
+    }
+    .chat-left { text-align: left; margin: 6px 0; }
+    .chat-right { text-align: right; margin: 6px 0; }
+    .chat-msg {
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 10px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .chat-left .chat-msg { background: #1f2937; color: var(--ink); }
+    .chat-right .chat-msg { background: #334155; color: var(--ink); }
 
-  /* 드래그 가능한 관리자 통합 패널 (화면 밖 이동 허용) */
-  #adminPanelAll {
-    position:fixed; top:50px; left:50px; z-index:9999;
-    width:90%; max-width:1100px;
-    pointer-events:auto;
-  }
-  #adminPanelHeader {
-    background:#374151; padding:8px 44px 8px 12px; cursor:move;
-    border-radius:10px 10px 0 0; font-weight:700; user-select:none;
-    position:relative;
-  }
+    /* ✅ 이름/고번 더 크게 & 가독성 강화 */
+    .chat-meta {
+      margin-top: 6px;
+      line-height: 1.2;
+    }
+    .chat-meta .name {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #facc15;         /* 노랑 */
+      margin-right: 4px;
+    }
+    .chat-meta .uid {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #38bdf8;         /* 하늘 */
+      opacity: .95;
+    }
+    .chat-meta .time {
+      font-size: 11.5px;
+      color: #9ca3af;
+      margin-left: 6px;
+    }
 
-  /* ✅ 추가할 부분: 각 탭에 스크롤 */
-  #adminPanelAll .tab-section {
-    max-height: 70vh;   /* 화면 높이의 70%까지만 */
-    overflow-y: auto;   /* 세로 스크롤 가능 */
-  }
-</style>
+    #chatInputWrap {
+      display: flex;
+      border-top: 1px solid #374151;
+      background: #0b1220;
+    }
+    #chatInputWrap input {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--ink);
+      outline: none;
+      font-size: 14px;
+    }
+    #chatInputWrap button {
+      background: var(--accent);
+      border: none;
+      color: var(--ink);
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    #chatInputWrap button:hover { background: var(--accentH); }
+
+    /* ✅ 세로 리사이즈용 바(드래그로 높이 조절) */
+    #chatResizer {
+      height: 8px;
+      cursor: ns-resize;
+      background: #0b1220;
+      border-top: 1px solid #374151;
+    }
+  </style>
 </head>
 <body>
   <h1>떡잎방범대 주식 센터</h1>
@@ -95,7 +170,9 @@
       <button onclick="logout()">로그아웃</button>
       <button onclick="openWithdrawModal()">출금 요청</button>
       <button onclick="openNoticeModal()">📢 공지사항</button>
-      <button onclick="openNewsModal()">📰 뉴스 보기 <span id="newsBadge" style="display:none; color:#ef4444; font-weight:bold; margin-left:6px;">0</span></button>
+      <button onclick="openNewsModal()">📰 뉴스 보기 
+        <span id="newsBadge" style="display:none; color:#ef4444; font-weight:bold; margin-left:6px;">0</span>
+      </button>
     </div>
   </div>
 
@@ -166,7 +243,7 @@
     <button onclick="checkAdmin()">관리자 로그인</button>
   </div>
 
-  <!-- 관리자 통합 패널 (드래그 가능, 화면 밖 이동 허용) -->
+  <!-- 관리자 통합 패널 -->
   <div id="adminPanelAll" class="admin-panel" style="display:none;">
     <div id="adminPanelHeader">
       ⚙️ 관리자 통합 패널
@@ -183,13 +260,13 @@
         <button onclick="showTab('change')">📈 배율/확률</button>
         <button onclick="showTab('news')">📰 뉴스</button>
         <button onclick="showTab('notice')">📢 공지사항</button>
-        <!-- ✅ 상장폐지 탭 추가 -->
         <button onclick="showTab('delist')">⚫ 상장폐지</button>
       </div>
 
-      <!-- 그래프 -->
+      <!-- 그래프 패널 -->
       <div id="tab-graph" class="tab-section">
         <h3>📊 그래프/금액 제어 패널</h3>
+
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
           <button onclick="marketStart()">장 시작 + 시세 시작</button>
           <button onclick="marketEnd()">장 마감 + 시세 정지</button>
@@ -198,6 +275,7 @@
           <input type="number" id="allDelta" value="100" style="width:100px;">
           <button onclick="adjustAllPrices()">적용</button>
         </div>
+
         <div style="margin-top:10px;">
           <strong>⏱️ 변동 주기 (초):</strong>
           <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
@@ -206,6 +284,7 @@
             ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
           </div>
         </div>
+
         <div style="margin-top:10px;">
           <strong>📊 변동폭 상한(±원):</strong>
           <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
@@ -305,7 +384,7 @@
         <div id="noticeList">불러오는 중...</div>
       </div>
 
-      <!-- ✅ 상장폐지 -->
+      <!-- 상장폐지 -->
       <div id="tab-delist" class="tab-section" style="display:none;">
         <h3>⚫ 상장폐지 관리 패널</h3>
         <p style="color:#9ca3af; margin:6px 0 10px;">상장폐지된 종목은 거래(매수/매도)가 불가능하며 가격 시뮬레이션에서도 제외됩니다.</p>
@@ -322,8 +401,8 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import {
-    getFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot,
-    query, orderBy, deleteDoc, writeBatch, increment
+      getFirestore, collection, addDoc, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot,
+      query, orderBy, deleteDoc, writeBatch, increment
     } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -397,14 +476,14 @@
       {name:"카스틸로",   basePrice:8243313 , multiplier:1, livePrice:8243313},
       {name:"사쿠라",     basePrice:8675827 , multiplier:1, livePrice:8675827 },
       {name:"청룡",       basePrice:8780548, multiplier:1, livePrice:8780548},
-      {name:"남부경찰",     basePrice:7602028 , multiplier:1, livePrice:8604028},
-      {name:"북부경찰",     basePrice:8304028 , multiplier:1, livePrice:8604028},
+      {name:"남부경찰",   basePrice:7602028 , multiplier:1, livePrice:8604028},
+      {name:"북부경찰",   basePrice:8304028 , multiplier:1, livePrice:8604028},
       {name:"Ems",        basePrice:7368996, multiplier:1, livePrice:7368996},
       {name:"작두",       basePrice:5212916 , multiplier:1, livePrice:5212916 },
       {name:"빅딕",       basePrice:8683470, multiplier:1, livePrice:8683470},
-      {name:"차카니",   basePrice:8749821, multiplier:1, livePrice:8749821},
+      {name:"차카니",     basePrice:8749821, multiplier:1, livePrice:8749821},
       {name:"inback",     basePrice:8585880, multiplier:1, livePrice:8585880},
-      {name:"리얼월드/ 관리자",  basePrice:7244327, multiplier:1, livePrice:7244327},
+      {name:"리얼월드/ 관리자", basePrice:7244327, multiplier:1, livePrice:7244327},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const findCompanyById = id => companies.find(x => ci(x.id)===ci(id) || ci(x.name)===ci(id));
@@ -546,11 +625,7 @@
       const batch = writeBatch(db);
 
       for(const c of companies){
-        // ⛔ 상장폐지 종목은 가격 갱신 제외
-        if(c.delisted){
-          continue;
-        }
-
+        if(c.delisted) continue;
         const prev = c.livePrice || c.basePrice;
         const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
         const denom = Math.max(1e-6, (chance.profit + chance.loss));
@@ -679,16 +754,14 @@
           const c=findCompanyById(d.id);
           if(!c) return;
           if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; }
-          // ✅ 상장폐지 상태 반영
           if(typeof data.delisted==='boolean'){ c.delisted = data.delisted; }
         });
-        // 상장폐지 상태가 바뀌면 UI 전체 갱신
         renderChangePanel();
         renderDelistPanel();
         renderStockTuner();
         renderGraphAdjustPanel();
         renderMarketStatus();
-        initCompaniesUI(); // 버튼/수량 입력 disabled 처리 업데이트를 위해
+        initCompaniesUI();
       });
     }
 
@@ -1028,7 +1101,7 @@
       const tickAt = Date.now();
       const batch = writeBatch(db);
       for(const c of companies){
-        if(c.delisted) continue; // 상장폐지 제외
+        if(c.delisted) continue;
         const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
         c.livePrice = newVal;
         batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
@@ -1060,7 +1133,7 @@
       const tickAt = Date.now();
       const batch = writeBatch(db);
       for(const c of companies){
-        if(c.delisted) continue; // 상장폐지 제외
+        if(c.delisted) continue;
         c.livePrice=c.basePrice;
         batch.set(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: tickAt }, { merge:true });
       }
@@ -1154,7 +1227,7 @@
       renderChangePanel();
       renderNewsAdminList();
       renderNoticeAdminList();
-      renderDelistPanel(); // ✅ 상장폐지 탭 초기 렌더
+      renderDelistPanel();
 
       document.getElementById('adminCode').value = '';
       alert("✅ 관리자 패널이 열렸습니다. (graph703)");
@@ -1392,7 +1465,7 @@
         }
         alert(`✅ 전체 확률 적용 (상장폐지 제외): 이득 ${(p*100).toFixed(1)}% / 손해 ${(l*100).toFixed(1)}%`);
         renderChangePanel();
-      }catch(e){ console.error("전체 확률 적용 실패:", e); alert("오류: 전체 확률 적용 실패"); }
+      }catch(e){ console.error("전체 확률 적용 실패:", e); alert("오류: 변동폭 적용 실패"); }
     }
     async function applyVolatility(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -1446,35 +1519,33 @@
     }
 
     async function delistCompany(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); if(!c) return;
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const c = findCompanyById(name); if(!c) return;
 
-  // 1) companySettings에 delisted=true 반영
-  await setDoc(doc(db,"companySettings",c.id), { delisted:true, updatedAt:Date.now() }, { merge:true });
-  c.delisted = true;
+      await setDoc(doc(db,"companySettings",c.id), { delisted:true, updatedAt:Date.now() }, { merge:true });
+      c.delisted = true;
 
-  // 2) 모든 유저 보유 주식에서 해당 종목을 0으로 처리
-  try {
-    const snap = await getDocs(collection(db, "users"));
-    const batch = writeBatch(db);
-    snap.forEach(docu => {
-      const u = docu.data();
-      if(u.holdings && u.holdings[c.name] > 0){
-        const newHoldings = {...u.holdings};
-        newHoldings[c.name] = 0;   // ✅ 보유량을 0으로 변경
-        batch.update(doc(db,"users",docu.id), { holdings:newHoldings, updatedAt:Date.now() });
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        const batch = writeBatch(db);
+        snap.forEach(docu => {
+          const u = docu.data();
+          if(u.holdings && u.holdings[c.name] > 0){
+            const newHoldings = {...u.holdings};
+            newHoldings[c.name] = 0;
+            batch.update(doc(db,"users",docu.id), { holdings:newHoldings, updatedAt:Date.now() });
+          }
+        });
+        await batch.commit();
+        console.log(`✅ 모든 유저 보유 ${c.name} 주식 0으로 처리 완료`);
+      } catch(e){
+        console.error("상장폐지 주식 제거 실패:", e);
       }
-    });
-    await batch.commit();
-    console.log(`✅ 모든 유저 보유 ${c.name} 주식 0으로 처리 완료`);
-  } catch(e){
-    console.error("상장폐지 주식 제거 실패:", e);
-  }
 
-  alert(`⚫ ${c.name} 상장폐지 완료 (보유 주식 0으로 변경됨)`);
-  renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
-  renderMarketStatus(); initCompaniesUI();
-}
+      alert(`⚫ ${c.name} 상장폐지 완료 (보유 주식 0으로 변경됨)`);
+      renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
+      renderMarketStatus(); initCompaniesUI();
+    }
 
     async function restoreCompany(name){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -1552,6 +1623,123 @@
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt: Date.now()}); } }catch(e){}
     });
 
+    // ======= 채팅 =======
+    async function sendChat(){
+      const input = document.getElementById("chatInput");
+      const msg = input.value.trim();
+      if(!msg) return;
+
+      const uname = currentUser?.name || "익명";
+      const uid   = currentUser?.id || "guest";
+
+      try{
+        await addDoc(collection(db,"chat"), {
+          userId: uid,
+          userName: uname,
+          message: msg,
+          createdAt: Date.now()
+        });
+      }catch(e){ console.error("채팅 저장 오류:", e); }
+
+      input.value="";
+    }
+
+    function subscribeChat(){
+      const qy = query(collection(db,"chat"), orderBy("createdAt","asc"));
+      onSnapshot(qy,(snap)=>{
+        const chatDiv = document.getElementById("chatMessages");
+        chatDiv.innerHTML="";
+        snap.forEach(docu=>{
+          const d = docu.data();
+          const dt = new Date(d.createdAt||Date.now());
+          const time = dt.toLocaleTimeString();
+          const uname = d.userName || "익명";
+          const uid   = d.userId || "guest";
+          const isMine = currentUser && currentUser.id === uid;
+
+          chatDiv.innerHTML += `
+            <div class="${isMine ? 'chat-right' : 'chat-left'}">
+              <div class="chat-msg">
+                ${d.message}
+                <div class="chat-meta">
+                  <span class="name">${uname}</span>
+                  <span class="uid">(${uid})</span>
+                  <span class="time">• ${time}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        // 자동 스크롤
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      });
+    }
+
+    // ======= 채팅 UI(숨기기/펼치기, 엔터 전송, 세로 리사이즈 드래그) =======
+    function initChatUI(){
+      const chatBox   = document.getElementById('chatBox');
+      const toggleBtn = document.getElementById('chatToggleBtn');
+      const header    = document.getElementById('chatHeader');
+      const resizer   = document.getElementById('chatResizer');
+      const input     = document.getElementById('chatInput');
+
+      // 숨기기/펼치기 상태 복원
+      const collapsedSaved = localStorage.getItem('chatCollapsed') === '1';
+      if(collapsedSaved) chatBox.classList.add('collapsed');
+      toggleBtn.textContent = collapsedSaved ? '▣' : '—';
+
+      // 토글 함수
+      const toggle = () => {
+        chatBox.classList.toggle('collapsed');
+        const isCollapsed = chatBox.classList.contains('collapsed');
+        toggleBtn.textContent = isCollapsed ? '▣' : '—';
+        localStorage.setItem('chatCollapsed', isCollapsed ? '1' : '0');
+      };
+
+      // 버튼/헤더 더블클릭으로 토글
+      toggleBtn.addEventListener('click', toggle);
+      header.addEventListener('dblclick', toggle);
+
+      // 엔터로 전송(Shift+Enter는 줄바꿈)
+      if(input){
+        input.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter' && !e.shiftKey){
+            e.preventDefault();
+            sendChat();
+          }
+        });
+      }
+
+      // 세로 리사이즈 드래그
+      let startY=0, startH=0, dragging=false;
+      const onDown = (e)=>{
+        dragging=true;
+        startY = (e.touches ? e.touches[0].clientY : e.clientY);
+        startH = parseInt(window.getComputedStyle(chatBox).height, 10);
+        document.body.style.userSelect='none';
+      };
+      const onMove = (e)=>{
+        if(!dragging) return;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY);
+        const delta = y - startY;
+        let newH = startH + delta;
+        newH = Math.max(300, Math.min(900, newH)); // min/max와 맞춤
+        chatBox.style.height = newH + 'px';
+      };
+      const onUp = ()=>{
+        dragging=false;
+        document.body.style.userSelect='';
+      };
+
+      resizer.addEventListener('mousedown', onDown);
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+
+      resizer.addEventListener('touchstart', onDown, {passive:true});
+      document.addEventListener('touchmove', onMove, {passive:false});
+      document.addEventListener('touchend', onUp);
+    }
+
     // ======= 초기화 =======
     window.onload = async () => {
       await ensureAuth(); // 인증 먼저
@@ -1571,31 +1759,38 @@
       }else{
         loginModal.style.display='flex';
       }
+
       initChart();
       subscribeCompanyPrices();
-      subscribeCompanySettings(); // ✅ delisted 구독 포함
+      subscribeCompanySettings();
       subscribeCompanyChances();
       subscribeMarketState();
       subscribeGlobals();
       subscribeNews();
       subscribeNotices();
+
+      // ✅ 채팅은 관리자와 무관하게 항상 보이도록 구독
+      subscribeChat();
+      // ✅ 채팅 UI(엔터전송/토글/드래그리사이즈) 세팅
+      initChatUI();
+
       renderMarketStatus();
       initCompaniesUI();
-      enableDrag('adminPanelAll','adminPanelHeader'); // 드래그 가능 (화면 밖 이동 허용)
+      enableDrag('adminPanelAll','adminPanelHeader'); // 드래그 가능
       console.log("Local driver id:", localSimId);
     };
 
-    // ======= 드래그(클릭 방해 방지 & 화면 밖 이동 허용) =======
+    // ======= 드래그(관리자 패널) =======
     function enableDrag(panelId='adminPanelAll', handleId='adminPanelHeader'){
       const panel = document.getElementById(panelId);
       const handle = document.getElementById(handleId);
       if(!panel || !handle) return;
 
-      let startX=0, startY=0, origX=0, origY=0, dragging=false, moved=false;
-      const THRESHOLD = 3; // 클릭/드래그 구분 임계값(px)
+      let startX=0, startY=0, origX=0, origY=0, dragging=false;
+      const THRESHOLD = 3;
 
       const onDown = (e) => {
-        dragging = true; moved=false;
+        dragging = true;
         const pt = e.touches ? e.touches[0] : e;
         startX = pt.clientX; startY = pt.clientY;
         const rect = panel.getBoundingClientRect();
@@ -1608,9 +1803,10 @@
         const pt = e.touches ? e.touches[0] : e;
         const dx = pt.clientX - startX;
         const dy = pt.clientY - startY;
-        if(Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD) moved=true;
-        panel.style.left = (origX + dx) + 'px'; // 제한 없음
-        panel.style.top  = (origY + dy) + 'px';
+        if(Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD){
+          panel.style.left = (origX + dx) + 'px';
+          panel.style.top  = (origY + dy) + 'px';
+        }
         e.preventDefault();
       };
       const onUp = () => {
@@ -1710,28 +1906,25 @@
       }catch(e){ console.error(e); alert('권한 해제 실패: ' + (e.message || e)); }
     };
 
-    // ✅ 상장폐지 전역 바인딩
     window.renderDelistPanel = renderDelistPanel;
     window.delistCompany = delistCompany;
     window.restoreCompany = restoreCompany;
 
-    window.getQty = getQty;
-    window.approveDeposit  = approveDeposit;
-    window.rejectDeposit   = rejectDeposit;
-    window.approveWithdraw = approveWithdraw;
-    window.rejectWithdraw  = rejectWithdraw;
+    window.sendChat = sendChat;
   </script>
+
+  <!-- ✅ 채팅창 (오른쪽 고정 / 항상 표시) -->
+  <div id="chatBox">
+    <div id="chatHeader">
+      <span>💬 실시간 채팅</span>
+      <button id="chatToggleBtn" title="숨기기/펼치기">—</button>
+    </div>
+    <div id="chatMessages"></div>
+    <div id="chatInputWrap">
+      <input type="text" id="chatInput" placeholder="메시지 입력...(Enter 전송, Shift+Enter 줄바꿈)">
+      <button onclick="sendChat()">전송</button>
+    </div>
+    <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
+  </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
