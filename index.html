@@ -12,19 +12,24 @@
     }
     *{box-sizing:border-box}
 
- body {
+body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 20px;
   color: var(--ink);
 
-  /* ✨ 자연스럽게 녹아드는 초록 다크 배경 */
-  background: radial-gradient(circle at 25% 20%,
-    #0f172a 0%,     /* 딥 네이비 블랙 */
-    #0b1118 40%,    /* 블랙 */
-    #11221a 70%,    /* 아주 어두운 초록빛 블랙 */
-    #0f172a 100%    /* 다시 네이비 블랙으로 마무리 */
+  /* ✨ 네이비+블랙+그린 블렌딩 */
+  background: radial-gradient(circle at 30% 20%,
+    #0d1b1e 0%,     /* 아주 어두운 청록 (중심) */
+    #0f172a 40%,    /* 네이비 블랙 */
+    #0b1118 70%,    /* 블랙 */
+    #112a22 100%    /* 어두운 초록빛 블랙 */
+  ),
+  linear-gradient(160deg,
+    rgba(16, 185, 129, 0.05),  /* 은은한 에메랄드 레이어 */
+    rgba(0, 0, 0, 0.8)         /* 블랙 레이어 */
   );
+  background-blend-mode: overlay;
   background-attachment: fixed;
 }
 
@@ -2119,6 +2124,7 @@
   </div>
 </body>
 </html>
+
 
 
 
