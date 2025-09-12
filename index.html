@@ -1922,6 +1922,27 @@ body {
       }
     }
 
+// 🔽 현재 로그인한 유저가 관리자면 관리자 코드 입력창 보이게 / 아니면 숨기게
+function watchAdminPresence(){
+  const box = document.getElementById('adminLogin');
+  if(!currentUser || !box){
+    box.style.display='none';
+    return;
+  }
+  const uref=doc(db,"users",currentUser.id);
+  onSnapshot(uref,(snap)=>{
+    if(!snap.exists()) return;
+    const d=snap.data();
+    if(d.isAdmin===true){
+      // 현재 로그인한 유저가 관리자면 관리자 코드 입력창 보이기
+      box.style.display='block';
+    }else{
+      // 일반 유저면 숨김
+      box.style.display='none';
+    }
+  });
+}
+
     // ======= 초기화 =======
     window.onload = async () => {
       await ensureAuth();
@@ -2123,3 +2144,4 @@ body {
   </div>
 </body>
 </html>
+
