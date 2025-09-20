@@ -616,7 +616,6 @@ async function marketOpen(){
   await updatePricesForBoth();
 
   renderMarketStatus();
-  startLocalTimer();
   alert("✅ 주식+코인 장 시작");
 }
 
@@ -642,23 +641,25 @@ async function marketClose(){
     }
 
     function subscribeMarketState(){
-      onSnapshot(doc(db,"marketState","main"), (snap)=>{
-        const d = snap.exists() ? snap.data() : {};
-        marketOpenFlag = !!d.isOpen;
+  onSnapshot(doc(db,"marketState","main"), (snap)=>{
+    const d = snap.exists() ? snap.data() : {};
+    marketOpenFlag = !!d.isOpen;
 
-        if(typeof d.interval === "number" && d.interval >= 500){
-          updateInterval = d.interval;
-        }
-        const amDriver = d.driverId === localSimId;
-
-        renderMarketStatus();
-
-        if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
-        if(marketOpenFlag && amDriver){
-          startLocalTimer();
-        }
-      });
+    if(typeof d.interval === "number" && d.interval >= 500){
+      updateInterval = d.interval;
     }
+    const amDriver = d.driverId === localSimId;
+
+    renderMarketStatus();
+
+    // 🔽 중복 타이머 방지
+    if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
+    if(marketOpenFlag && amDriver){
+      startLocalTimer();
+    }
+  });
+}
+
 
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
@@ -2171,6 +2172,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
