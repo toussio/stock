@@ -809,23 +809,24 @@ async function updatePricesSet(targetCompanies){
     }
 
     function subscribeCompanySettings(){
-      onSnapshot(collection(db,'companySettings'), (snap)=>{
-        snap.forEach(d=>{
-          const data=d.data();
-          const c = companies.find(x => x.id===d.id);
-          if(!c) return;
-          if(typeof data.multiplier==='number') { c.multiplier=data.multiplier; }
-          if(typeof data.delisted==='boolean'){ c.delisted = data.delisted; }
-        });
-        renderChangePanel();
-        renderDelistPanel();
-        renderStockTuner();
-        renderGraphAdjustPanel();
-        renderMarketStatus();
-        initCompaniesUI();
-      });
-    }
+  onSnapshot(collection(db,'companySettings'), (snap)=>{
+    snap.forEach(d=>{
+      const data = d.data();
+      const c = companies.find(x => x.id === d.id);
+      if(!c) return;
+      if(typeof data.multiplier === 'number') c.multiplier = data.multiplier;
+      if(typeof data.delisted === 'boolean')  c.delisted = data.delisted;
+    });
 
+    // 여기서는 UI 전체 초기화 X
+    renderChangePanel();
+    renderDelistPanel();
+    renderStockTuner();
+    renderGraphAdjustPanel();
+    renderMarketStatus();
+    // initCompaniesUI(); // ← 주석 처리
+  });
+}
     function subscribeCompanyChances(){
       onSnapshot(collection(db,'companyChances'), (snap)=>{
         snap.forEach(docu=>{
@@ -1982,22 +1983,21 @@ async function exchangeCashToCoin(){
         loginModal.style.display='flex';
       }
 
-      initChart();
-      subscribeCompanyPrices();
-      subscribeCompanySettings();
-      subscribeCompanyChances();
-      subscribeMarketState();
-      subscribeGlobals();
-      subscribeNews();
-      subscribeNotices();
-      subscribeChat();
-      initChatUI();
-      renderMarketStatus();
-      initCompaniesUI();
-      enableDrag('adminPanelAll','adminPanelHeaderSticky'); // 모달 내부 sticky 영역에 드래그 핸들 부여
-      watchAdminPresence();
-      console.log("Local driver id:", localSimId);
-    };
+       initChart();
+  subscribeCompanyPrices();
+  subscribeCompanySettings(); // 여기서는 구독만
+  subscribeCompanyChances();
+  subscribeMarketState();
+  subscribeGlobals();
+  subscribeNews();
+  subscribeNotices();
+  subscribeChat();
+  initChatUI();
+  renderMarketStatus();
+  initCompaniesUI(); // ← 여기서 최초 한 번만 실행
+  enableDrag('adminPanelAll','adminPanelHeaderSticky');
+  watchAdminPresence();
+};
 
     // ======= 드래그(관리자 패널) =======
     function enableDrag(panelId='adminPanelAll', handleId='adminPanelHeaderSticky'){
@@ -2171,6 +2171,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
