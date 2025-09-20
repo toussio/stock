@@ -2074,6 +2074,9 @@ async function exchangeCashToCoin(){
     window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
     window.submitWithdraw = submitWithdraw; window.updateWithdrawFee = updateWithdrawFee;
     // 💳 입출금 승인/거절 window 바인딩 추가
+    window.getQty = getQty;             // 🔹 수량 읽기
+    window.buy = buy;                   // 🔹 매수
+    window.sell = sell;                 // 🔹 매도
     window.approveDeposit = approveDeposit;
     window.rejectDeposit = rejectDeposit;
     window.approveWithdraw = approveWithdraw;
@@ -2189,6 +2192,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
