@@ -249,18 +249,6 @@
         <button class="xbtn" onclick="closeAdmin('adminPanelAll')">✕</button>
         <h2>⚙️ 관리자 통합 패널</h2>
         <div id="adminSummary" style="margin:10px 0; font-weight:bold; color:#facc15;">통합 보유주수: 0</div>
-      <div id="adminHoldingsBreakdown" style="
-  margin:10px 0;
-  font-size:14px;
-  color:#e5e7eb;
-  position:sticky;      /* ✅ fixed → sticky */
-  top:0;                /* 관리자 패널 헤더 아래에 붙음 */
-  background:#1f2937;
-  z-index:10;
-  padding:8px;
-  width:100%;
-">
-</div>
       </div>
 
       <div style="padding:10px 0;">
@@ -1375,72 +1363,21 @@ async function exchangeCashToCoin(){
       });
     }
 
-   async function updateAdminSummary() {
-  try {
-    const all = await getDocs(collection(db,"users"));
-    let sumHold = 0;
-    const breakdown = {};
-
-    // 🔽 전체 holdings 집계
-    all.forEach(docu=>{
-      const u = docu.data();
-      const hold = u.holdings || {};
-      Object.entries(hold).forEach(([k,v])=>{
-        const val = Number(v||0);
-        sumHold += val;
-        breakdown[k] = (breakdown[k]||0) + val;
-      });
-    });
-
-    // 🔽 합계
-    const tgt = document.getElementById('adminSummary');
-    if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
-
-    // 🔽 주식/코인 구분 (이름 비교)
-    const coinNames = companiesCoin.map(c=>c.name);
-    const stockNames= companiesStock.map(c=>c.name);
-
-    const coinEntries = Object.entries(breakdown)
-      .filter(([k])=> coinNames.includes(k))
-      .sort((a,b)=>b[1]-a[1]);
-
-    const stockEntries= Object.entries(breakdown)
-      .filter(([k])=> stockNames.includes(k))
-      .sort((a,b)=>b[1]-a[1]);
-
-    // 🔽 표를 만들어 주식/코인 따로 출력
-    const makeTable=(title,entries)=> {
-      if(!entries.length) return `<p>${title} 데이터 없음</p>`;
-      let html=`<h4 style="margin-top:10px;color:#facc15;">${title}</h4>
-      <div style="max-height:280px;overflow-y:auto;">
-      <table style="width:100%;border-collapse:collapse;text-align:left;">
-        <thead>
-          <tr style="background:#334155;color:#e5e7eb;position:sticky;top:0;z-index:1;">
-            <th style="padding:6px;">종목명</th>
-            <th style="padding:6px;">보유수</th>
-            <th style="padding:6px;">구분</th>
-          </tr>
-        </thead>
-        <tbody>`;
-      entries.forEach(([k,v])=>{
-        html+=`<tr style="border-bottom:1px solid #374151;">
-          <td style="padding:6px;">${k}</td>
-          <td style="padding:6px;">${v.toLocaleString()}</td>
-          <td style="padding:6px;">${title}</td>
-        </tr>`;
-      });
-      html+=`</tbody></table></div>`;
-      return html;
-    };
-
-    const bd = document.getElementById('adminHoldingsBreakdown');
-    if(bd){
-      bd.innerHTML = makeTable("주식", stockEntries) + makeTable("코인", coinEntries);
+    // ======= 유저/재무 패널 =======
+    async function updateAdminSummary(){
+      try{
+        const all = await getDocs(collection(db,"users"));
+        let sumHold = 0;
+        all.forEach(docu=>{
+          const u = docu.data();
+          const hold = u.holdings||{};
+          Object.values(hold).forEach(v=>{ sumHold += Number(v||0); });
+        });
+        const tgt = document.getElementById('adminSummary');
+        if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
+      }catch(e){ console.error(e); }
     }
-  }catch(e){
-    console.error(e);
-  }
-}
+
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
       box.textContent = '불러오는 중...';
@@ -2062,16 +1999,11 @@ async function exchangeCashToCoin(){
       const handle = document.getElementById(handleId);
       if(!panel || !handle) return;
 
-      .modal-content {
-  background:var(--card);
-  padding:20px;
-  border-radius:10px;
-  text-align:center;
-  width:min(90%,520px);
-  position:relative;    /* ✅ 추가 */
-  max-height:85vh;
-  overflow:visible;     /* ✅ auto → visible */
-}
+      // 모달은 중앙정렬 flex이므로 position 기준을 위해 content에 스타일 적용
+      const content = panel.querySelector('.modal-content');
+      if(!content) return;
+      content.style.position = 'relative';
+
       let startX=0, startY=0, origX=0, origY=0, dragging=false;
       const THRESHOLD = 3;
 
@@ -2114,21 +2046,11 @@ async function exchangeCashToCoin(){
     }
 
     // ======= 전역 바인딩 =======
-    window.updateAdminSummary = updateAdminSummary;
     window.buy = buy; window.sell = sell; window.logout = logout;
     window.requestDeposit = requestDeposit;
     window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
     window.submitWithdraw = submitWithdraw; window.updateWithdrawFee = updateWithdrawFee;
-    // 💳 입출금 승인/거절 window 바인딩 추가
-    window.getQty = getQty;             // 🔹 수량 읽기
-    window.buy = buy;                   // 🔹 매수
-    window.sell = sell;                 // 🔹 매도
-    window.approveDeposit = approveDeposit;
-    window.rejectDeposit = rejectDeposit;
-    window.approveWithdraw = approveWithdraw;
-    window.rejectWithdraw = rejectWithdraw;
-    window.getQty = getQty;
-    
+
     window.showTab = function(name){
       document.querySelectorAll('#adminPanelAll .tab-section')
         .forEach(sec => sec.style.display = 'none');
@@ -2238,14 +2160,6 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
 
 
 
