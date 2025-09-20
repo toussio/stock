@@ -637,7 +637,9 @@ async function marketClose(){
       if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
     }
 
-    function subscribeMarketState(){
+    let currentDriver = null; // 🔽 스크립트 최상단에 추가
+
+function subscribeMarketState(){
   onSnapshot(doc(db,"marketState","main"), (snap)=>{
     const d = snap.exists() ? snap.data() : {};
     marketOpenFlag = !!d.isOpen;
@@ -645,14 +647,23 @@ async function marketClose(){
     if(typeof d.interval === "number" && d.interval >= 500){
       updateInterval = d.interval;
     }
+
+    // 🔽 기존 driverId
     const amDriver = d.driverId === localSimId;
 
     renderMarketStatus();
 
-    // 🔽 중복 타이머 방지
-    if(priceTimer){ clearInterval(priceTimer); priceTimer = null; }
-    if(marketOpenFlag && amDriver){
+    // 🔽 중복 타이머 방지 (driverId 변할 때만)
+    if(amDriver && currentDriver !== localSimId && marketOpenFlag){
+      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
       startLocalTimer();
+      currentDriver = localSimId;
+      console.log('▶️ 타이머 시작(드라이버)');
+    }
+
+    // 🔽 장이 닫혔으면 멈춤
+    if(!marketOpenFlag){
+      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; console.log('⏹ 타이머 정지'); }
     }
   });
 }
@@ -2169,6 +2180,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
