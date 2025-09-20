@@ -2050,7 +2050,12 @@ async function exchangeCashToCoin(){
     window.requestDeposit = requestDeposit;
     window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
     window.submitWithdraw = submitWithdraw; window.updateWithdrawFee = updateWithdrawFee;
-
+    window.getQty = getQty;
+    window.approveDeposit = approveDeposit;
+    window.rejectDeposit = rejectDeposit;
+    window.approveWithdraw = approveWithdraw;
+    window.rejectWithdraw = rejectWithdraw;
+    
     window.showTab = function(name){
       document.querySelectorAll('#adminPanelAll .tab-section')
         .forEach(sec => sec.style.display = 'none');
@@ -2160,6 +2165,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
