@@ -1506,24 +1506,23 @@ async function exchangeCashToCoin(){
 
     // ======= 주가 조작 =======
     function renderStockTuner(){
-  const host = document.getElementById('stockTuner'); if(!host) return;
-  let html = "";
-  companies.forEach(c=>{
-    const disabled = c.delisted ? "disabled" : "";
-    const unit = (currentMode==='coin'?'COIN':'KRW');
-    html += `
-      <div class='req-card'>
-        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} ${unit} ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
-        <div style='display:flex; gap:6px;'>
-          <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
-          <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
-          <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
-          <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
-        </div>
-      </div>`;
-  });
-  host.innerHTML = html;
-}
+      const host = document.getElementById('stockTuner'); if(!host) return;
+      let html = "";
+      companies.forEach(c=>{
+        const disabled = c.delisted ? "disabled" : "";
+        html += `
+          <div class='req-card'>
+            <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
+            <div style='display:flex; gap:6px;'>
+              <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
+              <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
+              <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
+              <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
+            </div>
+          </div>`;
+      });
+      host.innerHTML = html;
+    }
     async function applyStockTarget(name, delta){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
@@ -1657,10 +1656,7 @@ async function exchangeCashToCoin(){
             <div style="display:flex; gap:8px;">
               ${isDelisted
                 ? `<button onclick="restoreCompany('${c.name}')">복구</button>`
-                : `<input type="number" id="delistTime-${c.id}" placeholder="분(예:5)" style="width:80px;">
-<button onclick="scheduleDelist('${c.name}')">타이머</button>
-<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">즉시상장폐지</button>
-`}
+                : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">상장폐지</button>`}
             </div>
           </div>`;
       });
@@ -1705,41 +1701,6 @@ async function exchangeCashToCoin(){
       renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
       renderMarketStatus(); initCompaniesUI();
     }
-// 상장폐지 타이머 예약 함수
-async function scheduleDelist(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); if(!c) return;
-  // 관리자 패널에서 입력한 분 단위 가져오기
-  const mins = parseInt(document.getElementById("delistTime-"+c.id).value)||0;
-  if(mins<=0) return alert("분 단위 입력");
-  // 지금 시간 + (입력한 분)
-  const delistAt = Date.now() + mins*60*1000;
-  // Firestore에 delistAt 저장
-  await setDoc(doc(db,"companySettings",c.id),{delistAt},{merge:true});
-  alert(`${mins}분 뒤 ${c.name} 상장폐지 예약됨`);
-}
-window.scheduleDelist = scheduleDelist; // 버튼에서 호출 가능하게
-
-    // 10초마다 자동으로 상장폐지 여부 확인
-async function checkAutoDelist(){
-  const now = Date.now();
-  for(const c of [...companiesStock, ...companiesCoin]){
-    if(c.delisted) continue;
-    const s = doc(db,"companySettings",c.id);
-    try{
-      const snap = await getDoc(s);
-      const data = snap.data();
-      if(data && data.delistAt && data.delistAt<=now){
-        // 시간이 지났으면 강제로 상장폐지
-        await setDoc(doc(db,"companySettings",c.id),{delisted:true,updatedAt:Date.now()},{merge:true});
-        c.delisted=true;
-        renderDelistPanel();
-        renderMarketStatus();
-      }
-    }catch(e){ console.error(e); }
-  }
-}
-setInterval(checkAutoDelist, 10000); // 10초마다 실행
 
     // ======= 모드 전환 (주식/코인) =======
     function toggleMode(){
@@ -2204,7 +2165,6 @@ setInterval(checkAutoDelist, 10000); // 10초마다 실행
   </div>
 </body>
 </html>
-
 
 
 
