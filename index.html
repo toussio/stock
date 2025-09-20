@@ -2078,7 +2078,8 @@ async function exchangeCashToCoin(){
     window.rejectDeposit = rejectDeposit;
     window.approveWithdraw = approveWithdraw;
     window.rejectWithdraw = rejectWithdraw;
-      
+    window.getQty = getQty;
+    
     window.showTab = function(name){
       document.querySelectorAll('#adminPanelAll .tab-section')
         .forEach(sec => sec.style.display = 'none');
@@ -2188,6 +2189,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
