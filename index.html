@@ -1506,23 +1506,24 @@ async function exchangeCashToCoin(){
 
     // ======= 주가 조작 =======
     function renderStockTuner(){
-      const host = document.getElementById('stockTuner'); if(!host) return;
-      let html = "";
-      companies.forEach(c=>{
-        const disabled = c.delisted ? "disabled" : "";
-        html += `
-          <div class='req-card'>
-            <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
-            <div style='display:flex; gap:6px;'>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
-            </div>
-          </div>`;
-      });
-      host.innerHTML = html;
-    }
+  const host = document.getElementById('stockTuner'); if(!host) return;
+  let html = "";
+  companies.forEach(c=>{
+    const disabled = c.delisted ? "disabled" : "";
+    const unit = (currentMode==='coin'?'COIN':'KRW');
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} ${unit} ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
+        <div style='display:flex; gap:6px;'>
+          <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
+          <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
+          <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
+          <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
+        </div>
+      </div>`;
+  });
+  host.innerHTML = html;
+}
     async function applyStockTarget(name, delta){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const c=findCompanyById(name); if(!c) return;
@@ -2203,6 +2204,7 @@ setInterval(checkAutoDelist, 10000); // 10초마다 실행
   </div>
 </body>
 </html>
+
 
 
 
