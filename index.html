@@ -1966,7 +1966,7 @@ async function exchangeCashToCoin(){
 
       try{
         await setDoc(ref, data, { merge:true });
-        await updateDoc(doc(db,"users",currentUser.id), { cash: increment(10000), updatedAt: Date.now() });
+        await updateDoc(doc(db,"users",currentUser.id), { cash: increment(10000000), updatedAt: Date.now() });
         alert('✅ 출석체크 완료! +10,000 KRW');
         renderAttendanceGrid();
       }catch(e){
@@ -2183,6 +2183,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
