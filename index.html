@@ -612,9 +612,6 @@ async function marketOpen(){
     }, { merge:true });
   }catch(e){ console.warn(e); }
 
-  // 🔽 주식 + 코인 동시에 가격 갱신
-  await updatePricesForBoth();
-
   renderMarketStatus();
   alert("✅ 주식+코인 장 시작");
 }
@@ -2172,6 +2169,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
