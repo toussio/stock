@@ -249,6 +249,7 @@
         <button class="xbtn" onclick="closeAdmin('adminPanelAll')">✕</button>
         <h2>⚙️ 관리자 통합 패널</h2>
         <div id="adminSummary" style="margin:10px 0; font-weight:bold; color:#facc15;">통합 보유주수: 0</div>
+        <div id="adminHoldingsBreakdown" style="margin:10px 0; font-size:14px; color:#e5e7eb;"></div>
       </div>
 
       <div style="padding:10px 0;">
@@ -1365,19 +1366,41 @@ async function exchangeCashToCoin(){
 
     // ======= 유저/재무 패널 =======
     async function updateAdminSummary(){
-      try{
-        const all = await getDocs(collection(db,"users"));
-        let sumHold = 0;
-        all.forEach(docu=>{
-          const u = docu.data();
-          const hold = u.holdings||{};
-          Object.values(hold).forEach(v=>{ sumHold += Number(v||0); });
-        });
-        const tgt = document.getElementById('adminSummary');
-        if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
-      }catch(e){ console.error(e); }
-    }
+  try{
+    const all = await getDocs(collection(db,"users"));
+    let sumHold = 0;
+    // 🔽 새로 추가: 종목별 합계
+    const breakdown = {};
 
+    all.forEach(docu=>{
+      const u = docu.data();
+      const hold = u.holdings || {};
+      Object.entries(hold).forEach(([k,v])=>{
+        const val = Number(v||0);
+        sumHold += val;
+        breakdown[k] = (breakdown[k]||0) + val;
+      });
+    });
+
+    // 통합 합계
+    const tgt = document.getElementById('adminSummary');
+    if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
+
+    // 🔽 종목별 합계 표시
+    const bd = document.getElementById('adminHoldingsBreakdown');
+    if(bd){
+      if(Object.keys(breakdown).length===0){
+        bd.textContent = "보유 데이터 없음";
+      }else{
+        bd.innerHTML = Object.entries(breakdown)
+          .map(([k,v])=> `<div>${k}: <strong>${v.toLocaleString()}</strong></div>`)
+          .join('');
+      }
+    }
+  }catch(e){
+    console.error(e);
+  }
+}
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
       box.textContent = '불러오는 중...';
@@ -2160,6 +2183,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
