@@ -1692,15 +1692,21 @@ async function exchangeCashToCoin(){
       renderMarketStatus(); initCompaniesUI();
     }
 
-    async function restoreCompany(name){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c = findCompanyById(name); if(!c) return;
-      await setDoc(doc(db,"companySettings",c.id), { delisted:false, updatedAt:Date.now() }, { merge:true });
-      c.delisted = false;
-      alert(`🟢 ${c.name} 복구 완료`);
-      renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
-      renderMarketStatus(); initCompaniesUI();
-    }
+   async function restoreCompany(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); if(!c) return;
+
+  // 1. Firestore에 먼저 확실히 반영
+  await setDoc(doc(db,"companySettings",c.id),
+    { delisted:false, updatedAt:Date.now() },
+    { merge:true });
+
+  // 2. 로컬 값은 onSnapshot이 알아서 바꿔줄 것이므로 건드리지 않음
+  // c.delisted = false;  // ← 이 줄 제거
+
+  // 3. UI는 onSnapshot → renderDelistPanel() 통해 자동갱신되므로 호출 생략
+  alert(`🟢 ${c.name} 복구 완료 (Firestore 반영됨)`);
+}
 
     // ======= 모드 전환 (주식/코인) =======
     function toggleMode(){
