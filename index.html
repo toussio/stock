@@ -501,28 +501,31 @@
       {name:"사쿠라",     basePrice:8675827 , multiplier:1, livePrice:8675827 },
       {name:"청룡",       basePrice:8780548, multiplier:1, livePrice:8780548},
       {name:"남부경찰",   basePrice:7602028 , multiplier:1, livePrice:8604028},
-      {name:"북부경찰",   basePrice:8304028 , multiplier:1, livePrice:8604028},
+      {name:"벌집",   basePrice:8304028 , multiplier:1, livePrice:8604028},
       {name:"Ems",        basePrice:7368996, multiplier:1, livePrice:7368996},
       {name:"작두",       basePrice:5212916 , multiplier:1, livePrice:5212916 },
       {name:"빅딕",       basePrice:8683470, multiplier:1, livePrice:8683470},
+      {name:"무명",       basePrice:8683470, multiplier:1, livePrice:8683470},
       {name:"차카니",     basePrice:8749821, multiplier:1, livePrice:8749821},
       {name:"inback",     basePrice:8585880, multiplier:1, livePrice:8585880},
+      {name:"방송국",     basePrice:8585880, multiplier:1, livePrice:8585880},
+      {name:"RIZRNT",     basePrice:8585880, multiplier:1, livePrice:8585880},
       {name:"리얼월드/ 관리자", basePrice:7244327, multiplier:1, livePrice:7244327},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const companiesCoin = [
-      {name:"비트코인", basePrice:64000000, multiplier:1, livePrice:64000000},
-      {name:"이더리움", basePrice:3800000,  multiplier:1, livePrice:3800000},
-      {name:"리플",     basePrice:800,      multiplier:1, livePrice:800},
-      {name:"솔라나",   basePrice:180000,   multiplier:1, livePrice:180000},
-      {name:"에이다",   basePrice:650,      multiplier:1, livePrice:650},
-      {name:"도지",     basePrice:140,      multiplier:1, livePrice:140},
-      {name:"라이트",   basePrice:95000,    multiplier:1, livePrice:95000},
-      {name:"폴카닷",   basePrice:7800,     multiplier:1, livePrice:7800},
-      {name:"체인링크", basePrice:21000,    multiplier:1, livePrice:21000},
-      {name:"아발란체", basePrice:42000,    multiplier:1, livePrice:42000},
-      {name:"폴리곤",   basePrice:1200,     multiplier:1, livePrice:1200},
-      {name:"트론",     basePrice:160,      multiplier:1, livePrice:160},
+      {name:"나쁘니", basePrice:64000000, multiplier:1, livePrice:64000000},
+      {name:"짝두", basePrice:3800000,  multiplier:1, livePrice:3800000},
+      {name:"삼쿠라",     basePrice:800,      multiplier:1, livePrice:800},
+      {name:"애기월드",   basePrice:180000,   multiplier:1, livePrice:180000},
+      {name:"FOX",   basePrice:650,      multiplier:1, livePrice:650},
+      {name:"야타족",     basePrice:140,      multiplier:1, livePrice:140},
+      {name:"테토녀",   basePrice:95000,    multiplier:1, livePrice:95000},
+      {name:"소방국",   basePrice:7800,     multiplier:1, livePrice:7800},
+      {name:"리얼대학교", basePrice:21000,    multiplier:1, livePrice:21000},
+      {name:"관동연합", basePrice:42000,    multiplier:1, livePrice:42000},
+      {name:"인형뽑기",   basePrice:1200,     multiplier:1, livePrice:1200},
+      {name:"린민공화국",     basePrice:160,      multiplier:1, livePrice:160},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     // 🔽 현재 모드: stock | coin
@@ -2180,6 +2183,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
