@@ -1364,14 +1364,13 @@ async function exchangeCashToCoin(){
       });
     }
 
-    // ======= 유저/재무 패널 =======
-    async function updateAdminSummary(){
-  try{
+   async function updateAdminSummary() {
+  try {
     const all = await getDocs(collection(db,"users"));
     let sumHold = 0;
-    // 🔽 새로 추가: 종목별 합계
     const breakdown = {};
 
+    // 🔽 전체 holdings 집계
     all.forEach(docu=>{
       const u = docu.data();
       const hold = u.holdings || {};
@@ -1382,20 +1381,50 @@ async function exchangeCashToCoin(){
       });
     });
 
-    // 통합 합계
+    // 🔽 합계
     const tgt = document.getElementById('adminSummary');
     if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
 
-    // 🔽 종목별 합계 표시
+    // 🔽 주식/코인 구분 (이름 비교)
+    const coinNames = companiesCoin.map(c=>c.name);
+    const stockNames= companiesStock.map(c=>c.name);
+
+    const coinEntries = Object.entries(breakdown)
+      .filter(([k])=> coinNames.includes(k))
+      .sort((a,b)=>b[1]-a[1]);
+
+    const stockEntries= Object.entries(breakdown)
+      .filter(([k])=> stockNames.includes(k))
+      .sort((a,b)=>b[1]-a[1]);
+
+    // 🔽 표를 만들어 주식/코인 따로 출력
+    const makeTable=(title,entries)=> {
+      if(!entries.length) return `<p>${title} 데이터 없음</p>`;
+      let html=`<h4 style="margin-top:10px;color:#facc15;">${title}</h4>
+      <div style="max-height:280px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;text-align:left;">
+        <thead>
+          <tr style="background:#334155;color:#e5e7eb;position:sticky;top:0;z-index:1;">
+            <th style="padding:6px;">종목명</th>
+            <th style="padding:6px;">보유수</th>
+            <th style="padding:6px;">구분</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      entries.forEach(([k,v])=>{
+        html+=`<tr style="border-bottom:1px solid #374151;">
+          <td style="padding:6px;">${k}</td>
+          <td style="padding:6px;">${v.toLocaleString()}</td>
+          <td style="padding:6px;">${title}</td>
+        </tr>`;
+      });
+      html+=`</tbody></table></div>`;
+      return html;
+    };
+
     const bd = document.getElementById('adminHoldingsBreakdown');
     if(bd){
-      if(Object.keys(breakdown).length===0){
-        bd.textContent = "보유 데이터 없음";
-      }else{
-        bd.innerHTML = Object.entries(breakdown)
-          .map(([k,v])=> `<div>${k}: <strong>${v.toLocaleString()}</strong></div>`)
-          .join('');
-      }
+      bd.innerHTML = makeTable("주식", stockEntries) + makeTable("코인", coinEntries);
     }
   }catch(e){
     console.error(e);
@@ -2069,6 +2098,7 @@ async function exchangeCashToCoin(){
     }
 
     // ======= 전역 바인딩 =======
+    window.updateAdminSummary = updateAdminSummary;
     window.buy = buy; window.sell = sell; window.logout = logout;
     window.requestDeposit = requestDeposit;
     window.openWithdrawModal = openWithdrawModal; window.closeWithdrawModal = closeWithdrawModal;
@@ -2192,6 +2222,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
