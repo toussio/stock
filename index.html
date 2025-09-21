@@ -634,6 +634,13 @@ async function marketOpen(){
 }, { merge:true });
   }catch(e){ console.warn(e); }
 
+  if(ADMIN_MODE){
+    stopLocalTimers();
+    startLocalTimerStock();
+    startLocalTimerCoin();
+    currentDriver = localSimId;
+  }
+  
   renderMarketStatus();
   alert("✅ 주식+코인 장 시작");
 }
@@ -2249,6 +2256,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
