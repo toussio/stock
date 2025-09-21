@@ -452,30 +452,11 @@
     const loginModal    = document.getElementById("loginModal");
 
     let chart = null;
-    let updateIntervalStock = 5000; 
-    let updateIntervalCoin  = 5000;
-
-    let priceTimerStock = null; // 주식용 타이머
-    let priceTimerCoin  = null; // 코인용 타이머
-    
+    let priceTimer = null;
+    let updateInterval = 5000;
     let deltaMax = 1000000;
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
-
-    function startLocalTimerStock(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); }
-  priceTimerStock = setInterval(()=>{ updatePricesSet(companiesStock); }, updateIntervalStock);
-}
-
-function startLocalTimerCoin(){
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); }
-  priceTimerCoin = setInterval(()=>{ updatePricesSet(companiesCoin); }, updateIntervalCoin);
-}
-
-function stopLocalTimerAll(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
-}
 
     let volatility = 1.5;
     let lastChartTick = 0;
@@ -629,20 +610,10 @@ async function marketOpen(){
   marketOpenFlag = true;
 
   try{
-    async function marketOpen(){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  marketOpenFlag = true;
-
-  try{
     await setDoc(doc(db,"marketState","main"), {
-      isOpen:true,
-      updatedAt: Date.now()
+      isOpen:true, interval:updateInterval, driverId: localSimId, updatedAt: Date.now()
     }, { merge:true });
   }catch(e){ console.warn(e); }
-
-  // ✅ 주식/코인 각각 타이머 시작
-  startLocalTimerStock();
-  startLocalTimerCoin();
 
   renderMarketStatus();
   alert("✅ 주식+코인 장 시작");
@@ -653,15 +624,10 @@ async function marketClose(){
   marketOpenFlag = false;
 
   try{
-    await setDoc(doc(db,"marketState","main"), {
-      isOpen:false,
-      updatedAt: Date.now()
-    }, { merge:true });
+    await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
   }catch(e){ console.warn(e); }
 
-  // ✅ 주식/코인 타이머 모두 정지
-  stopLocalTimerAll();
-
+  stopLocalTimer();
   renderMarketStatus();
   alert("📉 주식+코인 장 마감");
 }
@@ -2217,7 +2183,6 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
-
 
 
 
