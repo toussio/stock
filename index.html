@@ -277,14 +277,23 @@
             <button onclick="adjustAllPrices()">적용</button>
           </div>
 
-          <div style="margin-top:10px;">
-            <strong>⏱️ 변동 주기 (초):</strong>
-            <input type="number" id="intervalInput" value="5" min="1" style="width:90px;">
-            <button onclick="applyGraphInterval()">적용</button>
-            <div style="color:#9ca3af; font-size:12px; margin-top:4px;">
-              ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
-            </div>
-          </div>
+          <!-- 주식용 -->
+<div style="margin-top:10px;">
+  <strong>⏱️ 주식 변동 주기 (초):</strong>
+  <input type="number" id="intervalStockInput" value="5" min="1" style="width:90px;">
+  <button onclick="applyGraphIntervalStock()">적용</button>
+</div>
+
+<!-- 코인용 -->
+<div style="margin-top:10px;">
+  <strong>⏱️ 코인 변동 주기 (초):</strong>
+  <input type="number" id="intervalCoinInput" value="5" min="1" style="width:90px;">
+  <button onclick="applyGraphIntervalCoin()">적용</button>
+</div>
+
+<div style="color:#9ca3af; font-size:12px; margin-top:4px;">
+  ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
+</div>
 
           <div style="margin-top:10px;">
             <strong>📊 변동폭 상한(±원):</strong>
@@ -453,7 +462,13 @@
 
     let chart = null;
     let priceTimer = null;
-    let updateInterval = 5000;
+
+let updateIntervalStock = 5000; // 주식용
+let updateIntervalCoin  = 5000; // 코인용
+
+let priceTimerStock = null;
+let priceTimerCoin  = null;
+    
     let deltaMax = 1000000;
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
@@ -632,23 +647,39 @@ async function marketClose(){
   alert("📉 주식+코인 장 마감");
 }
 
-    function startLocalTimer(){
-      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
-      priceTimer = setInterval(()=>{ updatePricesForBoth().catch(()=>{}); }, updateInterval);
-    }
-    function stopLocalTimer(){
-      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
-    }
+    function startLocalTimerStock(){
+  if(priceTimerStock){ clearInterval(priceTimerStock); }
+  priceTimerStock = setInterval(()=>{ 
+    updatePricesSet(companiesStock).catch(()=>{}); 
+  }, updateIntervalStock);
+}
+
+function startLocalTimerCoin(){
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); }
+  priceTimerCoin = setInterval(()=>{ 
+    updatePricesSet(companiesCoin).catch(()=>{}); 
+  }, updateIntervalCoin);
+}
+
+function stopLocalTimers(){
+  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
+}
 
     let currentDriver = null; // 🔽 스크립트 최상단에 추가
 
 function subscribeMarketState(){
   onSnapshot(doc(db,"marketState","main"), (snap)=>{
     const d = snap.exists() ? snap.data() : {};
+    
     marketOpenFlag = !!d.isOpen;
 
-    if(typeof d.interval === "number" && d.interval >= 500){
-      updateInterval = d.interval;
+    // 🟩 각각 interval 값 가져오기 (없으면 기본값)
+    if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
+      updateIntervalStock = d.intervalStock;
+    }
+    if(typeof d.intervalCoin === "number" && d.intervalCoin >= 500){
+      updateIntervalCoin = d.intervalCoin;
     }
 
     // 🔽 기존 driverId
@@ -656,21 +687,36 @@ function subscribeMarketState(){
 
     renderMarketStatus();
 
-    // 🔽 중복 타이머 방지 (driverId 변할 때만)
+    // 🔽 중복 타이머 방지 (driverId 변할 때마다 재시작)
     if(amDriver && currentDriver !== localSimId && marketOpenFlag){
-      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; }
-      startLocalTimer();
+      stopLocalTimers(); // 둘 다 끄고
+      startLocalTimerStock();
+      startLocalTimerCoin();
       currentDriver = localSimId;
-      console.log('▶️ 타이머 시작(드라이버)');
+      console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
+    }
+
+    // 🔽 interval 값이 중간에 바뀌었을 때도 재시작
+    if(amDriver && marketOpenFlag){
+      // Stock
+      if(priceTimerStock){
+        clearInterval(priceTimerStock); 
+        startLocalTimerStock();
+      }
+      // Coin
+      if(priceTimerCoin){
+        clearInterval(priceTimerCoin);
+        startLocalTimerCoin();
+      }
     }
 
     // 🔽 장이 닫혔으면 멈춤
     if(!marketOpenFlag){
-      if(priceTimer){ clearInterval(priceTimer); priceTimer=null; console.log('⏹ 타이머 정지'); }
+      stopLocalTimers();
+      console.log('⏹ 타이머 정지');
     }
   });
 }
-
 
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
@@ -1200,16 +1246,31 @@ async function updatePricesSet(targetCompanies){
       alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
     }
 
-    function applyGraphInterval(){
-      const sec = parseInt(document.getElementById("intervalInput").value) || 5;
-      updateInterval = Math.max(1, sec) * 1000;
-      setDoc(doc(db,"marketState","main"), { interval:updateInterval, updatedAt:Date.now() }, { merge:true })
-        .then(()=>{
-          if(ADMIN_MODE){ if(priceTimer){ clearInterval(priceTimer); } if(marketOpenFlag) startLocalTimer(); }
-          alert("✅ 변동주기 적용됨: " + sec + "초");
-        })
-        .catch(e=>console.error("변동주기 저장 실패:", e));
-    }
+    function applyGraphIntervalStock(){
+  const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
+  updateIntervalStock = Math.max(1, sec) * 1000;
+  setDoc(doc(db,"marketState","main"), 
+    { intervalStock:updateIntervalStock, updatedAt:Date.now() }, 
+    { merge:true })
+    .then(()=>{
+      if(ADMIN_MODE){ stopLocalTimers(); startLocalTimerStock(); startLocalTimerCoin(); }
+      alert("✅ 주식 변동주기 적용됨: " + sec + "초");
+    })
+    .catch(e=>console.error("변동주기 저장 실패:", e));
+}
+
+function applyGraphIntervalCoin(){
+  const sec = parseInt(document.getElementById("intervalCoinInput").value) || 5;
+  updateIntervalCoin = Math.max(1, sec) * 1000;
+  setDoc(doc(db,"marketState","main"), 
+    { intervalCoin:updateIntervalCoin, updatedAt:Date.now() }, 
+    { merge:true })
+    .then(()=>{
+      if(ADMIN_MODE){ stopLocalTimers(); startLocalTimerStock(); startLocalTimerCoin(); }
+      alert("✅ 코인 변동주기 적용됨: " + sec + "초");
+    })
+    .catch(e=>console.error("변동주기 저장 실패:", e));
+}
 
     async function resetGraph(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -2183,6 +2244,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
