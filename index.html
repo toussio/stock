@@ -626,8 +626,12 @@ async function marketOpen(){
 
   try{
     await setDoc(doc(db,"marketState","main"), {
-      isOpen:true, interval:updateInterval, driverId: localSimId, updatedAt: Date.now()
-    }, { merge:true });
+  isOpen:true,
+  intervalStock: updateIntervalStock,
+  intervalCoin:  updateIntervalCoin,
+  driverId: localSimId,
+  updatedAt: Date.now()
+}, { merge:true });
   }catch(e){ console.warn(e); }
 
   renderMarketStatus();
@@ -2244,6 +2248,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
