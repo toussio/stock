@@ -514,18 +514,18 @@
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const companiesCoin = [
-      {name:"나쁘니", basePrice:48000000, multiplier:1, livePrice:48000000},
-      {name:"짝두", basePrice:23000000,  multiplier:1, livePrice:23000000},
-      {name:"삼쿠라",     basePrice:13000000,      multiplier:1, livePrice:13000000},
-      {name:"애기월드",   basePrice:5000000,   multiplier:1, livePrice:5000000},
-      {name:"FOX",   basePrice:7840000,      multiplier:1, livePrice:7840000},
-      {name:"야타족",     basePrice:9800000,      multiplier:1, livePrice:9800000},
-      {name:"테토녀",   basePrice:6820000,    multiplier:1, livePrice:6820000},
-      {name:"소방국",   basePrice:16500000,     multiplier:1, livePrice:16500000},
-      {name:"리얼대학교", basePrice:13200000,    multiplier:1, livePrice:13200000},
-      {name:"관동연합", basePrice:8760000,    multiplier:1, livePrice:8760000},
-      {name:"인형뽑기",   basePrice:12600000,     multiplier:1, livePrice:12600000},
-      {name:"린민공화국",     basePrice:11000000,      multiplier:1, livePrice:11000000},
+      {name:"나쁘니", basePrice:64000000, multiplier:1, livePrice:64000000},
+      {name:"짝두", basePrice:3800000,  multiplier:1, livePrice:3800000},
+      {name:"삼쿠라",     basePrice:800,      multiplier:1, livePrice:800},
+      {name:"애기월드",   basePrice:180000,   multiplier:1, livePrice:180000},
+      {name:"FOX",   basePrice:650,      multiplier:1, livePrice:650},
+      {name:"야타족",     basePrice:140,      multiplier:1, livePrice:140},
+      {name:"테토녀",   basePrice:95000,    multiplier:1, livePrice:95000},
+      {name:"소방국",   basePrice:7800,     multiplier:1, livePrice:7800},
+      {name:"리얼대학교", basePrice:21000,    multiplier:1, livePrice:21000},
+      {name:"관동연합", basePrice:42000,    multiplier:1, livePrice:42000},
+      {name:"인형뽑기",   basePrice:1200,     multiplier:1, livePrice:1200},
+      {name:"린민공화국",     basePrice:160,      multiplier:1, livePrice:160},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     // 🔽 현재 모드: stock | coin
@@ -1655,30 +1655,26 @@ async function exchangeCashToCoin(){
 
     // ======= 상장폐지 패널 =======
     function renderDelistPanel(){
-  const host = document.getElementById("delistPanel"); if(!host) return;
-  let html = "";
-  companies.forEach(c=>{
-    const isDelisted = !!c.delisted;
-    html += `
-      <div class="req-card">
-        <div>
-          <strong>${c.name}</strong>
-          <span style="margin-left:6px; ${isDelisted?'color:#ef4444;':'color:#10b981;'}">
-            ${isDelisted?'🪙 삭제됨':'🟢 코인'}
-          </span>
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
-            현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier||1)}
-          </div>
-        </div>
-        <div style="display:flex; gap:8px;">
-          ${isDelisted
-            ? `<button onclick="restoreCompany('${c.name}')">코인 복구</button>`
-            : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">코인 삭제</button>`}
-        </div>
-      </div>`;
-  });
-  host.innerHTML = html || "코인 없음";
-}
+      const host = document.getElementById("delistPanel"); if(!host) return;
+      let html = "";
+      companies.forEach(c=>{
+        const isDelisted = !!c.delisted;
+        html += `
+          <div class="req-card">
+            <div>
+              <strong>${c.name}</strong>
+              <span style="margin-left:6px; ${isDelisted?'color:#ef4444;':'color:#10b981;'}">${isDelisted?'⚫ 상장폐지':'🟢 상장'}</span>
+              <div style="font-size:12px;color:#9ca3af;margin-top:4px;">현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier||1)}</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              ${isDelisted
+                ? `<button onclick="restoreCompany('${c.name}')">복구</button>`
+                : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">상장폐지</button>`}
+            </div>
+          </div>`;
+      });
+      host.innerHTML = html || "기업 없음";
+    }
 
     async function delistCompany(name){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -1970,7 +1966,7 @@ async function exchangeCashToCoin(){
 
       try{
         await setDoc(ref, data, { merge:true });
-        await updateDoc(doc(db,"users",currentUser.id), { cash: increment(10000000), updatedAt: Date.now() });
+        await updateDoc(doc(db,"users",currentUser.id), { cash: increment(10000), updatedAt: Date.now() });
         alert('✅ 출석체크 완료! +10,000 KRW');
         renderAttendanceGrid();
       }catch(e){
@@ -2187,11 +2183,6 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
-
-
-
-
-
 
 
 
