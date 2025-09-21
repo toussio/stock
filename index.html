@@ -1655,26 +1655,30 @@ async function exchangeCashToCoin(){
 
     // ======= 상장폐지 패널 =======
     function renderDelistPanel(){
-      const host = document.getElementById("delistPanel"); if(!host) return;
-      let html = "";
-      companies.forEach(c=>{
-        const isDelisted = !!c.delisted;
-        html += `
-          <div class="req-card">
-            <div>
-              <strong>${c.name}</strong>
-              <span style="margin-left:6px; ${isDelisted?'color:#ef4444;':'color:#10b981;'}">${isDelisted?'⚫ 상장폐지':'🟢 상장'}</span>
-              <div style="font-size:12px;color:#9ca3af;margin-top:4px;">현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier||1)}</div>
-            </div>
-            <div style="display:flex; gap:8px;">
-              ${isDelisted
-                ? `<button onclick="restoreCompany('${c.name}')">복구</button>`
-                : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">상장폐지</button>`}
-            </div>
-          </div>`;
-      });
-      host.innerHTML = html || "기업 없음";
-    }
+  const host = document.getElementById("delistPanel"); if(!host) return;
+  let html = "";
+  companies.forEach(c=>{
+    const isDelisted = !!c.delisted;
+    html += `
+      <div class="req-card">
+        <div>
+          <strong>${c.name}</strong>
+          <span style="margin-left:6px; ${isDelisted?'color:#ef4444;':'color:#10b981;'}">
+            ${isDelisted?'🪙 삭제됨':'🟢 코인'}
+          </span>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
+            현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier||1)}
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          ${isDelisted
+            ? `<button onclick="restoreCompany('${c.name}')">코인 복구</button>`
+            : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">코인 삭제</button>`}
+        </div>
+      </div>`;
+  });
+  host.innerHTML = html || "코인 없음";
+}
 
     async function delistCompany(name){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -2183,6 +2187,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
