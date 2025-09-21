@@ -646,7 +646,7 @@ async function marketClose(){
     await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
   }catch(e){ console.warn(e); }
 
-  stopLocalTimer();
+  stopLocalTimers();
   renderMarketStatus();
   alert("📉 주식+코인 장 마감");
 }
@@ -2249,6 +2249,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
