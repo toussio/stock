@@ -452,11 +452,30 @@
     const loginModal    = document.getElementById("loginModal");
 
     let chart = null;
-    let priceTimer = null;
-    let updateInterval = 5000;
+    let updateIntervalStock = 5000; 
+    let updateIntervalCoin  = 5000;
+
+    let priceTimerStock = null; // 주식용 타이머
+    let priceTimerCoin  = null; // 코인용 타이머
+    
     let deltaMax = 1000000;
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
+
+    function startLocalTimerStock(){
+  if(priceTimerStock){ clearInterval(priceTimerStock); }
+  priceTimerStock = setInterval(()=>{ updatePricesSet(companiesStock); }, updateIntervalStock);
+}
+
+function startLocalTimerCoin(){
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); }
+  priceTimerCoin = setInterval(()=>{ updatePricesSet(companiesCoin); }, updateIntervalCoin);
+}
+
+function stopLocalTimerAll(){
+  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
+}
 
     let volatility = 1.5;
     let lastChartTick = 0;
@@ -615,6 +634,9 @@ async function marketOpen(){
     }, { merge:true });
   }catch(e){ console.warn(e); }
 
+startLocalTimerStock();
+  startLocalTimerCoin();
+  
   renderMarketStatus();
   alert("✅ 주식+코인 장 시작");
 }
@@ -627,6 +649,8 @@ async function marketClose(){
     await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
   }catch(e){ console.warn(e); }
 
+ stopLocalTimerAll();
+  
   stopLocalTimer();
   renderMarketStatus();
   alert("📉 주식+코인 장 마감");
@@ -2183,6 +2207,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
