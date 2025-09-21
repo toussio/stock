@@ -1257,19 +1257,6 @@ async function updatePricesSet(targetCompanies){
       alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
     }
 
-    function applyGraphIntervalStock(){
-  const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
-  updateIntervalStock = Math.max(1, sec) * 1000;
-
-  setDoc(doc(db,"marketState","main"), 
-    { intervalStock:updateIntervalStock, updatedAt:Date.now() }, 
-    { merge:true })
-  .then(()=>{
-    alert("✅ 주식 변동주기 적용됨: " + sec + "초");
-  })
-  .catch(e=>console.error("변동주기 저장 실패:", e));
-}
-
 function applyGraphIntervalStock(){
   const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
   updateIntervalStock = Math.max(1, sec) * 1000;
@@ -2269,6 +2256,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
