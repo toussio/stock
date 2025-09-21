@@ -629,14 +629,21 @@ async function marketOpen(){
   marketOpenFlag = true;
 
   try{
+    async function marketOpen(){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  marketOpenFlag = true;
+
+  try{
     await setDoc(doc(db,"marketState","main"), {
-      isOpen:true, interval:updateInterval, driverId: localSimId, updatedAt: Date.now()
+      isOpen:true,
+      updatedAt: Date.now()
     }, { merge:true });
   }catch(e){ console.warn(e); }
 
-startLocalTimerStock();
+  // ✅ 주식/코인 각각 타이머 시작
+  startLocalTimerStock();
   startLocalTimerCoin();
-  
+
   renderMarketStatus();
   alert("✅ 주식+코인 장 시작");
 }
@@ -646,12 +653,15 @@ async function marketClose(){
   marketOpenFlag = false;
 
   try{
-    await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
+    await setDoc(doc(db,"marketState","main"), {
+      isOpen:false,
+      updatedAt: Date.now()
+    }, { merge:true });
   }catch(e){ console.warn(e); }
 
- stopLocalTimerAll();
-  
-  stopLocalTimer();
+  // ✅ 주식/코인 타이머 모두 정지
+  stopLocalTimerAll();
+
   renderMarketStatus();
   alert("📉 주식+코인 장 마감");
 }
@@ -2207,6 +2217,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
