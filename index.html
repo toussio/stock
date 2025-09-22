@@ -1259,27 +1259,21 @@ async function updatePricesSet(targetCompanies){
 
 function applyGraphIntervalStock(){
   const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
-  updateIntervalStock = Math.max(1, sec) * 1000;
-
+  const ms  = Math.max(1, sec) * 1000;
   setDoc(doc(db,"marketState","main"), 
-    { intervalStock:updateIntervalStock, updatedAt:Date.now() }, 
+    { intervalStock: ms, updatedAt:Date.now() }, 
     { merge:true })
-  .then(()=>{
-    alert("✅ 주식 변동주기 적용됨: " + sec + "초");
-  })
+  .then(()=> alert("✅ 주식 변동주기 적용됨: " + sec + "초"))
   .catch(e=>console.error("변동주기 저장 실패:", e));
 }
 
 function applyGraphIntervalCoin(){
   const sec = parseInt(document.getElementById("intervalCoinInput").value) || 5;
-  updateIntervalCoin = Math.max(1, sec) * 1000;
-
+  const ms  = Math.max(1, sec) * 1000;
   setDoc(doc(db,"marketState","main"), 
-    { intervalCoin:updateIntervalCoin, updatedAt:Date.now() }, 
+    { intervalCoin: ms, updatedAt:Date.now() }, 
     { merge:true })
-  .then(()=>{
-    alert("✅ 코인 변동주기 적용됨: " + sec + "초");
-  })
+  .then(()=> alert("✅ 코인 변동주기 적용됨: " + sec + "초"))
   .catch(e=>console.error("변동주기 저장 실패:", e));
 }
 
@@ -2256,6 +2250,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
