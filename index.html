@@ -468,6 +468,14 @@ let updateIntervalCoin  = 5000; // 코인용
 
 let priceTimerStock = null;
 let priceTimerCoin  = null;
+
+// 🔽 interval 변경 추적용 (초기값은 현재 interval과 같게)
+let lastIntervalStock = updateIntervalStock;
+let lastIntervalCoin  = updateIntervalCoin;
+
+// 또는 window에 강제로 올리기
+window.lastIntervalStock = lastIntervalStock;
+window.lastIntervalCoin  = lastIntervalCoin;
     
     let deltaMax = 1000000;
     let marketOpenFlag = false;
@@ -2257,6 +2265,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
