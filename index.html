@@ -658,16 +658,16 @@ async function marketClose(){
 }
 
     function startLocalTimerStock(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); }
+  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; } // 확실히 초기화
   priceTimerStock = setInterval(()=>{ 
-    updatePricesSet(companiesStock).catch(()=>{}); 
+    updatePricesSet(companiesStock,'stock').catch(()=>{}); 
   }, updateIntervalStock);
 }
 
 function startLocalTimerCoin(){
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); }
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; } // 확실히 초기화
   priceTimerCoin = setInterval(()=>{ 
-    updatePricesSet(companiesCoin).catch(()=>{}); 
+    updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
   }, updateIntervalCoin);
 }
 
@@ -753,7 +753,7 @@ async function updatePricesForBoth(){
 }
 
 // 🔽 추가: 공통 업데이트 함수
-async function updatePricesSet(targetCompanies){
+async function updatePricesSet(targetCompanies, type='stock'){
   if(!marketOpenFlag) return;
   const tickAt = Date.now();
   const batch = writeBatch(db);
@@ -782,9 +782,12 @@ async function updatePricesSet(targetCompanies){
     c.livePrice = next;
     batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
   }
+
   try{
     await batch.commit();
-    await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
+    // lastTick을 타입별로 나눠 기록 → 주식/코인 서로 간섭X
+    const field = type==='stock' ? 'lastTickStockAt' : 'lastTickCoinAt';
+    await setDoc(doc(db,"marketState","main"), { [field]: tickAt, driverId: localSimId }, { merge:true });
   }catch(e){ console.error("시뮬레이션 반영 실패:", e); }
 }
 
@@ -2254,6 +2257,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
