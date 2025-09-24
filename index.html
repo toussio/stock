@@ -720,24 +720,21 @@ function subscribeMarketState(){
       startLocalTimerStock();
       startLocalTimerCoin();
       currentDriver = localSimId;
-      lastIntervalStock = updateIntervalStock;
-      lastIntervalCoin  = updateIntervalCoin;
       console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
     }
 
     // 🟩 interval 값이 바뀌었을 때만 해당 타이머만 재시작
     if(amDriver && marketOpenFlag){
-  // 주식
-  if(updateIntervalStock !== lastIntervalStock){
-    startLocalTimerStock(); // 여기서 lastIntervalStock 업데이트됨
-    console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
-  }
-  // 코인
-  if(updateIntervalCoin !== lastIntervalCoin){
-    startLocalTimerCoin(); // 여기서 lastIntervalCoin 업데이트됨
-    console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
-  }
-}
+      if(updateIntervalStock !== lastIntervalStock){
+        startLocalTimerStock(); // 여기서 lastIntervalStock 업데이트됨
+        console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
+      }
+      if(updateIntervalCoin !== lastIntervalCoin){
+        startLocalTimerCoin(); // 여기서 lastIntervalCoin 업데이트됨
+        console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
+      }
+    }
+
     // 🟥 장이 닫혔으면 멈춤
     if(!marketOpenFlag){
       stopLocalTimers();
@@ -770,6 +767,13 @@ async function updatePricesForBoth(){
 // 🔽 공통 업데이트 함수 (수정)
 async function updatePricesSet(targetCompanies){
   if(!marketOpenFlag) return;
+
+  const tickAt = Math.floor(Date.now() / 1000) * 1000;
+
+  // 🔹 같은 tickAt이면 바로 return
+  if(tickAt === lastChartTick) return;
+
+  const batch = writeBatch(db);
 
   // 🔽 Date.now() → 초 단위로 통일 (1초 안에서 발생하는 건 모두 같은 tick)
   const tickAt = Math.floor(Date.now() / 1000) * 1000; 
@@ -879,7 +883,7 @@ async function updatePricesSet(targetCompanies){
     }
 
     // ======= 실시간 구독 =======
-    function subscribeCompanyPrices(){
+   function subscribeCompanyPrices(){
   onSnapshot(collection(db,"companyPrices"), (snap)=>{
     let maxTick = 0;
     snap.forEach(docu=>{
@@ -895,6 +899,8 @@ async function updatePricesSet(targetCompanies){
 
     // 🔽 Driver(관리자) 브라우저에서만 차트에 점 추가
     if(marketOpenFlag && currentDriver === localSimId && maxTick && maxTick > lastChartTick){
+      // 🔹 같은 tick이면 무시
+      if(maxTick === lastChartTick) return;
       lastChartTick = maxTick;
       appendChartPoint(maxTick);
     }
@@ -2315,6 +2321,7 @@ async function exchangeCashToCoin(){
 </script>
 </body>
 </html>
+
 
 
 
