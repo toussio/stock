@@ -666,19 +666,30 @@ async function marketClose(){
 }
 
     function startLocalTimerStock(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; } // 확실히 초기화
-  priceTimerStock = setInterval(()=>{ 
-    updatePricesSet(companiesStock,'stock').catch(()=>{}); 
+  // 항상 clear 먼저
+  if(priceTimerStock){
+    clearInterval(priceTimerStock);
+    priceTimerStock = null;
+  }
+  lastIntervalStock = updateIntervalStock; // 💡 여기에 lastInterval 업데이트
+  priceTimerStock = setInterval(()=>{
+    updatePricesSet(companiesStock,'stock').catch(()=>{});
   }, updateIntervalStock);
+  console.log('▶️ Stock timer started with', updateIntervalStock);
 }
 
 function startLocalTimerCoin(){
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; } // 확실히 초기화
-  priceTimerCoin = setInterval(()=>{ 
-    updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
+  if(priceTimerCoin){
+    clearInterval(priceTimerCoin);
+    priceTimerCoin = null;
+  }
+  lastIntervalCoin = updateIntervalCoin; // 💡 여기에 lastInterval 업데이트
+  priceTimerCoin = setInterval(()=>{
+    updatePricesSet(companiesCoin,'coin').catch(()=>{});
   }, updateIntervalCoin);
+  console.log('▶️ Coin timer started with', updateIntervalCoin);
 }
-
+    
 function stopLocalTimers(){
   if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
   if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
@@ -716,22 +727,17 @@ function subscribeMarketState(){
 
     // 🟩 interval 값이 바뀌었을 때만 해당 타이머만 재시작
     if(amDriver && marketOpenFlag){
-      // 주식
-      if(updateIntervalStock !== lastIntervalStock){
-        if(priceTimerStock) clearInterval(priceTimerStock);
-        startLocalTimerStock();
-        lastIntervalStock = updateIntervalStock;
-        console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
-      }
-      // 코인
-      if(updateIntervalCoin !== lastIntervalCoin){
-        if(priceTimerCoin) clearInterval(priceTimerCoin);
-        startLocalTimerCoin();
-        lastIntervalCoin = updateIntervalCoin;
-        console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
-      }
-    }
-
+  // 주식
+  if(updateIntervalStock !== lastIntervalStock){
+    startLocalTimerStock(); // 여기서 lastIntervalStock 업데이트됨
+    console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
+  }
+  // 코인
+  if(updateIntervalCoin !== lastIntervalCoin){
+    startLocalTimerCoin(); // 여기서 lastIntervalCoin 업데이트됨
+    console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
+  }
+}
     // 🟥 장이 닫혔으면 멈춤
     if(!marketOpenFlag){
       stopLocalTimers();
@@ -2309,6 +2315,7 @@ async function exchangeCashToCoin(){
 </script>
 </body>
 </html>
+
 
 
 
