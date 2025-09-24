@@ -463,16 +463,21 @@
     let chart = null;
     let priceTimer = null;
 
-let updateIntervalStock = 5000; // 주식용
-let updateIntervalCoin  = 5000; // 코인용
+// 🔽 interval 값(밀리초)
+let updateIntervalStock = 5000; // 주식
+let updateIntervalCoin  = 5000; // 코인
 
+// 🔽 타이머 핸들
 let priceTimerStock = null;
 let priceTimerCoin  = null;
 
-// 🔽 interval 변경 추적용 (초기값은 현재 interval과 같게)
+// 🔽 마지막 interval 저장
 let lastIntervalStock = updateIntervalStock;
 let lastIntervalCoin  = updateIntervalCoin;
 
+// driverId 추적
+let currentDriver = null;
+    
 // 또는 window에 강제로 올리기
 window.lastIntervalStock = lastIntervalStock;
 window.lastIntervalCoin  = lastIntervalCoin;
@@ -666,17 +671,27 @@ async function marketClose(){
 }
 
     function startLocalTimerStock(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; } // 확실히 초기화
+  // 기존 타이머 확실히 정리
+  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
+
+  // 새로 시작
   priceTimerStock = setInterval(()=>{ 
+    console.log('Stock Tick', updateIntervalStock);
     updatePricesSet(companiesStock,'stock').catch(()=>{}); 
   }, updateIntervalStock);
+
+  lastIntervalStock = updateIntervalStock;
 }
 
 function startLocalTimerCoin(){
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; } // 확실히 초기화
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
+
   priceTimerCoin = setInterval(()=>{ 
+    console.log('Coin Tick', updateIntervalCoin);
     updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
   }, updateIntervalCoin);
+
+  lastIntervalCoin = updateIntervalCoin;
 }
 
 function stopLocalTimers(){
@@ -688,58 +703,47 @@ function stopLocalTimers(){
 
 function subscribeMarketState(){
   onSnapshot(doc(db,"marketState","main"), (snap)=>{
-    const d = snap.exists() ? snap.data() : {};
-    marketOpenFlag = !!d.isOpen;
+  const d = snap.exists() ? snap.data() : {};
+  marketOpenFlag = !!d.isOpen;
 
-    // interval 값 갱신
-    if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
-      updateIntervalStock = d.intervalStock;
-    }
-    if(typeof d.intervalCoin === "number" && d.intervalCoin >= 500){
-      updateIntervalCoin = d.intervalCoin;
-    }
+  if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
+    updateIntervalStock = d.intervalStock;
+  }
+  if(typeof d.intervalCoin === "number" && d.intervalCoin >= 500){
+    updateIntervalCoin = d.intervalCoin;
+  }
 
-    const amDriver = d.driverId === localSimId;
+  const amDriver = d.driverId === localSimId;
+  renderMarketStatus();
 
-    renderMarketStatus();
+  // 드라이버가 처음 선정되었을 때
+  if(amDriver && currentDriver !== localSimId && marketOpenFlag){
+    stopLocalTimers();
+    startLocalTimerStock();
+    startLocalTimerCoin();
+    currentDriver = localSimId;
+    console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
+  }
 
-    // 🟩 driverId가 바뀌었을 때만 전체 재시작
-    if(amDriver && currentDriver !== localSimId && marketOpenFlag){
-      stopLocalTimers();
+  // interval 값이 변경되었을 때만 해당 타이머만 재시작
+  if(amDriver && marketOpenFlag){
+    if(updateIntervalStock !== lastIntervalStock){
       startLocalTimerStock();
+      console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
+    }
+    if(updateIntervalCoin !== lastIntervalCoin){
       startLocalTimerCoin();
-      currentDriver = localSimId;
-      lastIntervalStock = updateIntervalStock;
-      lastIntervalCoin  = updateIntervalCoin;
-      console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
+      console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
     }
+  }
 
-    // 🟩 interval 값이 바뀌었을 때만 해당 타이머만 재시작
-    if(amDriver && marketOpenFlag){
-      // 주식
-      if(updateIntervalStock !== lastIntervalStock){
-        if(priceTimerStock) clearInterval(priceTimerStock);
-        startLocalTimerStock();
-        lastIntervalStock = updateIntervalStock;
-        console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
-      }
-      // 코인
-      if(updateIntervalCoin !== lastIntervalCoin){
-        if(priceTimerCoin) clearInterval(priceTimerCoin);
-        startLocalTimerCoin();
-        lastIntervalCoin = updateIntervalCoin;
-        console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
-      }
-    }
-
-    // 🟥 장이 닫혔으면 멈춤
-    if(!marketOpenFlag){
-      stopLocalTimers();
-      currentDriver = null;
-      console.log('⏹ 타이머 정지');
-    }
-  });
-}
+  // 장이 닫혔을 때는 모두 정지
+  if(!marketOpenFlag){
+    stopLocalTimers();
+    currentDriver = null;
+    console.log('⏹ 타이머 정지');
+  }
+});
 
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
@@ -2308,6 +2312,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
