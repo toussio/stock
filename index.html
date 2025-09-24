@@ -1461,18 +1461,50 @@ async function exchangeCashToCoin(){
 
     // ======= 유저/재무 패널 =======
     async function updateAdminSummary(){
-      try{
-        const all = await getDocs(collection(db,"users"));
-        let sumHold = 0;
-        all.forEach(docu=>{
-          const u = docu.data();
-          const hold = u.holdings||{};
-          Object.values(hold).forEach(v=>{ sumHold += Number(v||0); });
-        });
-        const tgt = document.getElementById('adminSummary');
-        if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
-      }catch(e){ console.error(e); }
+  try{
+    const all = await getDocs(collection(db,"users"));
+
+    // 기업별 합계 (주식·코인 각각)
+    const totalsStock = {};
+    const totalsCoin  = {};
+
+    companiesStock.forEach(c => { totalsStock[c.name] = 0; });
+    companiesCoin.forEach(c  => { totalsCoin[c.name]  = 0; });
+
+    all.forEach(docu=>{
+      const u = docu.data();
+      const hold = u.holdings||{};
+      for(const [k,v] of Object.entries(hold)){
+        // 주식인지 코인인지 구분해서 합산
+        if(totalsStock.hasOwnProperty(k)){
+          totalsStock[k] += Number(v||0);
+        }else if(totalsCoin.hasOwnProperty(k)){
+          totalsCoin[k]  += Number(v||0);
+        }
+      }
+    });
+
+    // 주식 합계 문자열
+    const listStock = Object.entries(totalsStock)
+      .filter(([k,v])=>v>0)
+      .map(([k,v])=>`${k}:${v.toLocaleString()}주`)
+      .join(', ');
+
+    // 코인 합계 문자열
+    const listCoin = Object.entries(totalsCoin)
+      .filter(([k,v])=>v>0)
+      .map(([k,v])=>`${k}:${v.toLocaleString()}개`)
+      .join(', ');
+
+    const tgt = document.getElementById('adminSummary');
+    if(tgt){
+      tgt.style.whiteSpace = 'pre-line';
+      tgt.textContent =
+        (listStock ? `📊 주식 통합 보유량\n${listStock}` : '📊 주식 보유 없음') + '\n\n' +
+        (listCoin  ? `🪙 코인 통합 보유량\n${listCoin}`   : '🪙 코인 보유 없음');
     }
+  }catch(e){ console.error(e); }
+}
 
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
@@ -2267,6 +2299,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
