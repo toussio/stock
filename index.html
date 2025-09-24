@@ -1851,7 +1851,6 @@ async function exchangeCashToCoin(){
       currentMode = (currentMode === 'stock') ? 'coin' : 'stock';
       companies = (currentMode === 'stock') ? companiesStock : companiesCoin;
 
-      initCompaniesUI();
       renderGraphAdjustPanel();
       renderChangePanel();
       renderDelistPanel();
@@ -2306,6 +2305,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
