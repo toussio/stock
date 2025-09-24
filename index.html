@@ -2128,9 +2128,7 @@ async function exchangeCashToCoin(){
   subscribeNews();
   subscribeNotices();
   subscribeChat();
-  initChatUI();
   renderMarketStatus();
-  initCompaniesUI(); // ← 여기서 최초 한 번만 실행
   enableDrag('adminPanelAll','adminPanelHeaderSticky');
   watchAdminPresence();
 };
@@ -2308,6 +2306,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
