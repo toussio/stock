@@ -409,7 +409,7 @@
     <div class="modal-content">
       <button class="xbtn" onclick="closeAttendanceModal()">✕</button>
       <h2>🗓 출석 체크 (1 ~ 30일)</h2>
-      <p style="color:#9ca3af; font-size:13px; margin-top:-4px;">하루 한 번 체크 시 +10,000,000 KRW 보상</p>
+      <p style="color:#9ca3af; font-size:13px; margin-top:-4px;">하루 한 번 체크 시 +10,000 KRW 보상</p>
       <div id="attendanceGrid"></div>
     </div>
   </div>
@@ -528,11 +528,11 @@ window.lastIntervalCoin  = lastIntervalCoin;
       {name:"작두",       basePrice:28000000 , multiplier:1, livePrice:28000000},
       {name:"철성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
       {name:"무명",       basePrice:24000000, multiplier:1, livePrice:24000000},
-      {name:"온 더 락스",     basePrice:26700000, multiplier:1, livePrice:26700000},
-      {name:"inback",     basePrice:28400000, multiplier:1, livePrice:28400000},
-      {name:"방송국",     basePrice:26900000, multiplier:1, livePrice:26900000},
-      {name:"RIZRNT",     basePrice:27400000, multiplier:1, livePrice:27400000},
-      {name:"리얼월드/ 관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
+      {name:"온 더 락스",     basePrice:267000000, multiplier:1, livePrice:267000000},
+      {name:"inback",     basePrice:284000000, multiplier:1, livePrice:284000000},
+      {name:"방송국",     basePrice:269000000, multiplier:1, livePrice:269000000},
+      {name:"RIZRNT",     basePrice:274000000, multiplier:1, livePrice:274000000},
+      {name:"리얼월드/ 관리자", basePrice:263000000, multiplier:1, livePrice:263000000},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const companiesCoin = [
@@ -1191,27 +1191,17 @@ async function updatePricesSet(targetCompanies){
     }
 
     function renderUserInfo(){
-  if(currentUser){
-    userInfo.innerHTML = `
-      👤 <strong>${currentUser.name}</strong> (${currentUser.id})
-      &nbsp;&nbsp;|&nbsp;&nbsp; 💵 보유현금: <strong>${(player.cash||0).toLocaleString()} KRW</strong>
-      &nbsp;&nbsp;|&nbsp;&nbsp; 🪙 보유코인: <strong>${(player.coin||0).toLocaleString()} COIN</strong>
-    `;
-  }else{
-    userInfo.textContent="⏳ 로그인 대기중...";
-  }
-  updateMaxBuyUI();
-
-  // 🔽 관리자 로그인 입력창 노출/숨김 추가
-  const adminBox = document.getElementById('adminLogin');
-  if(adminBox){
-    if(currentUser?.isAdmin){
-      adminBox.style.display = 'block'; // 관리자일 때 보이게
-    }else{
-      adminBox.style.display = 'none';  // 아니면 숨김
+      if(currentUser){
+        userInfo.innerHTML = `
+          👤 <strong>${currentUser.name}</strong> (${currentUser.id})
+          &nbsp;&nbsp;|&nbsp;&nbsp; 💵 보유현금: <strong>${(player.cash||0).toLocaleString()} KRW</strong>
+          &nbsp;&nbsp;|&nbsp;&nbsp; 🪙 보유코인: <strong>${(player.coin||0).toLocaleString()} COIN</strong>
+        `;
+      }else{
+        userInfo.textContent="⏳ 로그인 대기중...";
+      }
+      updateMaxBuyUI();
     }
-  }
-}
 
     function updateMaxBuyUI(){
       companies.forEach(c=>{
@@ -1471,50 +1461,18 @@ async function exchangeCashToCoin(){
 
     // ======= 유저/재무 패널 =======
     async function updateAdminSummary(){
-  try{
-    const all = await getDocs(collection(db,"users"));
-
-    // 기업별 합계 (주식·코인 각각)
-    const totalsStock = {};
-    const totalsCoin  = {};
-
-    companiesStock.forEach(c => { totalsStock[c.name] = 0; });
-    companiesCoin.forEach(c  => { totalsCoin[c.name]  = 0; });
-
-    all.forEach(docu=>{
-      const u = docu.data();
-      const hold = u.holdings||{};
-      for(const [k,v] of Object.entries(hold)){
-        // 주식인지 코인인지 구분해서 합산
-        if(totalsStock.hasOwnProperty(k)){
-          totalsStock[k] += Number(v||0);
-        }else if(totalsCoin.hasOwnProperty(k)){
-          totalsCoin[k]  += Number(v||0);
-        }
-      }
-    });
-
-    // 주식 합계 문자열
-    const listStock = Object.entries(totalsStock)
-      .filter(([k,v])=>v>0)
-      .map(([k,v])=>`${k}:${v.toLocaleString()}주`)
-      .join(', ');
-
-    // 코인 합계 문자열
-    const listCoin = Object.entries(totalsCoin)
-      .filter(([k,v])=>v>0)
-      .map(([k,v])=>`${k}:${v.toLocaleString()}개`)
-      .join(', ');
-
-    const tgt = document.getElementById('adminSummary');
-    if(tgt){
-      tgt.style.whiteSpace = 'pre-line';
-      tgt.textContent =
-        (listStock ? `📊 주식 통합 보유량\n${listStock}` : '📊 주식 보유 없음') + '\n\n' +
-        (listCoin  ? `🪙 코인 통합 보유량\n${listCoin}`   : '🪙 코인 보유 없음');
+      try{
+        const all = await getDocs(collection(db,"users"));
+        let sumHold = 0;
+        all.forEach(docu=>{
+          const u = docu.data();
+          const hold = u.holdings||{};
+          Object.values(hold).forEach(v=>{ sumHold += Number(v||0); });
+        });
+        const tgt = document.getElementById('adminSummary');
+        if(tgt) tgt.textContent = `통합 보유주수: ${sumHold.toLocaleString()}`;
+      }catch(e){ console.error(e); }
     }
-  }catch(e){ console.error(e); }
-}
 
     function renderUserList(startListen=false){
       const box = document.getElementById('userList'); if(!box) return;
@@ -1851,6 +1809,7 @@ async function exchangeCashToCoin(){
       currentMode = (currentMode === 'stock') ? 'coin' : 'stock';
       companies = (currentMode === 'stock') ? companiesStock : companiesCoin;
 
+      initCompaniesUI();
       renderGraphAdjustPanel();
       renderChangePanel();
       renderDelistPanel();
@@ -1877,49 +1836,50 @@ async function exchangeCashToCoin(){
     }
 
     loginBtn.onclick = async () => {
-  const cid   = document.getElementById("customId").value.trim();
-  const cname = document.getElementById("customName").value.trim();
-  if(!cid||!cname){ alert("고유번호와 이름을 입력하세요."); return; }
-  try{
-    await ensureAuth();
-    const userRef = doc(db,"users",cid);
-    const snap = await getDoc(userRef);
-    let nextCash=0; let nextHoldings={}; let nextCoin=0; let isAdminFlag=false;
-    if(snap.exists()){
-      const d=snap.data();
-      if(typeof d.cash==='number') nextCash=d.cash;
-      if(typeof d.coin==='number') nextCoin=d.coin;
-      if(d.holdings && typeof d.holdings==='object') nextHoldings=d.holdings;
-      if(d.isAdmin===true) isAdminFlag=true; // 🔽 관리자 여부
-    }
-    currentUser = { id:cid, name:cname, cash:nextCash, coin:nextCoin, active:true, isAdmin:isAdminFlag };
-    player.cash=nextCash; player.coin=nextCoin; player.holdings=nextHoldings;
+      const cid   = document.getElementById("customId").value.trim();
+      const cname = document.getElementById("customName").value.trim();
+      if(!cid||!cname){ alert("고유번호와 이름을 입력하세요."); return; }
+      try{
+        await ensureAuth();
+        const userRef = doc(db,"users",cid);
+        const snap = await getDoc(userRef);
+        if(snap.exists() && snap.data().active){
+          alert("이미 로그인된 사용자입니다. 기존 세션을 먼저 종료하세요.");
+          return;
+        }
+        let nextCash=0; let nextHoldings={}; let nextCoin=0;
+        if(snap.exists()){
+          const d=snap.data();
+          if(typeof d.cash==='number') nextCash=d.cash;
+          if(typeof d.coin==='number') nextCoin=d.coin;
+          if(d.holdings && typeof d.holdings==='object') nextHoldings=d.holdings;
+        }
+        currentUser = { id:cid, name:cname, cash:nextCash, coin:nextCoin, active:true };
+        player.cash=nextCash; player.coin=nextCoin; player.holdings=nextHoldings;
 
-    await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
-    localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
+        await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
+        localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
-    loginModal.style.display='none';
-    renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
-  }catch(e){
-    console.error("⚠️ 로그인 처리 오류:", e);
-    alert("로그인 중 오류가 발생했습니다: " + (e.message || e));
-  }
-};
+        loginModal.style.display='none';
+        renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
+      }catch(e){
+        console.error("⚠️ 로그인 처리 오류:", e);
+        alert("로그인 중 오류가 발생했습니다: " + (e.message || e));
+      }
+    };
 
     function subscribeCurrentUser(uid){
-  if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-  const uref=doc(db,"users",uid);
-  unsubscribeUser = onSnapshot(uref,(snap)=>{
-    if(!snap.exists()) return;
-    const d=snap.data();
-    if(typeof d.cash==='number') player.cash=d.cash;
-    if(typeof d.coin==='number') player.coin=d.coin;
-    if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-    if(typeof d.isAdmin==='boolean') currentUser.isAdmin=d.isAdmin; // 🔽
-    renderUserInfo(); updateHoldingsUI();
-  });
-}
-
+      if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
+      const uref=doc(db,"users",uid);
+      unsubscribeUser = onSnapshot(uref,(snap)=>{
+        if(!snap.exists()) return;
+        const d=snap.data();
+        if(typeof d.cash==='number') player.cash=d.cash;
+        if(typeof d.coin==='number') player.coin=d.coin;
+        if(d.holdings && d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
+        renderUserInfo(); updateHoldingsUI();
+      });
+    }
 
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
@@ -2127,7 +2087,9 @@ async function exchangeCashToCoin(){
   subscribeNews();
   subscribeNotices();
   subscribeChat();
+  initChatUI();
   renderMarketStatus();
+  initCompaniesUI(); // ← 여기서 최초 한 번만 실행
   enableDrag('adminPanelAll','adminPanelHeaderSticky');
   watchAdminPresence();
 };
@@ -2305,11 +2267,6 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
-
-
-
-
-
 
 
 
