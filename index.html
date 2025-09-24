@@ -765,20 +765,16 @@ async function updatePricesForBoth(){
 
 // 🔽 추가: 공통 업데이트 함수
 // 🔽 공통 업데이트 함수 (수정)
-async function updatePricesSet(targetCompanies){
+sync function updatePricesSet(targetCompanies){
   if(!marketOpenFlag) return;
 
+  // 한번만 선언
   const tickAt = Math.floor(Date.now() / 1000) * 1000;
 
   // 🔹 같은 tickAt이면 바로 return
   if(tickAt === lastChartTick) return;
 
-  const batch = writeBatch(db);
-
-  // 🔽 Date.now() → 초 단위로 통일 (1초 안에서 발생하는 건 모두 같은 tick)
-  const tickAt = Math.floor(Date.now() / 1000) * 1000; 
-
-  const batch = writeBatch(db);
+  const batch = writeBatch(db); // 한번만 선언
 
   for(const c of targetCompanies){
     if(c.delisted) continue;
@@ -804,6 +800,7 @@ async function updatePricesSet(targetCompanies){
     c.livePrice = next;
     batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
   }
+
   try{
     await batch.commit();
     await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
@@ -2321,6 +2318,7 @@ async function exchangeCashToCoin(){
 </script>
 </body>
 </html>
+
 
 
 
