@@ -706,9 +706,9 @@ onSnapshot(doc(db,"marketState","main"), (snap)=>{
 
   renderMarketStatus();
 
-  // 🟩 Driver 변경될 때만 전체 재시작
-  if(amDriver && currentDriver !== localSimId && marketOpenFlag){
-    stopLocalTimers();
+  // 🟩 Driver 최초 지정 시만 타이머 시작 → 이미 타이머 있으면 중복 생성 X
+  if(amDriver && !priceTimerStock && !priceTimerCoin && marketOpenFlag){
+    stopLocalTimers(); // 혹시 남아있을 수 있는 타이머 제거
     startLocalTimerStock();
     startLocalTimerCoin();
     currentDriver = localSimId;
@@ -731,13 +731,13 @@ onSnapshot(doc(db,"marketState","main"), (snap)=>{
     }
   }
 
-  // 🟥 장이 닫혔으면 멈춤
+  // 🟥 장이 닫혔으면 멈춤 (currentDriver는 유지 → reopen 시 중복 X)
   if(!marketOpenFlag){
     stopLocalTimers();
-    currentDriver = null;
     console.log('⏹ 타이머 정지');
   }
 });
+    
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
       unsubGlobals = onSnapshot(doc(db,"globals","settings"), (snap)=>{
@@ -2304,6 +2304,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
