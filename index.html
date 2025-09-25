@@ -2290,65 +2290,6 @@ async function exchangeCashToCoin(){
     window.exchangeCashToCoin = exchangeCashToCoin;
 
     window.toggleMode = toggleMode;
-
-  </script>
-
-  <!-- ✅ 채팅창 (오른쪽 고정 / 항상 표시) -->
-  <div id="chatBox">
-    <div id="chatHeader">
-      <span>💬 실시간 채팅</span>
-      <button id="chatToggleBtn" title="숨기기/펼치기">—</button>
-    </div>
-    <div id="chatMessages"></div>
-    <div id="chatInputWrap">
-      <input type="text" id="chatInput" placeholder="메시지 입력...(Enter 전송, Shift+Enter 줄바꿈)">
-      <button onclick="sendChat()">전송</button>
-    </div>
-    <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
-  </div>
-
-<script>
-// ───────────── 전역 변수 ─────────────
-let intervalId = null;           // 현재 실행 중인 interval ID
-let currentIntervalMode = 'stock';  // 현재 모드
-
-// ───────────── 업데이트 함수 ─────────────
-function updateStockPrices() {
-  console.log('주식 가격 업데이트', new Date().toLocaleTimeString());
-  // TODO: 주식 가격 갱신 로직
-}
-function updateCoinPrices() {
-  console.log('코인 가격 업데이트', new Date().toLocaleTimeString());
-  // TODO: 코인 가격 갱신 로직
-}
-
-// ───────────── interval 실행 함수 ─────────────
-function startInterval(updateFn, ms = 5000) {
-  // 기존 interval이 있으면 먼저 해제 → 중복 방지
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
-  intervalId = setInterval(updateFn, ms);
-  updateFn(); // 시작 즉시 한 번 실행
-}
-
-// ───────────── interval 모드 전환 함수 ─────────────
-function toggleModeInterval() {
-  if (currentIntervalMode === 'stock') {
-    currentIntervalMode = 'coin';
-    startInterval(updateCoinPrices, 10000); // 코인 모드 10초
-  } else {
-    currentIntervalMode = 'stock';
-    startInterval(updateStockPrices, 10000); // 주식 모드 10초
-  }
-}
-
-// ───────────── 초기 실행 (페이지 로드 시 주식 모드로 시작) ─────────────
-window.addEventListener('DOMContentLoaded', () => {
-  startInterval(updateStockPrices, 10000);
-});
-</script>
 </body>
 </html>
 
