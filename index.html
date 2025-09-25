@@ -473,6 +473,9 @@ let priceTimerCoin  = null;
 let lastIntervalStock = updateIntervalStock;
 let lastIntervalCoin  = updateIntervalCoin;
 
+// 🟩 driverId 추적용 (추가)
+let currentDriver = null;
+    
 // 또는 window에 강제로 올리기
 window.lastIntervalStock = lastIntervalStock;
 window.lastIntervalCoin  = lastIntervalCoin;
@@ -2117,7 +2120,6 @@ async function exchangeCashToCoin(){
   subscribeCompanyPrices();
   subscribeCompanySettings(); // 여기서는 구독만
   subscribeCompanyChances();
-  subscribeMarketState();
   subscribeGlobals();
   subscribeNews();
   subscribeNotices();
@@ -2302,6 +2304,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
