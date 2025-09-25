@@ -467,7 +467,8 @@ let updateIntervalStock = 5000; // 주식용
 let updateIntervalCoin  = 5000; // 코인용
 
 let priceTimerStock = null;
-let priceTimerCoin  = null;
+let priceTimerCoin = null;
+let lastCommitTick = 0; // 같은 tick 중복 실행 방지
 
 // 🔽 interval 변경 추적용 (초기값은 현재 interval과 같게)
 let lastIntervalStock = updateIntervalStock;
@@ -668,28 +669,35 @@ async function marketClose(){
   alert("📉 주식+코인 장 마감");
 }
 
-    function startLocalTimerStock(){
-  // 이미 같은 interval로 돌고 있다면 중복 생성 막기
-  if(priceTimerStock) clearInterval(priceTimerStock);
+    // 🔹 주식용 타이머
+function startLocalTimerStock(){
+  if(priceTimerStock){ // 이미 돌고 있으면 먼저 정지
+    clearInterval(priceTimerStock);
+    priceTimerStock = null;
+  }
   priceTimerStock = setInterval(()=>{ 
     updatePricesSet(companiesStock,'stock').catch(()=>{}); 
   }, updateIntervalStock);
   console.log('[타이머] 주식용 시작', updateIntervalStock);
 }
 
+// 🔹 코인용 타이머
 function startLocalTimerCoin(){
-  if(priceTimerCoin) clearInterval(priceTimerCoin);
+  if(priceTimerCoin){
+    clearInterval(priceTimerCoin);
+    priceTimerCoin = null;
+  }
   priceTimerCoin = setInterval(()=>{ 
     updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
   }, updateIntervalCoin);
   console.log('[타이머] 코인용 시작', updateIntervalCoin);
 }
 
+// 🔹 타이머 정지 함수
 function stopLocalTimers(){
   if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
   if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
 }
-
 // 🔽 subscribeMarketState 안의 onSnapshot 부분 수정
 onSnapshot(doc(db,"marketState","main"), (snap)=>{
   const d = snap.exists() ? snap.data() : {};
@@ -717,20 +725,18 @@ onSnapshot(doc(db,"marketState","main"), (snap)=>{
     console.log('▶️ 타이머 최초 시작(드라이버)');
   }
 
-  // 🟩 interval 값이 바뀐 경우에만 해당 타이머 재시작
-  if(amDriver && marketOpenFlag){
-    if(updateIntervalStock !== lastIntervalStock){
-      startLocalTimerStock();
-      lastIntervalStock = updateIntervalStock;
-      console.log('⏱️ 주식 타이머 재시작');
-    }
-    if(updateIntervalCoin !== lastIntervalCoin){
-      startLocalTimerCoin();
-      lastIntervalCoin = updateIntervalCoin;
-      console.log('⏱️ 코인 타이머 재시작');
-    }
+ // marketState onSnapshot 콜백 내부 (amDriver, marketOpenFlag 조건이 있는 부분)
+if(amDriver && marketOpenFlag){
+  if(!priceTimerStock && !priceTimerCoin){ // 이미 돌고 있으면 새로 안 만듦
+    stopLocalTimers(); // 혹시라도 중복 정지
+    startLocalTimerStock();
+    startLocalTimerCoin();
+    currentDriver = localSimId;
+    lastIntervalStock = updateIntervalStock;
+    lastIntervalCoin  = updateIntervalCoin;
+    console.log('▶️ 타이머 최초 시작(드라이버)');
   }
-
+}
   // 🟥 장이 닫혔으면 멈춤 (currentDriver는 유지 → reopen 시 중복 X)
   if(!marketOpenFlag){
     stopLocalTimers();
@@ -759,8 +765,13 @@ async function updatePricesForBoth(){
 
 // 🔽 추가: 공통 업데이트 함수
 // 🔽 공통 업데이트 함수 (수정)
-async function updatePricesSet(targetCompanies){
+async function updatePricesSet(targetCompanies,type){
   if(!marketOpenFlag) return;
+
+  // 🟩 같은 초 안에서 중복 실행 방지 (여기를 추가)
+  const tickAt = Math.floor(Date.now() / 1000) * 1000; 
+  if(tickAt === lastCommitTick) return; 
+  lastCommitTick = tickAt;
 
   // 🔽 Date.now() → 초 단위로 통일 (1초 안에서 발생하는 건 모두 같은 tick)
   const tickAt = Math.floor(Date.now() / 1000) * 1000; 
