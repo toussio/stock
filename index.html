@@ -666,17 +666,20 @@ async function marketClose(){
 }
 
     function startLocalTimerStock(){
-  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; } // 확실히 초기화
+  // 이미 같은 interval로 돌고 있다면 중복 생성 막기
+  if(priceTimerStock) clearInterval(priceTimerStock);
   priceTimerStock = setInterval(()=>{ 
     updatePricesSet(companiesStock,'stock').catch(()=>{}); 
   }, updateIntervalStock);
+  console.log('[타이머] 주식용 시작', updateIntervalStock);
 }
 
 function startLocalTimerCoin(){
-  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; } // 확실히 초기화
+  if(priceTimerCoin) clearInterval(priceTimerCoin);
   priceTimerCoin = setInterval(()=>{ 
     updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
   }, updateIntervalCoin);
+  console.log('[타이머] 코인용 시작', updateIntervalCoin);
 }
 
 function stopLocalTimers(){
@@ -684,63 +687,54 @@ function stopLocalTimers(){
   if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
 }
 
-    let currentDriver = null; // 🔽 스크립트 최상단에 추가
+// 🔽 subscribeMarketState 안의 onSnapshot 부분 수정
+onSnapshot(doc(db,"marketState","main"), (snap)=>{
+  const d = snap.exists() ? snap.data() : {};
+  marketOpenFlag = !!d.isOpen;
 
-function subscribeMarketState(){
-  onSnapshot(doc(db,"marketState","main"), (snap)=>{
-    const d = snap.exists() ? snap.data() : {};
-    marketOpenFlag = !!d.isOpen;
+  if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
+    updateIntervalStock = d.intervalStock;
+  }
+  if(typeof d.intervalCoin === "number" && d.intervalCoin >= 500){
+    updateIntervalCoin = d.intervalCoin;
+  }
 
-    // interval 값 갱신
-    if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
-      updateIntervalStock = d.intervalStock;
-    }
-    if(typeof d.intervalCoin === "number" && d.intervalCoin >= 500){
-      updateIntervalCoin = d.intervalCoin;
-    }
+  const amDriver = d.driverId === localSimId;
 
-    const amDriver = d.driverId === localSimId;
+  renderMarketStatus();
 
-    renderMarketStatus();
+  // 🟩 Driver 변경될 때만 전체 재시작
+  if(amDriver && currentDriver !== localSimId && marketOpenFlag){
+    stopLocalTimers();
+    startLocalTimerStock();
+    startLocalTimerCoin();
+    currentDriver = localSimId;
+    lastIntervalStock = updateIntervalStock;
+    lastIntervalCoin  = updateIntervalCoin;
+    console.log('▶️ 타이머 최초 시작(드라이버)');
+  }
 
-    // 🟩 driverId가 바뀌었을 때만 전체 재시작
-    if(amDriver && currentDriver !== localSimId && marketOpenFlag){
-      stopLocalTimers();
+  // 🟩 interval 값이 바뀐 경우에만 해당 타이머 재시작
+  if(amDriver && marketOpenFlag){
+    if(updateIntervalStock !== lastIntervalStock){
       startLocalTimerStock();
-      startLocalTimerCoin();
-      currentDriver = localSimId;
       lastIntervalStock = updateIntervalStock;
-      lastIntervalCoin  = updateIntervalCoin;
-      console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
+      console.log('⏱️ 주식 타이머 재시작');
     }
-
-    // 🟩 interval 값이 바뀌었을 때만 해당 타이머만 재시작
-    if(amDriver && marketOpenFlag){
-      // 주식
-      if(updateIntervalStock !== lastIntervalStock){
-        if(priceTimerStock) clearInterval(priceTimerStock);
-        startLocalTimerStock();
-        lastIntervalStock = updateIntervalStock;
-        console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
-      }
-      // 코인
-      if(updateIntervalCoin !== lastIntervalCoin){
-        if(priceTimerCoin) clearInterval(priceTimerCoin);
-        startLocalTimerCoin();
-        lastIntervalCoin = updateIntervalCoin;
-        console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
-      }
+    if(updateIntervalCoin !== lastIntervalCoin){
+      startLocalTimerCoin();
+      lastIntervalCoin = updateIntervalCoin;
+      console.log('⏱️ 코인 타이머 재시작');
     }
+  }
 
-    // 🟥 장이 닫혔으면 멈춤
-    if(!marketOpenFlag){
-      stopLocalTimers();
-      currentDriver = null;
-      console.log('⏹ 타이머 정지');
-    }
-  });
-}
-
+  // 🟥 장이 닫혔으면 멈춤
+  if(!marketOpenFlag){
+    stopLocalTimers();
+    currentDriver = null;
+    console.log('⏹ 타이머 정지');
+  }
+});
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
       unsubGlobals = onSnapshot(doc(db,"globals","settings"), (snap)=>{
