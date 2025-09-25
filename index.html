@@ -2310,16 +2310,13 @@ async function exchangeCashToCoin(){
   <script>
 // ───────────── 전역 변수 ─────────────
 let intervalId = null;        // 현재 실행 중인 interval ID
-let currentMode = 'stock';    // 현재 모드: 'stock' 또는 'coin'
+let currentIntervalMode = 'stock';    // interval 모드: 'stock' 또는 'coin'
 
-// ───────────── 업데이트 함수 (여기에 실제 로직 작성) ─────────────
+// ───────────── 업데이트 함수 ─────────────
 function updateStockPrices() {
-  // 주식 가격 업데이트 로직
   console.log('주식 가격 업데이트', new Date().toLocaleTimeString());
 }
-
 function updateCoinPrices() {
-  // 코인 가격 업데이트 로직
   console.log('코인 가격 업데이트', new Date().toLocaleTimeString());
 }
 
@@ -2330,30 +2327,24 @@ function startInterval(updateFn, ms = 5000) {
     clearInterval(intervalId);
     intervalId = null;
   }
-
-  // 새 interval 설정
-  intervalId = setInterval(() => {
-    updateFn();
-  }, ms);
-
-  // 시작 즉시 한 번 실행
-  updateFn();
+  intervalId = setInterval(updateFn, ms);
+  updateFn(); // 시작 즉시 한 번 실행
 }
 
-// ───────────── 모드 전환 함수 ─────────────
-function toggleMode() {
-  if (currentMode === 'stock') {
-    currentMode = 'coin';
-    startInterval(updateCoinPrices, 5000); // 코인 모드 5초
+// ───────────── interval 모드 전환 함수 ─────────────
+function toggleModeInterval() {
+  if (currentIntervalMode === 'stock') {
+    currentIntervalMode = 'coin';
+    startInterval(updateCoinPrices, 10000); // 코인 모드 10초
   } else {
-    currentMode = 'stock';
-    startInterval(updateStockPrices, 5000); // 주식 모드 5초
+    currentIntervalMode = 'stock';
+    startInterval(updateStockPrices, 10000); // 주식 모드 10초
   }
 }
 
 // ───────────── 초기 실행 (페이지 로드 시 주식 모드로 시작) ─────────────
 window.addEventListener('DOMContentLoaded', () => {
-  startInterval(updateStockPrices, 5000);
+  startInterval(updateStockPrices, 10000);
 });
 </script>
 </body>
