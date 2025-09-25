@@ -666,30 +666,19 @@ async function marketClose(){
 }
 
     function startLocalTimerStock(){
-  // 항상 clear 먼저
-  if(priceTimerStock){
-    clearInterval(priceTimerStock);
-    priceTimerStock = null;
-  }
-  lastIntervalStock = updateIntervalStock; // 💡 여기에 lastInterval 업데이트
-  priceTimerStock = setInterval(()=>{
-    updatePricesSet(companiesStock,'stock').catch(()=>{});
+  if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; } // 확실히 초기화
+  priceTimerStock = setInterval(()=>{ 
+    updatePricesSet(companiesStock,'stock').catch(()=>{}); 
   }, updateIntervalStock);
-  console.log('▶️ Stock timer started with', updateIntervalStock);
 }
 
 function startLocalTimerCoin(){
-  if(priceTimerCoin){
-    clearInterval(priceTimerCoin);
-    priceTimerCoin = null;
-  }
-  lastIntervalCoin = updateIntervalCoin; // 💡 여기에 lastInterval 업데이트
-  priceTimerCoin = setInterval(()=>{
-    updatePricesSet(companiesCoin,'coin').catch(()=>{});
+  if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; } // 확실히 초기화
+  priceTimerCoin = setInterval(()=>{ 
+    updatePricesSet(companiesCoin,'coin').catch(()=>{}); 
   }, updateIntervalCoin);
-  console.log('▶️ Coin timer started with', updateIntervalCoin);
 }
-    
+
 function stopLocalTimers(){
   if(priceTimerStock){ clearInterval(priceTimerStock); priceTimerStock=null; }
   if(priceTimerCoin){ clearInterval(priceTimerCoin); priceTimerCoin=null; }
@@ -720,17 +709,25 @@ function subscribeMarketState(){
       startLocalTimerStock();
       startLocalTimerCoin();
       currentDriver = localSimId;
+      lastIntervalStock = updateIntervalStock;
+      lastIntervalCoin  = updateIntervalCoin;
       console.log('▶️ 타이머 시작(드라이버) Stock:'+updateIntervalStock+' Coin:'+updateIntervalCoin);
     }
 
     // 🟩 interval 값이 바뀌었을 때만 해당 타이머만 재시작
     if(amDriver && marketOpenFlag){
+      // 주식
       if(updateIntervalStock !== lastIntervalStock){
-        startLocalTimerStock(); // 여기서 lastIntervalStock 업데이트됨
+        if(priceTimerStock) clearInterval(priceTimerStock);
+        startLocalTimerStock();
+        lastIntervalStock = updateIntervalStock;
         console.log('⏱️ 주식 타이머 재시작: '+updateIntervalStock);
       }
+      // 코인
       if(updateIntervalCoin !== lastIntervalCoin){
-        startLocalTimerCoin(); // 여기서 lastIntervalCoin 업데이트됨
+        if(priceTimerCoin) clearInterval(priceTimerCoin);
+        startLocalTimerCoin();
+        lastIntervalCoin = updateIntervalCoin;
         console.log('⏱️ 코인 타이머 재시작: '+updateIntervalCoin);
       }
     }
@@ -765,16 +762,13 @@ async function updatePricesForBoth(){
 
 // 🔽 추가: 공통 업데이트 함수
 // 🔽 공통 업데이트 함수 (수정)
-sync function updatePricesSet(targetCompanies){
+async function updatePricesSet(targetCompanies){
   if(!marketOpenFlag) return;
 
-  // 한번만 선언
-  const tickAt = Math.floor(Date.now() / 1000) * 1000;
+  // 🔽 Date.now() → 초 단위로 통일 (1초 안에서 발생하는 건 모두 같은 tick)
+  const tickAt = Math.floor(Date.now() / 1000) * 1000; 
 
-  // 🔹 같은 tickAt이면 바로 return
-  if(tickAt === lastChartTick) return;
-
-  const batch = writeBatch(db); // 한번만 선언
+  const batch = writeBatch(db);
 
   for(const c of targetCompanies){
     if(c.delisted) continue;
@@ -800,7 +794,6 @@ sync function updatePricesSet(targetCompanies){
     c.livePrice = next;
     batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
   }
-
   try{
     await batch.commit();
     await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
@@ -880,7 +873,7 @@ sync function updatePricesSet(targetCompanies){
     }
 
     // ======= 실시간 구독 =======
-   function subscribeCompanyPrices(){
+    function subscribeCompanyPrices(){
   onSnapshot(collection(db,"companyPrices"), (snap)=>{
     let maxTick = 0;
     snap.forEach(docu=>{
@@ -896,8 +889,6 @@ sync function updatePricesSet(targetCompanies){
 
     // 🔽 Driver(관리자) 브라우저에서만 차트에 점 추가
     if(marketOpenFlag && currentDriver === localSimId && maxTick && maxTick > lastChartTick){
-      // 🔹 같은 tick이면 무시
-      if(maxTick === lastChartTick) return;
       lastChartTick = maxTick;
       appendChartPoint(maxTick);
     }
@@ -2315,14 +2306,8 @@ async function exchangeCashToCoin(){
     </div>
     <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
   </div>
-</script>
 </body>
 </html>
-
-
-
-
-
 
 
 
