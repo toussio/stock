@@ -869,27 +869,41 @@ async function updatePricesSet(targetCompanies){
     }
 
     // ======= 실시간 구독 =======
-    function subscribeCompanyPrices(){
+   function subscribeCompanyPrices(){
   onSnapshot(collection(db,"companyPrices"), (snap)=>{
     let maxTick = 0;
     snap.forEach(docu=>{
-      const data=docu.data();
-      const c = companies.find(x => x.id === docu.id);
-      if(!c) return;
-      if(typeof data.current==='number'){ c.livePrice=data.current; }
-      if(typeof data.updatedAt==='number'){ maxTick = Math.max(maxTick, data.updatedAt); }
+      const data = docu.data();
+      const id = docu.id;
+
+      // 🔹 공통 갱신 함수 (주식/코인 둘 다 최신화)
+      const updateCompany = (list)=>{
+        const c = list.find(x => x.id === id);
+        if(!c) return;
+        if(typeof data.current === 'number') c.livePrice = data.current;
+        if(typeof data.updatedAt === 'number') maxTick = Math.max(maxTick, data.updatedAt);
+      };
+
+      updateCompany(companiesStock);
+      updateCompany(companiesCoin);
+    });
+
+    // 🔹 현재 활성 모드(주식 또는 코인)에 따라 가격 표시 갱신
+    companies.forEach(c=>{
       const el = document.getElementById("price-" + c.id);
       if(el) el.textContent = getDisplayPrice(c).toLocaleString();
     });
+
     updateMaxBuyUI();
 
-    // 🔽 Driver(관리자) 브라우저에서만 차트에 점 추가
+    // 🔹 Driver 브라우저만 차트에 점 추가
     if(marketOpenFlag && currentDriver === localSimId && maxTick && maxTick > lastChartTick){
       lastChartTick = maxTick;
       appendChartPoint(maxTick);
     }
   });
 }
+    
     function subscribeCompanySettings(){
   onSnapshot(collection(db,'companySettings'), (snap)=>{
     snap.forEach(d=>{
@@ -2303,6 +2317,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
