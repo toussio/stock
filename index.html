@@ -1918,26 +1918,28 @@ async function exchangeCashToCoin(){
 };
 
     function subscribeCurrentUser(uid){
-  if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-  const uref = doc(db,"users",uid);
-  unsubscribeUser = onSnapshot(uref,(snap)=>{
-    if(!snap.exists()) return;
-    const d = snap.data();
-    if(typeof d.cash==='number') player.cash=d.cash;
-    if(typeof d.coin==='number') player.coin=d.coin;
-    if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-    if(typeof d.isAdmin==='boolean') currentUser.isAdmin=d.isAdmin;
+  if (unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser = null; }
 
-    renderUserInfo(); 
+  const uref = doc(db, "users", uid);
+  unsubscribeUser = onSnapshot(uref, (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+
+    if (typeof d.cash === 'number') player.cash = d.cash;
+    if (typeof d.coin === 'number') player.coin = d.coin;
+    if (d.holdings && typeof d.holdings === 'object') player.holdings = d.holdings;
+    currentUser.isAdmin = d.isAdmin === true;  // ← 확실하게 boolean으로 저장
+
+    renderUserInfo();
     updateHoldingsUI();
 
-    // 🔽 관리자 여부에 따라 관리자 코드 입력창 표시 제어
+    // ✅ 관리자 여부에 따라 관리자 코드 입력창 표시 제어
     const adminBox = document.getElementById('adminLogin');
-    if(adminBox){
-      if(currentUser.isAdmin === true){
-        adminBox.style.display = 'block'; // 관리자일 경우만 보이게
+    if (adminBox) {
+      if (currentUser.isAdmin) {
+        adminBox.style.display = 'block';  // Firestore isAdmin === true → 보임
       } else {
-        adminBox.style.display = 'none';  // 일반 유저는 숨김
+        adminBox.style.display = 'none';   // false 또는 값 없음 → 숨김
       }
     }
   });
@@ -2152,7 +2154,6 @@ async function exchangeCashToCoin(){
   renderMarketStatus();
   initCompaniesUI(); // ← 여기서 최초 한 번만 실행
   enableDrag('adminPanelAll','adminPanelHeaderSticky');
-  watchAdminPresence();
 };
 
     // ======= 드래그(관리자 패널) =======
@@ -2328,6 +2329,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
