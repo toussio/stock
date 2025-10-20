@@ -1930,6 +1930,7 @@ async function exchangeCashToCoin(){
     localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
     loginModal.style.display='none';
+    watchAdminAccess(cid);
     renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
   }catch(e){
     console.error("⚠️ 로그인 처리 오류:", e);
@@ -2337,6 +2338,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
