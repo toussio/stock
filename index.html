@@ -897,13 +897,14 @@ async function updatePricesSet(targetCompanies){
 
     updateMaxBuyUI();
 
-   // 🔹 모든 유저가 실시간 차트 반영 (드라이버 여부와 상관없이)
-if (marketOpenFlag && maxTick && maxTick > lastChartTick) {
-  lastChartTick = maxTick;
-  appendChartPoint(maxTick);
-}
+     if (marketOpenFlag && maxTick && maxTick > lastChartTick) {
+     lastChartTick = maxTick;
+     appendChartPoint(maxTick);
+   }
+  }); // ← onSnapshot 닫음
+} // ← subscribeCompanyPrices 닫음
 
-    function subscribeCompanySettings(){
+function subscribeCompanySettings(){
   onSnapshot(collection(db,'companySettings'), (snap)=>{
     snap.forEach(d=>{
       const data = d.data();
@@ -2359,6 +2360,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
