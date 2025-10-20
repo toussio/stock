@@ -897,14 +897,12 @@ async function updatePricesSet(targetCompanies){
 
     updateMaxBuyUI();
 
-    // 🔹 Driver 브라우저만 차트에 점 추가
-    if(marketOpenFlag && currentDriver === localSimId && maxTick && maxTick > lastChartTick){
-      lastChartTick = maxTick;
-      appendChartPoint(maxTick);
-    }
-  });
+   // 🔹 모든 유저가 실시간 차트 반영 (드라이버 여부와 상관없이)
+if (marketOpenFlag && maxTick && maxTick > lastChartTick) {
+  lastChartTick = maxTick;
+  appendChartPoint(maxTick);
 }
-    
+
     function subscribeCompanySettings(){
   onSnapshot(collection(db,'companySettings'), (snap)=>{
     snap.forEach(d=>{
@@ -2362,6 +2360,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
