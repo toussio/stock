@@ -59,23 +59,23 @@
     textarea { width:100%; min-height:120px; }
     .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
 
-    /* ✅ 채팅창 고정/개선 */
-    #chatBox {
-      position: fixed;
-      top: 80px;
-      right: 20px;
-      width: 380px;
-      height: 600px;
-      min-height: 300px;
-      max-height: 900px;
-      background: var(--card);
-      border-radius: 12px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.5);
-      z-index: 2500;
-    }
+   #chatBox {
+  position: absolute; /* ← fixed → absolute로 변경 */
+  top: 80px;
+  right: 20px;
+  width: 380px;
+  height: 600px;
+  min-height: 300px;
+  max-height: 900px;
+  background: var(--card);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  z-index: 2500;
+  cursor: move; /* 드래그 가능 표시 */
+}
     #chatHeader {
       background: var(--accent);
       color: var(--ink);
@@ -527,11 +527,12 @@ window.lastIntervalCoin  = lastIntervalCoin;
       {name:"벌집",   basePrice:24000000 , multiplier:1, livePrice:24000000},
       {name:"Ems",        basePrice:26000000, multiplier:1, livePrice:26000000},
       {name:"작두",       basePrice:28000000 , multiplier:1, livePrice:28000000},
-      {name:"철성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
+      {name:"칠성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
       {name:"무명",       basePrice:24000000, multiplier:1, livePrice:24000000},
       {name:"온 더 락스",     basePrice:26700000, multiplier:1, livePrice:26700000},
       {name:"jewelry",     basePrice:27700000, multiplier:1, livePrice:27700000},
       {name:"inback",     basePrice:28400000, multiplier:1, livePrice:28400000},
+      {name:"블루문",     basePrice:22400000, multiplier:1, livePrice:28400000},
       {name:"방송국",     basePrice:26900000, multiplier:1, livePrice:26900000},
       {name:"RIZRNT",     basePrice:27400000, multiplier:1, livePrice:27400000},
       {name:"리얼월드/ 관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
@@ -2312,6 +2313,38 @@ async function exchangeCashToCoin(){
 
     window.toggleMode = toggleMode;
 
+    // ✅ 채팅창 드래그 이동 가능하게
+(function enableChatDrag(){
+  const chatBox = document.getElementById('chatBox');
+  const chatHeader = document.getElementById('chatHeader');
+  let offsetX = 0, offsetY = 0, isDragging = false;
+
+  chatHeader.style.cursor = 'grab';
+
+  chatHeader.addEventListener('mousedown', (e)=>{
+    isDragging = true;
+    offsetX = e.clientX - chatBox.offsetLeft;
+    offsetY = e.clientY - chatBox.offsetTop;
+    chatHeader.style.cursor = 'grabbing';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e)=>{
+    if(!isDragging) return;
+    const x = e.clientX - offsetX;
+    const y = e.clientY - offsetY;
+    chatBox.style.left = `${x}px`;
+    chatBox.style.top = `${y}px`;
+    chatBox.style.right = 'auto'; // 오른쪽 고정 해제
+  });
+
+  document.addEventListener('mouseup', ()=>{
+    isDragging = false;
+    chatHeader.style.cursor = 'grab';
+    document.body.style.userSelect = '';
+  });
+})();
+
   </script>
 
   <!-- ✅ 채팅창 (오른쪽 고정 / 항상 표시) -->
@@ -2329,6 +2362,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
