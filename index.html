@@ -1919,18 +1919,29 @@ async function exchangeCashToCoin(){
 
     function subscribeCurrentUser(uid){
   if(unsubscribeUser){ try{ unsubscribeUser(); }catch(e){} unsubscribeUser=null; }
-  const uref=doc(db,"users",uid);
+  const uref = doc(db,"users",uid);
   unsubscribeUser = onSnapshot(uref,(snap)=>{
     if(!snap.exists()) return;
-    const d=snap.data();
+    const d = snap.data();
     if(typeof d.cash==='number') player.cash=d.cash;
     if(typeof d.coin==='number') player.coin=d.coin;
     if(d.holdings && typeof d.holdings==='object') player.holdings=d.holdings;
-    if(typeof d.isAdmin==='boolean') currentUser.isAdmin=d.isAdmin; // 🔽
-    renderUserInfo(); updateHoldingsUI();
+    if(typeof d.isAdmin==='boolean') currentUser.isAdmin=d.isAdmin;
+
+    renderUserInfo(); 
+    updateHoldingsUI();
+
+    // 🔽 관리자 여부에 따라 관리자 코드 입력창 표시 제어
+    const adminBox = document.getElementById('adminLogin');
+    if(adminBox){
+      if(currentUser.isAdmin === true){
+        adminBox.style.display = 'block'; // 관리자일 경우만 보이게
+      } else {
+        adminBox.style.display = 'none';  // 일반 유저는 숨김
+      }
+    }
   });
 }
-
 
     async function logout(){
       try{ if(currentUser){ await updateDoc(doc(db,"users",currentUser.id),{active:false, lastLogoutAt:Date.now()}); } }catch(e){}
@@ -2317,6 +2328,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
