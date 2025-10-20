@@ -1894,31 +1894,57 @@ async function exchangeCashToCoin(){
       });
     }
 
-    loginBtn.onclick = async () => {
+ loginBtn.onclick = async () => {
   const cid   = document.getElementById("customId").value.trim();
   const cname = document.getElementById("customName").value.trim();
   if(!cid||!cname){ alert("고유번호와 이름을 입력하세요."); return; }
-  try{
+
+  try {
     await ensureAuth();
-    const userRef = doc(db,"users",cid);
+    const userRef = doc(db, "users", cid);
     const snap = await getDoc(userRef);
-    let nextCash=0; let nextHoldings={}; let nextCoin=0; let isAdminFlag=false;
-    if(snap.exists()){
-      const d=snap.data();
-      if(typeof d.cash==='number') nextCash=d.cash;
-      if(typeof d.coin==='number') nextCoin=d.coin;
-      if(d.holdings && typeof d.holdings==='object') nextHoldings=d.holdings;
-      if(d.isAdmin===true) isAdminFlag=true; // 🔽 관리자 여부
+
+    // 🔹 중복 로그인 방지 체크
+    if (snap.exists()) {
+      const d = snap.data();
+
+      // 관리자는 중복 로그인 허용
+      const isAdminFlag = d.isAdmin === true;
+
+      if (!isAdminFlag && d.active === true) {
+        alert("⚠️ 이미 다른 기기에서 로그인 중입니다. 로그아웃 후 다시 시도하세요.");
+        return; // 로그인 중단
+      }
+
+      // 🔹 기존 데이터 불러오기
+      let nextCash = typeof d.cash === "number" ? d.cash : 0;
+      let nextCoin = typeof d.coin === "number" ? d.coin : 0;
+      let nextHoldings = (d.holdings && typeof d.holdings === "object") ? d.holdings : {};
+
+      currentUser = { id: cid, name: cname, cash: nextCash, coin: nextCoin, active: true, isAdmin: isAdminFlag };
+      player.cash = nextCash; player.coin = nextCoin; player.holdings = nextHoldings;
+
+      // 🔹 로그인 승인 및 상태 갱신
+      await setDoc(userRef, { 
+        ...currentUser,
+        holdings: nextHoldings,
+        lastLoginAt: Date.now(),
+        active: true
+      }, { merge: true });
+
+    } else {
+      // 신규 유저
+      currentUser = { id: cid, name: cname, cash: 0, coin: 0, holdings: {}, active: true, isAdmin: false };
+      player.cash = 0; player.coin = 0; player.holdings = {};
+      await setDoc(userRef, currentUser);
     }
-    currentUser = { id:cid, name:cname, cash:nextCash, coin:nextCoin, active:true, isAdmin:isAdminFlag };
-    player.cash=nextCash; player.coin=nextCoin; player.holdings=nextHoldings;
 
-    await setDoc(userRef,{ ...currentUser, holdings:nextHoldings, lastLoginAt:Date.now(), active:true },{merge:true});
-    localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
+    localStorage.setItem("stockUser", JSON.stringify({ id: cid, name: cname }));
 
-    loginModal.style.display='none';
+    loginModal.style.display = "none";
     renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
-  }catch(e){
+
+  } catch (e) {
     console.error("⚠️ 로그인 처리 오류:", e);
     alert("로그인 중 오류가 발생했습니다: " + (e.message || e));
   }
@@ -2367,6 +2393,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
