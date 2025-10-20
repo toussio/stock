@@ -1396,26 +1396,6 @@ function applyGraphIntervalCoin(){
     }
 
     // ======= 관리자 패널/권한 =======
-    // Firestore 관리자 감지
-function checkAdmin(user){
-  const ref = doc(db, "users", user.uid);
-  onSnapshot(ref, (snap)=>{
-    const data = snap.data();
-    const adminSection = document.getElementById("adminSection"); // 코드 입력창 부분
-    const adminModeBtn = document.getElementById("adminModeBtn");
-
-    if(data && data.isAdmin === true){
-      console.log("✅ 관리자 권한 감지됨:", user.uid);
-      if(adminSection) adminSection.style.display = "block"; // 코드 입력창 보이기
-      if(adminModeBtn) adminModeBtn.style.display = "inline-block";
-    } else {
-      console.log("⛔ 일반 사용자:", user.uid);
-      if(adminSection) adminSection.style.display = "none";
-      if(adminModeBtn) adminModeBtn.style.display = "none";
-    }
-  });
-}
-
     function checkAdmin(){
       const code = document.getElementById('adminCode').value.trim();
       if(code !== 'ADBEN7732'){
@@ -1930,7 +1910,6 @@ async function exchangeCashToCoin(){
     localStorage.setItem("stockUser", JSON.stringify({ id:cid, name:cname }));
 
     loginModal.style.display='none';
-    watchAdminAccess(cid);
     renderUserInfo(); initCompaniesUI(); subscribeCurrentUser(cid); renderMarketStatus();
   }catch(e){
     console.error("⚠️ 로그인 처리 오류:", e);
@@ -2338,9 +2317,6 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
-
-
-
 
 
 
