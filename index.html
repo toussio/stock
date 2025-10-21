@@ -1662,21 +1662,18 @@ async function exchangeCashToCoin(){
     }
 
     // ======= 주가 조작 =======
-   function renderStockTuner(){
+  function renderStockTuner(){
   const host = document.getElementById('stockTuner'); 
   if(!host) return;
   let html = "";
   companies.forEach(c=>{
-    const disabled = c.delisted ? "disabled" : "";
     html += `
       <div class='req-card'>
-        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
-          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-        </div>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW</div>
         <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
-          <input type="number" id="tick-${c.id}" placeholder="틱" min="0" style="width:70px; padding:6px; border-radius:6px;">
-          <input type="number" id="price-${c.id}" placeholder="가격" min="0" style="width:90px; padding:6px; border-radius:6px;">
-          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
+          <input type="number" id="tick-${c.id}" placeholder="틱" min="1" style="width:70px; padding:6px;">
+          <input type="number" id="price-${c.id}" placeholder="가격" style="width:90px; padding:6px;">
+          <button onclick="applyStockTarget('${c.name}')">적용</button>
         </div>
       </div>`;
   });
@@ -2549,6 +2546,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
