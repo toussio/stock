@@ -2193,7 +2193,7 @@ async function generateFakeNews(){
   const topic = keys[Math.floor(Math.random()*keys.length)];
   const newsList = fakeNewsPool[topic];
   const text = newsList[Math.floor(Math.random()*newsList.length)];
-  const title = `[가짜뉴스] ${topic}`;
+  const title = `[속보] ${topic}`;
   await addDoc(collection(db,"news"),{
     title, content:text, type:"fake", createdAt:Date.now(), visible:true
   });
@@ -2518,6 +2518,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
