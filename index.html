@@ -2046,29 +2046,28 @@ async function exchangeCashToCoin(){
 
   let minimized = false;
 
-  // ✅ 최소화 / 복구 토글
 // ✅ 최소화 / 복구 토글
 toggleBtn.addEventListener('click', () => {
   if (!minimized) {
-    // 최소화 상태 → 헤더만 보이게
-    chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+    // 최소화: 검정 네모 영역만 보이기
+    chatBox.querySelectorAll('#chatHeader, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = 'none');
-    chatBox.style.height = '50px'; // 헤더 높이만 남김
-    chatBox.style.background = '#1f2937'; // 헤더 색상 유지
-    chatBox.style.border = '1px solid #334155';
+    chatBox.querySelector('#chatMessages').style.display = 'block';
+    chatBox.style.height = '150px'; // 원하는 높이로 조정 가능
+    chatBox.style.background = '#1f2937';
     toggleBtn.textContent = '＋';
     minimized = true;
   } else {
-    // 복구 상태 → 전체 보이기
-    chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+    // 복구: 전체 다시 표시
+    chatBox.querySelectorAll('#chatHeader, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = '');
+    chatBox.querySelector('#chatMessages').style.display = '';
     chatBox.style.height = '';
     chatBox.style.background = 'var(--card)';
     toggleBtn.textContent = '—';
     minimized = false;
   }
 });
-
   // ✅ Enter 전송
   if (input) {
     input.addEventListener('keydown', (e) => {
@@ -2404,6 +2403,7 @@ toggleBtn.addEventListener('click', () => {
   </div>
 </body>
 </html>
+
 
 
 
