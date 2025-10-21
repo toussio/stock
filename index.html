@@ -2049,25 +2049,29 @@ async function exchangeCashToCoin(){
 // ✅ 최소화 / 복구 토글
 toggleBtn.addEventListener('click', () => {
   if (!minimized) {
-    // ▼ 최소화 상태: 실시간채팅 바(헤더)만 보이게
+    // ▼ 최소화 상태: 헤더만 남기기
     chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = 'none');
     chatBox.style.height = '45px'; // 헤더 높이만 유지
+    chatBox.style.minHeight = '0'; // 남는 여백 제거
+    chatBox.style.paddingBottom = '0';
     chatBox.style.overflow = 'hidden';
     chatBox.style.background = '#1f2937'; // 헤더 색상 유지
     chatBox.style.border = '1px solid #334155';
-    chatBox.style.borderRadius = '8px';
+    chatBox.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
     toggleBtn.textContent = '＋';
     minimized = true;
   } else {
-    // ▲ 복구 상태: 다시 전체 표시
+    // ▲ 복구 상태: 전체 다시 표시
     chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = '');
     chatBox.style.height = '';
+    chatBox.style.minHeight = '';
+    chatBox.style.paddingBottom = '';
     chatBox.style.overflow = '';
     chatBox.style.background = 'var(--card)';
     chatBox.style.border = '';
-    chatBox.style.borderRadius = '12px';
+    chatBox.style.boxShadow = '';
     toggleBtn.textContent = '—';
     minimized = false;
   }
@@ -2408,6 +2412,7 @@ toggleBtn.addEventListener('click', () => {
   </div>
 </body>
 </html>
+
 
 
 
