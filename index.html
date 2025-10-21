@@ -1680,16 +1680,18 @@ async function exchangeCashToCoin(){
             <option value="down">−</option>
           </select>
           <input type="number" id="price-${c.id}" placeholder="가격" min="1" style="width:90px; padding:6px; border-radius:6px;">
-          <button ${disabled} onclick="applyStockTarget('${c.name}')">확인</button>
+          <button ${disabled} onclick="applyStockTarget('${c.id}')">확인</button>
         </div>
       </div>`;
   });
   host.innerHTML = html;
 }
 
-  async function applyStockTarget(name){
+
+    
+ async function applyStockTarget(id){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); 
+  const c = findCompanyById(id); 
   if(!c) return;
   if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
 
@@ -2553,6 +2555,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
