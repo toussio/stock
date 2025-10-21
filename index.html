@@ -2047,28 +2047,28 @@ async function exchangeCashToCoin(){
   let minimized = false;
 
   // ✅ 최소화 / 복구 토글
-  toggleBtn.addEventListener('click', () => {
-    if (!minimized) {
-      // 최소화 시: 헤더만 남기기
-      [...chatBox.children].forEach(el => {
-        if (el !== chatHeader) el.style.display = 'none';
-      });
-      chatBox.style.height = '40px'; // 헤더 높이만
-      chatBox.style.overflow = 'hidden';
-      chatBox.style.boxShadow = '0 3px 10px rgba(0,0,0,0.4)';
-      toggleBtn.textContent = '＋';
-      minimized = true;
-    } else {
-      // 복구 시: 다시 표시
-      [...chatBox.children].forEach(el => {
-        if (el !== chatHeader) el.style.display = '';
-      });
-      chatBox.style.height = '';
-      chatBox.style.overflow = '';
-      toggleBtn.textContent = '—';
-      minimized = false;
-    }
-  });
+  // ✅ 최소화 / 복구 토글
+toggleBtn.addEventListener('click', () => {
+  if (!minimized) {
+    // 최소화: 실시간채팅 바만 남기기
+    document.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+      .forEach(el => el.style.display = 'none');
+    chatBox.style.height = '40px'; // 헤더 높이만 남기기
+    chatBox.style.overflow = 'hidden';
+    chatBox.style.background = 'var(--accent)'; // 헤더 배경색과 통일
+    toggleBtn.textContent = '＋';
+    minimized = true;
+  } else {
+    // 복구: 다시 전체 표시
+    document.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+      .forEach(el => el.style.display = '');
+    chatBox.style.height = '';
+    chatBox.style.overflow = '';
+    chatBox.style.background = 'var(--card)'; // 원래 배경 복귀
+    toggleBtn.textContent = '—';
+    minimized = false;
+  }
+});
 
   // ✅ Enter 전송
   if (input) {
@@ -2405,6 +2405,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
