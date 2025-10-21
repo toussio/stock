@@ -636,12 +636,12 @@ async function marketOpen(){
 
   try{
     await setDoc(doc(db,"marketState","main"), {
-  isOpen:true,
-  intervalStock: updateIntervalStock,
-  intervalCoin:  updateIntervalCoin,
-  driverId: localSimId,
-  updatedAt: Date.now()
-}, { merge:true });
+      isOpen:true,
+      intervalStock: updateIntervalStock,
+      intervalCoin:  updateIntervalCoin,
+      driverId: localSimId,
+      updatedAt: Date.now()
+    }, { merge:true });
   }catch(e){ console.warn(e); }
 
   if(ADMIN_MODE){
@@ -650,8 +650,9 @@ async function marketOpen(){
     startLocalTimerCoin();
     currentDriver = localSimId;
   }
-  
+
   renderMarketStatus();
+  startAutoNews(); // ✅ 이 한 줄 추가
   alert("✅ 주식+코인 장 시작");
 }
 
@@ -664,6 +665,7 @@ async function marketClose(){
   }catch(e){ console.warn(e); }
 
   stopLocalTimers();
+  stopAutoNews(); // ✅ 이 한 줄 추가
   renderMarketStatus();
   alert("📉 주식+코인 장 마감");
 }
@@ -2198,13 +2200,28 @@ async function generateFakeNews(){
   console.log("📰 가짜뉴스 등록:", title);
 }
 
-// 🔹 5분마다 자동 뉴스 생성
-setInterval(()=>{
-  const isReal = Math.random() < 0.5;
-  if(isReal) generateRealNews();
-  else generateFakeNews();
-}, 5*60*1000);
-    
+// 🕒 장이 열려 있을 때만 자동 뉴스 생성 (5분마다)
+let newsTimer = null;
+
+// 🔹 장 시작 시 자동 뉴스 시작
+function startAutoNews() {
+  if (newsTimer) clearInterval(newsTimer);
+  newsTimer = setInterval(() => {
+    const isReal = Math.random() < 0.5;
+    if (isReal) generateRealNews();
+    else generateFakeNews();
+  }, 5 * 60 * 1000);
+  console.log("📰 뉴스 자동생성 시작됨 (장 시작)");
+}
+
+// 🔹 장 마감 시 자동 뉴스 중단
+function stopAutoNews() {
+  if (newsTimer) {
+    clearInterval(newsTimer);
+    newsTimer = null;
+    console.log("🛑 뉴스 자동생성 중단됨 (장 마감)");
+  }
+}
     // ======= 출석 체크 =======
     function openAttendanceModal(){
       if(!currentUser) return alert('로그인 후 이용해주세요.');
@@ -2501,6 +2518,7 @@ setInterval(()=>{
   </div>
 </body>
 </html>
+
 
 
 
