@@ -2047,24 +2047,23 @@ async function exchangeCashToCoin(){
   let minimized = false;
 
   // ✅ 최소화 / 복구 토글
-  // ✅ 최소화 / 복구 토글
+// ✅ 최소화 / 복구 토글
 toggleBtn.addEventListener('click', () => {
   if (!minimized) {
-    // 최소화: 실시간채팅 바만 남기기
-    document.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+    // 최소화 상태 → 헤더만 보이게
+    chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = 'none');
-    chatBox.style.height = '40px'; // 헤더 높이만 남기기
-    chatBox.style.overflow = 'hidden';
-    chatBox.style.background = 'var(--accent)'; // 헤더 배경색과 통일
+    chatBox.style.height = '50px'; // 헤더 높이만 남김
+    chatBox.style.background = '#1f2937'; // 헤더 색상 유지
+    chatBox.style.border = '1px solid #334155';
     toggleBtn.textContent = '＋';
     minimized = true;
   } else {
-    // 복구: 다시 전체 표시
-    document.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
+    // 복구 상태 → 전체 보이기
+    chatBox.querySelectorAll('#chatMessages, #chatInputWrap, #chatResizer')
       .forEach(el => el.style.display = '');
     chatBox.style.height = '';
-    chatBox.style.overflow = '';
-    chatBox.style.background = 'var(--card)'; // 원래 배경 복귀
+    chatBox.style.background = 'var(--card)';
     toggleBtn.textContent = '—';
     minimized = false;
   }
@@ -2405,6 +2404,7 @@ toggleBtn.addEventListener('click', () => {
   </div>
 </body>
 </html>
+
 
 
 
