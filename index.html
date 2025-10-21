@@ -1667,41 +1667,50 @@ async function exchangeCashToCoin(){
   if(!host) return;
   let html = "";
   companies.forEach(c=>{
+    const disabled = c.delisted ? "disabled" : "";
     html += `
       <div class='req-card'>
-        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW</div>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
         <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
-          <input type="number" id="tick-${c.id}" placeholder="틱" min="1" style="width:70px; padding:6px;">
-          <input type="number" id="price-${c.id}" placeholder="가격" style="width:90px; padding:6px;">
-          <button onclick="applyStockTarget('${c.name}')">적용</button>
+          <input type="number" id="tick-${c.id}" placeholder="틱" min="1" style="width:70px; padding:6px; border-radius:6px;">
+          <select id="dir-${c.id}" style="padding:6px; border-radius:6px;">
+            <option value="up">+</option>
+            <option value="down">−</option>
+          </select>
+          <input type="number" id="price-${c.id}" placeholder="가격" min="1" style="width:90px; padding:6px; border-radius:6px;">
+          <button ${disabled} onclick="applyStockTarget('${c.name}')">확인</button>
         </div>
       </div>`;
   });
   host.innerHTML = html;
 }
 
-   async function applyStockTarget(name){
+  async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name); 
   if(!c) return;
   if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
 
   const tickEl  = document.getElementById("tick-" + c.id);
+  const dirEl   = document.getElementById("dir-" + c.id);
   const priceEl = document.getElementById("price-" + c.id);
 
   const tickVal  = parseInt(tickEl?.value || 0);
   const priceVal = parseInt(priceEl?.value || 0);
+  const direction = dirEl?.value === "up" ? 1 : -1;
 
-  if(tickVal <= 0 || priceVal === 0){
-    return alert("틱(>0)과 가격(+, - 가능)을 입력하세요.");
+  if(tickVal <= 0 || priceVal <= 0){
+    return alert("틱(>0)과 가격(>0)을 모두 입력하세요.");
   }
 
   // 한 틱당 변화량 계산
-  const perTickChange = priceVal / tickVal;
+  const perTickChange = (priceVal / tickVal) * direction;
 
-  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
+  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${direction>0?'+':'−'}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
 
-  // 틱별 순차 적용 (1틱 = 1초 간격)
+  // 틱별 순차 적용 (1초 간격)
   for(let i=1; i<=tickVal; i++){
     setTimeout(async ()=>{
       await adjustCompanyPrice(c.name, perTickChange);
@@ -1709,12 +1718,10 @@ async function exchangeCashToCoin(){
     }, i * 1000);
   }
 
-  tickEl.value = ""; 
+  // 입력칸 초기화
+  tickEl.value = "";
   priceEl.value = "";
 }
-
-
-
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2546,6 +2553,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
