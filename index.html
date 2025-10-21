@@ -1662,30 +1662,56 @@ async function exchangeCashToCoin(){
     }
 
     // ======= 주가 조작 =======
-    function renderStockTuner(){
-      const host = document.getElementById('stockTuner'); if(!host) return;
-      let html = "";
-      companies.forEach(c=>{
-        const disabled = c.delisted ? "disabled" : "";
-        html += `
-          <div class='req-card'>
-            <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
-            <div style='display:flex; gap:6px;'>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
-            </div>
-          </div>`;
-      });
-      host.innerHTML = html;
-    }
-    async function applyStockTarget(name, delta){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c=findCompanyById(name); if(!c) return;
-      if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
-      await adjustCompanyPrice(c.name, delta);
-    }
+   function renderStockTuner(){
+  const host = document.getElementById('stockTuner'); 
+  if(!host) return;
+  let html = "";
+  companies.forEach(c=>{
+    const disabled = c.delisted ? "disabled" : "";
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
+        <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
+          <select id="unit-${c.id}" style="padding:6px; border-radius:6px;">
+            <option value="tick">틱</option>
+            <option value="price">가격</option>
+          </select>
+          <input type="number" id="val-${c.id}" value="1" min="1" style="width:80px; padding:6px; border-radius:6px;">
+          <select id="dir-${c.id}" style="padding:6px; border-radius:6px;">
+            <option value="up">상승</option>
+            <option value="down">하락</option>
+          </select>
+          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
+        </div>
+      </div>`;
+  });
+  host.innerHTML = html;
+}
+    async function applyStockTarget(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); 
+  if(!c) return;
+  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
+
+  const valEl  = document.getElementById("val-" + c.id);
+  const unitEl = document.getElementById("unit-" + c.id);
+  const dirEl  = document.getElementById("dir-" + c.id);
+  const value  = parseInt(valEl?.value || 1);
+  const unit   = unitEl?.value || "tick";
+  const direction = dirEl?.value === "up" ? 1 : -1;
+
+  let delta = 0;
+  if(unit === "tick"){
+    delta = deltaMax * value * direction;
+  }else{
+    delta = value * direction;
+  }
+
+  await adjustCompanyPrice(c.name, delta);
+  console.log(`🎛 ${c.name} ${unit==='tick' ? `${value}틱` : `${value}원`} (${direction>0?'상승':'하락'})`);
+}
 
     // ======= 배율/확률 =======
     function renderChangePanel(){
@@ -2518,6 +2544,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
