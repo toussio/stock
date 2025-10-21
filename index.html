@@ -2037,7 +2037,7 @@ async function exchangeCashToCoin(){
       });
     }
 
-    function initChatUI(){
+   function initChatUI(){
   const chatBox = document.getElementById('chatBox');
   const chatHeader = document.getElementById('chatHeader');
   const toggleBtn = document.getElementById('chatToggleBtn');
@@ -2046,38 +2046,34 @@ async function exchangeCashToCoin(){
 
   let minimized = false;
 
-  // ✅ 토글 버튼 (＋ / —)
+  // ✅ 최소화 / 복구 토글
   toggleBtn.addEventListener('click', () => {
     if (!minimized) {
-      // 최소화 시: 메시지/입력 숨김
+      // 최소화 시: 헤더만 남기기
       [...chatBox.children].forEach(el => {
         if (el !== chatHeader) el.style.display = 'none';
       });
-      chatBox.style.height = '40px';
+      chatBox.style.height = '40px'; // 헤더 높이만
       chatBox.style.overflow = 'hidden';
-      chatBox.style.borderRadius = '10px';
       chatBox.style.boxShadow = '0 3px 10px rgba(0,0,0,0.4)';
-      chatBox.style.opacity = '0.9';
       toggleBtn.textContent = '＋';
       minimized = true;
     } else {
-      // 복구 시
+      // 복구 시: 다시 표시
       [...chatBox.children].forEach(el => {
         if (el !== chatHeader) el.style.display = '';
       });
       chatBox.style.height = '';
       chatBox.style.overflow = '';
-      chatBox.style.transform = 'translateY(0)';
-      chatBox.style.opacity = '1';
       toggleBtn.textContent = '—';
       minimized = false;
     }
   });
 
   // ✅ Enter 전송
-  if(input){
-    input.addEventListener('keydown',(e)=>{
-      if(e.key === 'Enter' && !e.shiftKey){
+  if (input) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendChat();
       }
@@ -2085,32 +2081,33 @@ async function exchangeCashToCoin(){
   }
 
   // ✅ 높이 조절 드래그
-  let startY=0, startH=0, dragging=false;
-  const onDown = (e)=>{
-    dragging=true;
-    startY=(e.touches?e.touches[0].clientY:e.clientY);
-    startH=parseInt(window.getComputedStyle(chatBox).height,10);
-    document.body.style.userSelect='none';
+  let startY = 0, startH = 0, dragging = false;
+  const onDown = (e) => {
+    dragging = true;
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    startH = parseInt(window.getComputedStyle(chatBox).height, 10);
+    document.body.style.userSelect = 'none';
   };
-  const onMove=(e)=>{
-    if(!dragging)return;
-    const y=(e.touches?e.touches[0].clientY:e.clientY);
-    const delta=y-startY;
-    let newH=startH+delta;
-    newH=Math.max(300,Math.min(900,newH));
-    chatBox.style.height=newH+'px';
+  const onMove = (e) => {
+    if (!dragging) return;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY);
+    const delta = y - startY;
+    let newH = startH + delta;
+    newH = Math.max(300, Math.min(900, newH));
+    chatBox.style.height = newH + 'px';
   };
-  const onUp=()=>{
-    dragging=false;
-    document.body.style.userSelect='';
+  const onUp = () => {
+    dragging = false;
+    document.body.style.userSelect = '';
   };
-  resizer.addEventListener('mousedown',onDown);
-  document.addEventListener('mousemove',onMove);
-  document.addEventListener('mouseup',onUp);
-  resizer.addEventListener('touchstart',onDown,{passive:true});
-  document.addEventListener('touchmove',onMove,{passive:false});
-  document.addEventListener('touchend',onUp);
+  resizer.addEventListener('mousedown', onDown);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  resizer.addEventListener('touchstart', onDown, { passive: true });
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onUp);
 }
+
 
     // ======= 출석 체크 =======
     function openAttendanceModal(){
@@ -2408,6 +2405,7 @@ async function exchangeCashToCoin(){
   </div>
 </body>
 </html>
+
 
 
 
