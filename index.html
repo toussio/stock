@@ -1689,41 +1689,39 @@ async function exchangeCashToCoin(){
 
 
     
- async function applyStockTarget(id){
+async function applyStockTarget(id){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(id); 
-  if(!c) return;
-  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
+
+  const c = findCompanyById(id);
+  console.log("🔍 applyStockTarget 진입:", id, c);
+
+  if(!c) return alert("회사를 찾을 수 없습니다. (id 불일치)");
 
   const tickEl  = document.getElementById("tick-" + c.id);
   const dirEl   = document.getElementById("dir-" + c.id);
   const priceEl = document.getElementById("price-" + c.id);
 
+  console.log("🎯 tickEl:", tickEl?.value, "priceEl:", priceEl?.value, "dir:", dirEl?.value);
+
   const tickVal  = parseInt(tickEl?.value || 0);
   const priceVal = parseInt(priceEl?.value || 0);
   const direction = dirEl?.value === "up" ? 1 : -1;
 
-  if(tickVal <= 0 || priceVal <= 0){
+  if(isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0){
     return alert("틱(>0)과 가격(>0)을 모두 입력하세요.");
   }
 
-  // 한 틱당 변화량 계산
   const perTickChange = (priceVal / tickVal) * direction;
-
   console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${direction>0?'+':'−'}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
 
-  // 틱별 순차 적용 (1초 간격)
   for(let i=1; i<=tickVal; i++){
     setTimeout(async ()=>{
       await adjustCompanyPrice(c.name, perTickChange);
       console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`);
     }, i * 1000);
   }
-
-  // 입력칸 초기화
-  tickEl.value = "";
-  priceEl.value = "";
 }
+
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2555,6 +2553,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
