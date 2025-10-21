@@ -1695,31 +1695,28 @@ async function exchangeCashToCoin(){
   const tickVal  = parseInt(tickEl?.value || 0);
   const priceVal = parseInt(priceEl?.value || 0);
 
-  if(tickVal <= 0 || priceVal <= 0){
-    return alert("틱과 가격을 모두 입력하세요.");
+  if(tickVal <= 0 || priceVal === 0){
+    return alert("틱(>0)과 가격(+, - 가능)을 입력하세요.");
   }
 
-  // 상승/하락 선택
-  const confirmDir = confirm(`${c.name}의 가격을 총 ${priceVal.toLocaleString()}원 (${tickVal}틱)에 걸쳐 상승시킬까요?\n취소를 누르면 하락으로 적용됩니다.`);
-  const direction = confirmDir ? 1 : -1;
-
   // 한 틱당 변화량 계산
-  const perTickChange = (priceVal / tickVal) * direction;
+  const perTickChange = priceVal / tickVal;
 
-  console.log(`🎛 ${c.name} | 총 ${tickVal}틱 동안 ${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱) ${direction>0?'상승':'하락'}`);
+  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
 
-  // 틱별로 순차 적용 (예: 1틱당 1초 간격)
+  // 틱별 순차 적용 (1틱 = 1초 간격)
   for(let i=1; i<=tickVal; i++){
     setTimeout(async ()=>{
       await adjustCompanyPrice(c.name, perTickChange);
       console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`);
-    }, i * 1000); // 1초 간격 (원하면 조절 가능)
+    }, i * 1000);
   }
 
-  // 적용 후 입력칸 초기화
   tickEl.value = ""; 
   priceEl.value = "";
 }
+
+
 
     // ======= 배율/확률 =======
     function renderChangePanel(){
@@ -2552,6 +2549,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
