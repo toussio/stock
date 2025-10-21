@@ -2116,7 +2116,95 @@ toggleBtn.addEventListener('click', () => {
   document.addEventListener('touchend', onUp);
 }
 
+/* =======================================================
+   📰 뉴스 자동 생성 시스템 (5분마다 진짜/가짜 뉴스)
+   ======================================================= */
+const fakeNewsPool = {
+  "사쿠라":[
+    "사쿠라 조직원 A씨의 발언 “꽃길이 아닌 불꽃길이었다”"
+  ],
+  "중앙경찰":[
+    "경찰, 죄 없는 시민 무력진압",
+    "경찰청장, 범죄에는 즉각적이고 강력하게 대응할 것."
+  ],
+  "벌집":[
+    "사유지 RP 중 디컨 의혹 조사 착수",
+    "벌집 사유지 쓰레기 무단 투기, 시민들의 소행인가?"
+  ],
+  "EMS":[
+    "병원장 박칠X, 무차별 스팸 광고의 주범?",
+    "부원장 재X, 차량 트렁크에서 다량의 팬티 발견?"
+  ],
+  "작두":[
+    "작두 회장의 불륜 제보 사실인가 거짓인가?",
+    "작두 독서모임, 경찰들도 참여해 논란"
+  ],
+  "칠성파":[
+    "김장 RP 중 인플루언서 A씨 방송에 잡혀 즉시 검거",
+    "칠성파 조직원 B씨, 경찰 A씨에게 뇌물 전달?"
+  ],
+  "무명":[
+    "호스트바 개최 중 취객 난입, 단상 술판 논란",
+    "무명 회장 정X장이 호스트바 선수로 활동?"
+  ],
+  "방송국":[
+    "DJ 한X 라디오 도중 노쇼? 급한 용무 때문?",
+    "DJ 강준X 보이는 라디오 중 괴한의 습격?"
+  ],
+  "RIZENT":[
+    "RIZENT 유명 가수 섭외 성공! 가수는 누구?",
+    "RIZENT 가수 쵸X의 등장에 팬들 환호"
+  ],
+  "리얼월드/관리자":[
+    "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
+    "긴급 리붓, 디도스의 소행인가?"
+  ]
+};
 
+// 🔹 진짜 뉴스 (주가 기반)
+async function generateRealNews(){
+  const rising = companiesStock.filter(c=>c.livePrice > c.basePrice*1.05);
+  const falling = companiesStock.filter(c=>c.livePrice < c.basePrice*0.95);
+  let title="", content="";
+  if(rising.length){
+    const c = rising[Math.floor(Math.random()*rising.length)];
+    title = `${c.name} 주가 상승세 지속`;
+    content = `${c.name}의 주가가 최근 ${Math.round((c.livePrice/c.basePrice-1)*100)}% 상승하며 투자자들의 관심을 받고 있습니다.`;
+  }else if(falling.length){
+    const c = falling[Math.floor(Math.random()*falling.length)];
+    title = `${c.name} 주가 급락 소식`;
+    content = `${c.name}의 주가가 최근 ${Math.round((1-c.livePrice/c.basePrice)*100)}% 하락했습니다. 투자자들의 주의가 요구됩니다.`;
+  }else{
+    const c = companiesStock[Math.floor(Math.random()*companiesStock.length)];
+    title = `${c.name} 보합세 유지`;
+    content = `${c.name}의 주가가 안정적인 흐름을 보이고 있습니다.`;
+  }
+  await addDoc(collection(db,"news"),{
+    title, content, type:"real", createdAt:Date.now(), visible:true
+  });
+  console.log("📰 진짜뉴스 등록:", title);
+}
+
+// 🔹 가짜 뉴스 (재미용)
+async function generateFakeNews(){
+  const keys = Object.keys(fakeNewsPool);
+  const topic = keys[Math.floor(Math.random()*keys.length)];
+  const newsList = fakeNewsPool[topic];
+  const text = newsList[Math.floor(Math.random()*newsList.length)];
+  const title = `[가짜뉴스] ${topic}`;
+  await addDoc(collection(db,"news"),{
+    title, content:text, type:"fake", createdAt:Date.now(), visible:true
+  });
+  console.log("📰 가짜뉴스 등록:", title);
+}
+
+// 🔹 5분마다 자동 뉴스 생성
+setInterval(()=>{
+  const isReal = Math.random() < 0.5;
+  if(isReal) generateRealNews();
+  else generateFakeNews();
+}, 5*60*1000);
+    
     // ======= 출석 체크 =======
     function openAttendanceModal(){
       if(!currentUser) return alert('로그인 후 이용해주세요.');
@@ -2413,6 +2501,7 @@ toggleBtn.addEventListener('click', () => {
   </div>
 </body>
 </html>
+
 
 
 
