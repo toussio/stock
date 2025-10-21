@@ -2060,15 +2060,13 @@ async function exchangeCashToCoin(){
       minimized = true;
     } else {
       // 복구 시: 다시 표시
-[...chatBox.children].forEach(el => {
-  if (el !== chatHeader) el.style.display = 'flex'; // ✅ 핵심: 원래 flex 구조 복원
-});
-chatBox.style.flexDirection = 'column';             // ✅ 세로 구조 유지
-chatBox.style.height = '';
-chatBox.style.overflow = '';
-toggleBtn.textContent = '—';
-minimized = false;
-
+      [...chatBox.children].forEach(el => {
+        if (el !== chatHeader) el.style.display = '';
+      });
+      chatBox.style.height = '';
+      chatBox.style.overflow = '';
+      toggleBtn.textContent = '—';
+      minimized = false;
     }
   });
 
@@ -2407,8 +2405,6 @@ minimized = false;
   </div>
 </body>
 </html>
-
-
 
 
 
