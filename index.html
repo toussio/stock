@@ -333,10 +333,14 @@
         </div>
 
         <!-- 주가조작 -->
-        <div id="tab-stock" class="tab-section" style="display:none;">
-          <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
-          <div id="stockTuner"></div>
-        </div>
+<div id="tab-stock" class="tab-section" style="display:none;">
+  <h3>🎛️ 주가 조작 / 개별 종목 금액 조정</h3>
+  <p style="color:#9ca3af; font-size:13px; margin-bottom:8px;">
+    ※ 개별 종목의 금액을 직접 조정할 수 있습니다. (예: "3틱 +1000000")
+  </p>
+  <div id="graphCompanyAdjust"></div>
+</div>
+
 
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
@@ -2497,6 +2501,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
