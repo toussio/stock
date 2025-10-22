@@ -1661,8 +1661,8 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
 
-    // ======= 주가 조작 =======
-  function renderStockTuner(){
+  // ======= 주가 조작 =======
+function renderStockTuner(){
   const host = document.getElementById('stockTuner'); 
   if(!host) return;
   let html = "";
@@ -1680,31 +1680,26 @@ async function exchangeCashToCoin(){
             <option value="down">−</option>
           </select>
           <input type="number" id="price-${c.id}" placeholder="가격" min="1" style="width:90px; padding:6px; border-radius:6px;">
-          <button ${disabled} onclick="applyStockTarget('${c.id}')">확인</button>
+          <button ${disabled} onclick="applyStockTarget('${c.name}')">확인</button>
         </div>
       </div>`;
   });
   host.innerHTML = html;
 }
 
-
-    
-async function applyStockTarget(id){
+async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-
-  const c = findCompanyById(id);
-  console.log("🔍 applyStockTarget 진입:", id, c);
-
-  if(!c) return alert("회사를 찾을 수 없습니다. (id 불일치)");
+  const c = findCompanyById(name); 
+  if(!c) return alert("회사를 찾을 수 없습니다. (이름 불일치)");
 
   const tickEl  = document.getElementById("tick-" + c.id);
   const dirEl   = document.getElementById("dir-" + c.id);
   const priceEl = document.getElementById("price-" + c.id);
 
-  console.log("🎯 tickEl:", tickEl?.value, "priceEl:", priceEl?.value, "dir:", dirEl?.value);
+  if(!tickEl || !priceEl) return alert("입력창을 찾을 수 없습니다.");
 
-  const tickVal  = parseInt(tickEl?.value || 0);
-  const priceVal = parseInt(priceEl?.value || 0);
+  const tickVal  = Number(tickEl.value);
+  const priceVal = Number(priceEl.value);
   const direction = dirEl?.value === "up" ? 1 : -1;
 
   if(isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0){
@@ -2553,6 +2548,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
