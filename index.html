@@ -511,15 +511,6 @@ window.lastIntervalCoin  = lastIntervalCoin;
       return id;
     })();
 
-   const safeId = (name) =>
-  String(name ?? "")
-    .trim()
-    .replace(/\+/g, "상승")    // + → 상승
-    .replace(/\-/g, "하락")    // - → 하락
-    .replace(/\s+/g, "_")      // 공백 → _
-    .replace(/[^\w가-힣]/g, "_") // 나머지 특수문자 → _
-    .replace(/_+/g, "_");      // 언더바 중복 정리
-    
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
       {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
@@ -1662,7 +1653,18 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
-  // ======= 주가 조작 =======
+// ======= 유틸리티 =======
+// 회사 이름을 HTML id로 안전하게 변환
+const safeId = (name) =>
+  String(name ?? "")
+    .trim()
+    .replace(/\+/g, "상승")
+    .replace(/\-/g, "하락")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w가-힣]/g, "_")
+    .replace(/_+/g, "_");
+
+// ======= 주가 조작 =======
 function renderStockTuner() {
   const host = document.getElementById("stockTuner");
   if (!host) return;
@@ -1671,31 +1673,30 @@ function renderStockTuner() {
   companies.forEach((c) => {
     const idSafe = safeId(c.name);
     const isDelisted = !!c.delisted;
-
-    // 회사 이름에 따옴표 있을 경우 안전하게 escape
-    const safeName = c.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    const safeName = c.name.replace(/'/g, "\\'"); // 따옴표 이스케이프
 
     html += `
       <div class="req-card">
         <div>
           <strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW
-          ${isDelisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+          ${
+            isDelisted
+              ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>"
+              : ""
+          }
         </div>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
           <input type="number" id="tick-${idSafe}" placeholder="틱"
             min="1" style="width:70px; padding:6px; border-radius:6px;"
             ${isDelisted ? "disabled" : ""}>
-          
           <select id="dir-${idSafe}" style="padding:6px; border-radius:6px;"
             ${isDelisted ? "disabled" : ""}>
             <option value="up">상승(+)</option>
             <option value="down">하락(−)</option>
           </select>
-          
           <input type="number" id="price-${idSafe}" placeholder="가격"
             min="1" style="width:90px; padding:6px; border-radius:6px;"
             ${isDelisted ? "disabled" : ""}>
-          
           <button ${isDelisted ? "disabled" : ""}
             onclick="applyStockTarget('${safeName}')">확인</button>
         </div>
@@ -1705,25 +1706,26 @@ function renderStockTuner() {
   host.innerHTML = html || "<div>📉 등록된 기업이 없습니다.</div>";
 }
 
-
+// ======= 주가 적용 로직 =======
 async function applyStockTarget(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
 
-  const idSafe = safeId(name);
-  const tickEl = document.getElementById("tick-" + idSafe);
-  const dirEl = document.getElementById("dir-" + idSafe);
-  const priceEl = document.getElementById("price-" + idSafe);
-
-  // ✅ 요소가 존재하는지 먼저 체크
-  if (!tickEl || !dirEl || !priceEl) {
-    console.error("❌ 입력칸을 찾을 수 없습니다:", { idSafe, tickEl, dirEl, priceEl });
-    alert(`⚠️ '${name}'의 입력 칸을 찾을 수 없습니다. (id=${idSafe})`);
+  // 기업 탐색
+  const c = companies.find((x) => x.name.trim() === name.trim());
+  if (!c) {
+    alert(`"${name}" 회사를 찾을 수 없습니다.`);
+    console.log("❌ 못 찾음:", { name, all: companies.map((c) => c.name) });
     return;
   }
 
-  // ✅ 값이 비었는지 검사
-  if (!tickEl.value || !priceEl.value) {
-    alert("⚠️ 틱과 가격을 모두 입력해주세요.");
+  const idSafe = safeId(c.name);
+  const tickEl = document.getElementById("tick-" + idSafe);
+  const priceEl = document.getElementById("price-" + idSafe);
+  const dirEl = document.getElementById("dir-" + idSafe);
+
+  if (!tickEl || !priceEl || !dirEl) {
+    console.error("❌ 입력칸을 찾을 수 없음", { idSafe, tickEl, priceEl, dirEl });
+    alert(`⚠️ '${name}'의 입력칸을 찾을 수 없습니다. (id=${idSafe})`);
     return;
   }
 
@@ -1732,20 +1734,24 @@ async function applyStockTarget(name) {
   const direction = dirEl.value === "up" ? 1 : -1;
 
   if (isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0) {
-    console.log("📊 입력값:", { name, tickVal, priceVal, direction, tickEl, priceEl, dirEl });
-    alert("⚠️ 틱(>0)과 가격(>0)을 모두 입력하세요.");
+    console.log("📊 입력값:", { name, tickVal, priceVal, direction });
+    alert("⚠️ 틱과 가격을 모두 입력해주세요.");
     return;
   }
 
   const perTickChange = (priceVal / tickVal) * direction;
   console.log(
-    `🎛 ${name} | ${tickVal}틱 동안 총 ${direction > 0 ? "+" : "−"}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`
+    `🎛 ${c.name} | ${tickVal}틱 동안 총 ${
+      direction > 0 ? "+" : "−"
+    }${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`
   );
 
   for (let i = 1; i <= tickVal; i++) {
     setTimeout(async () => {
-      await adjustCompanyPrice(name, perTickChange);
-      console.log(`🟢 ${name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`);
+      await adjustCompanyPrice(c.name, perTickChange);
+      console.log(
+        `🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`
+      );
     }, i * 1000);
   }
 }
@@ -2581,6 +2587,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
