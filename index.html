@@ -1663,8 +1663,8 @@ async function exchangeCashToCoin(){
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
-    
-// ======= 주가 조작 =======
+
+// ======= 주가조작 패널 =======
 function renderStockTuner() {
   const host = document.getElementById("stockTuner");
   if (!host) return;
@@ -1673,32 +1673,22 @@ function renderStockTuner() {
   companies.forEach((c) => {
     const idSafe = safeId(c.name);
     const isDelisted = !!c.delisted;
-    const safeName = c.name.replace(/'/g, "\\'"); // 따옴표 이스케이프
+    const safeName = c.name.replace(/'/g, "\\'");
 
     html += `
       <div class="req-card">
         <div>
           <strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW
-          ${
-            isDelisted
-              ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>"
-              : ""
-          }
+          ${isDelisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
         </div>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-          <input type="number" id="tick-${idSafe}" placeholder="틱"
-            min="1" style="width:70px; padding:6px; border-radius:6px;"
-            ${isDelisted ? "disabled" : ""}>
-          <select id="dir-${idSafe}" style="padding:6px; border-radius:6px;"
-            ${isDelisted ? "disabled" : ""}>
+          <input type="number" id="tick-${idSafe}" placeholder="틱 이동 수" min="1" style="width:80px;padding:6px;border-radius:6px;" ${isDelisted?"disabled":""}>
+          <select id="dir-${idSafe}" style="padding:6px;border-radius:6px;" ${isDelisted?"disabled":""}>
             <option value="up">상승(+)</option>
             <option value="down">하락(−)</option>
           </select>
-          <input type="number" id="price-${idSafe}" placeholder="가격"
-          min="1" style="width:90px; padding:6px; border-radius:6px;"
-          ${isDelisted ? "disabled" : ""}>
-         <button ${isDelisted ? "disabled" : ""}
-          onclick="applyStockTarget('${idSafe}')">확인</button>
+          <input type="number" id="price-${idSafe}" placeholder="총 금액" min="1" style="width:100px;padding:6px;border-radius:6px;" ${isDelisted?"disabled":""}>
+          <button ${isDelisted?"disabled":""} onclick="applyStockTarget('${safeName}')">확인</button>
         </div>
       </div>`;
   });
@@ -1707,44 +1697,57 @@ function renderStockTuner() {
 }
 
 // ======= 주가 적용 로직 =======
-async function applyStockTarget(idSafe) {
-  const c = companies.find(x => safeId(x.name) === idSafe);
-  if (!c) {
-    alert(`"${idSafe}" 회사를 찾을 수 없습니다.`);
-    console.log("❌ 못 찾음:", { idSafe, all: companies.map(c => safeId(c.name)) });
-    return;
-  }
+async function applyStockTarget(name) {
+  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
 
-  const tickEl = document.getElementById("tick-" + idSafe);
-  const priceEl = document.getElementById("price-" + idSafe);
-  const dirEl = document.getElementById("dir-" + idSafe);
+  const c = companies.find(x => x.name.trim() === name.trim());
+  if (!c) return alert(`"${name}" 회사를 찾을 수 없습니다.`);
+
+  const idSafe = safeId(name);
+  const tickEl = document.getElementById(`tick-${idSafe}`);
+  const priceEl = document.getElementById(`price-${idSafe}`);
+  const dirEl = document.getElementById(`dir-${idSafe}`);
 
   const tickVal = Number(tickEl?.value);
   const priceVal = Number(priceEl?.value);
   const direction = dirEl?.value === "up" ? 1 : -1;
 
-  if (!tickVal || !priceVal) {
-    console.log("📊 입력값:", { name: c.name, tickVal, priceVal, direction });
+  if (!tickVal || !priceVal || isNaN(tickVal) || isNaN(priceVal)) {
     alert("⚠️ 틱과 가격을 모두 입력해주세요.");
     return;
   }
 
   const perTickChange = (priceVal / tickVal) * direction;
-  console.log(
-    `🎛 ${c.name} | ${tickVal}틱 동안 총 ${
-      direction > 0 ? "+" : "−"
-    }${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`
-  );
+  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${direction>0?"+":"−"}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
 
   for (let i = 1; i <= tickVal; i++) {
     setTimeout(async () => {
       await adjustCompanyPrice(c.name, perTickChange);
-      console.log(
-        `🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`
-      );
-    }, i * 1000);
+      console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`);
+
+      // 🔹 그래프 즉시 반영 (Firestore 실시간 반영 전 미리 시각화)
+      const latestPrice = getDisplayPrice(c) + perTickChange;
+      updateLocalChart(c.name, latestPrice);
+
+    }, i * 1000); // 1틱당 1초 간격
   }
+
+  alert(`✅ ${c.name} ${tickVal}틱 동안 ${direction>0?"상승":"하락"} 설정 완료!`);
 }
+
+// ======= 그래프 업데이트용 (즉시 시각 피드백) =======
+function updateLocalChart(companyName, newPrice) {
+  if (currentCompanyName !== companyName) return;
+  const now = new Date().toLocaleTimeString("ko-KR", {hour12:false});
+  priceChart.data.labels.push(now);
+  priceChart.data.datasets[0].data.push(newPrice);
+  if (priceChart.data.labels.length > 30) {
+    priceChart.data.labels.shift();
+    priceChart.data.datasets[0].data.shift();
+  }
+  priceChart.update("active"); // 부드럽게 애니메이션
+}
+
     
     // ======= 배율/확률 =======
     function renderChangePanel(){
@@ -2577,6 +2580,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
