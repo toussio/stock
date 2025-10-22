@@ -1380,6 +1380,36 @@ async function adjustCompanyPrice(name){
       }
     }
 
+    // 📈 전체 종목 금액 일괄 조정
+async function adjustAllPrices(){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const deltaInput = document.getElementById("allDelta");
+  const delta = parseInt(deltaInput?.value || 0);
+  if(isNaN(delta) || delta === 0){
+    alert("⚠️ 조정 금액을 올바르게 입력하세요.");
+    return;
+  }
+
+  const batch = writeBatch(db);
+  const now = Date.now();
+
+  // 주식 + 코인 전체 종목 반영
+  [...companiesStock, ...companiesCoin].forEach(c=>{
+    if(c.delisted) return;
+    const next = Math.max(1, (c.livePrice || c.basePrice) + delta);
+    c.livePrice = next;
+    batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: now }, { merge:true });
+  });
+
+  try{
+    await batch.commit();
+    alert(`✅ 모든 종목 가격에 ${delta>0?'+':''}${delta.toLocaleString()} 적용 완료`);
+  }catch(e){
+    console.error("전체 조정 실패:", e);
+    alert("전체 조정 실패: " + (e.message||e));
+  }
+}
+
     // ======= 관리자 패널/권한 =======
     function checkAdmin(){
       const code = document.getElementById('adminCode').value.trim();
@@ -2501,48 +2531,3 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
