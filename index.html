@@ -1672,6 +1672,9 @@ function renderStockTuner() {
     const idSafe = safeId(c.name);
     const isDelisted = !!c.delisted;
 
+    // 회사 이름에 따옴표 있을 경우 안전하게 escape
+    const safeName = c.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
     html += `
       <div class="req-card">
         <div>
@@ -1689,12 +1692,12 @@ function renderStockTuner() {
             <option value="down">하락(−)</option>
           </select>
           
-          <input type="number" id="price-${idSafe}" ... ${c.delisted ? "disabled" : ""}>
+          <input type="number" id="price-${idSafe}" placeholder="가격"
             min="1" style="width:90px; padding:6px; border-radius:6px;"
             ${isDelisted ? "disabled" : ""}>
           
           <button ${isDelisted ? "disabled" : ""}
-            onclick="applyStockTarget('${c.name}')">확인</button>
+            onclick="applyStockTarget('${safeName}')">확인</button>
         </div>
       </div>`;
   });
@@ -2578,6 +2581,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
