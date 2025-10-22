@@ -1695,8 +1695,8 @@ function renderStockTuner() {
             <option value="down">하락(−)</option>
           </select>
           <input type="number" id="price-${idSafe}" placeholder="가격"
-            min="1" style="width:90px; padding:6px; border-radius:6px;"
-            ${isDelisted ? "disabled" : ""}>
+          min="1" style="width:90px; padding:6px; border-radius:6px;"
+          ${isDelisted ? "disabled" : ""}>
           <button ${isDelisted ? "disabled" : ""}
             onclick="applyStockTarget('${safeName}')">확인</button>
         </div>
@@ -2587,6 +2587,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
