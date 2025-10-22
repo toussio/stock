@@ -1700,32 +1700,26 @@ async function exchangeCashToCoin(){
   const tickVal  = parseInt(tickEl?.value || 0);
   const priceVal = parseInt(priceEl?.value || 0);
 
-  // 🔹 방향 선택: 상승/하락
-  let direction = confirm(`${c.name} 가격을 상승시킬까요?\n취소를 누르면 하락으로 적용됩니다.`) ? 1 : -1;
-
-  // 🔹 가격 목표 계산
-  const startPrice = c.livePrice || c.basePrice;
-  const targetPrice = priceVal > 0 
-    ? priceVal                     // 가격 직접 지정
-    : startPrice + (deltaMax * tickVal * direction); // 틱 수만큼 목표가 계산
-
-  if(isNaN(targetPrice) || targetPrice <= 0){
-    alert("⚠️ 틱 또는 가격을 올바르게 입력하세요.");
+  if (isNaN(priceVal) || priceVal === 0) {
+    alert("⚠️ 가격을 입력해주세요. (예: +1000000 또는 -1000000)");
     return;
   }
 
-  // 🔹 그래프 주기값 가져오기 (주식/코인 모드별)
+  const startPrice = c.livePrice || c.basePrice;
+  const direction = priceVal > 0 ? 1 : -1; // +면 상승, -면 하락
+  const absVal = Math.abs(priceVal);
+  const targetPrice = Math.max(1, startPrice + absVal * direction);
+
+  // 그래프 주기 (10초 = 10000ms 등)
   const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
   const totalTicks = tickVal > 0 ? tickVal : 1; // 최소 1틱
-
-  const stepDelay = intervalMs; // 1틱당 그래프 변동 주기
   const priceStep = (targetPrice - startPrice) / totalTicks;
 
-  alert(`📊 ${c.name} 가격을 ${totalTicks}틱(${(stepDelay/1000)*totalTicks}초) 동안 ${direction>0?'상승':'하락'}시킵니다.`);
+  console.log(`📊 ${c.name}: ${totalTicks}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원 (${priceStep.toLocaleString()}원씩)`);
 
-  // 🔹 단계적 변화 실행
+  // 🔹 틱마다 변화 적용
   for(let i=1; i<=totalTicks; i++){
-    await new Promise(res => setTimeout(res, stepDelay));
+    await new Promise(res => setTimeout(res, intervalMs));
     const newVal = Math.max(1, Math.round(startPrice + priceStep * i));
     await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
     c.livePrice = newVal;
@@ -1733,10 +1727,11 @@ async function exchangeCashToCoin(){
     if(el) el.textContent = newVal.toLocaleString();
   }
 
-  console.log(`🎛 ${c.name} ${tickVal>0 ? `${tickVal}틱` : '즉시'} (${direction>0?'상승':'하락'}) 완료`);
+  console.log(`✅ ${c.name} 주가조작 완료 (${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원)`);
   tickEl.value = ""; 
   priceEl.value = "";
 }
+
     
     // ======= 배율/확률 =======
     function renderChangePanel(){
@@ -2569,6 +2564,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
