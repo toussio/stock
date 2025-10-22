@@ -513,6 +513,8 @@ window.lastIntervalCoin  = lastIntervalCoin;
 
     // ======= 유틸리티 =======
 // 회사 이름을 HTML id로 안전하게 변환
+    const ci = (s) => String(s || "").toLowerCase(); // ← 추가
+    
 const safeId = (name) =>
   String(name ?? "")
     .trim()
@@ -2550,6 +2552,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
