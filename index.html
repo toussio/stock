@@ -1660,6 +1660,16 @@ async function exchangeCashToCoin(){
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
+    
+// ======= 유틸리티 =======
+// ✅ 모든 회사 이름을 HTML id로 안전하게 변환
+function safeId(name){
+  return name
+    .toString()
+    .trim()
+    .replace(/\s+/g, "_")        
+    .replace(/[^a-zA-Z0-9가-힣_]/g, ""); 
+}
 
   // ======= 주가 조작 =======
 function renderStockTuner(){
@@ -1691,26 +1701,37 @@ function renderStockTuner(){
 async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
 
+  // ✅ 기업 찾기
   const c = companies.find(x => x.name.trim() === name.trim());
   if(!c){
     alert(`"${name}" 회사를 찾을 수 없습니다.`);
     return;
   }
 
+  // ✅ ID 구성 및 엘리먼트 찾기
   const sid = safeId(c.name);
   const tickEl  = document.getElementById("tick-" + sid);
-  const priceEl = document.getElementById("price-" + sid);
   const dirEl   = document.getElementById("dir-" + sid);
+  const priceEl = document.getElementById("price-" + sid);
 
+  // ✅ 값 파싱
   const tickVal  = Number(tickEl?.value);
   const priceVal = Number(priceEl?.value);
   const direction = dirEl?.value === "up" ? 1 : -1;
 
-  // 🔍 디버깅용 출력
-  console.log("입력값:", {tickVal, priceVal, direction});
+  // ✅ 디버깅용 출력
+  console.log("📊 입력값:", {
+    name: c.name,
+    tickVal,
+    priceVal,
+    direction,
+    tickEl,
+    priceEl
+  });
 
+  // ✅ 입력값 검증
   if(!tickEl || !priceEl){
-    alert("⚠️ 입력칸을 찾을 수 없습니다. (id 문제)");
+    alert("⚠️ 입력칸을 찾을 수 없습니다. (safeId 불일치)");
     return;
   }
   if(isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0){
@@ -1718,13 +1739,18 @@ async function applyStockTarget(name){
     return;
   }
 
+  // ✅ 계산 및 적용
   const perTickChange = (priceVal / tickVal) * direction;
-  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 ${direction>0?'+':'−'}${priceVal}원 (${perTickChange}원/틱)`);
+  console.log(`🎛 ${c.name}: ${tickVal}틱 동안 ${direction>0?'+':'−'}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
 
   for(let i=1; i<=tickVal; i++){
     setTimeout(async ()=>{
-      await adjustCompanyPrice(c.name, perTickChange);
-      console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange}원)`);
+      try{
+        await adjustCompanyPrice(c.name, perTickChange);
+        console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 완료 (${perTickChange.toLocaleString()}원)`);
+      }catch(e){
+        console.error(`❌ ${c.name} ${i}틱 실패:`, e);
+      }
     }, i * 1000);
   }
 }
@@ -2560,6 +2586,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
