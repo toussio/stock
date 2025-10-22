@@ -1662,10 +1662,6 @@ async function exchangeCashToCoin(){
     }
 
   // ======= 주가 조작 =======
-function safeId(str) {
-  return str.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-}
-
 function renderStockTuner(){
   const host = document.getElementById('stockTuner'); 
   if(!host) return;
@@ -2554,6 +2550,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
