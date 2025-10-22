@@ -1661,6 +1661,16 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
+    // ======= 유틸리티 =======
+// 회사 이름을 HTML id로 안전하게 변환
+function safeId(name){
+  return name
+    .toString()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9가-힣_]/g, "");
+}
+    
   // ======= 주가 조작 =======
 function renderStockTuner(){
   const host = document.getElementById('stockTuner'); 
@@ -2576,6 +2586,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
