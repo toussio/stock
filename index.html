@@ -511,31 +511,34 @@ window.lastIntervalCoin  = lastIntervalCoin;
       return id;
     })();
 
-    const ci = s => String(s||"").toLowerCase();
-    const safeId = name => String(name).replace(/[^a-zA-Z0-9가-힣]/g,'_');
-    const parseNumber = (str) => {
-      const n = parseInt(String(str).replace(/[^0-9]/g,''), 10);
-      return isNaN(n) ? 0 : Math.max(0, n);
-    };
-    const log = (msg) => { if(!logDiv) return; logDiv.innerHTML = "<div>" + msg + "</div>" + logDiv.innerHTML; };
+    // ======= 유틸리티 =======
+// 회사 이름을 HTML id로 안전하게 변환
+const safeId = (name) =>
+  String(name ?? "")
+    .trim()
+    .replace(/\+/g, "상승")
+    .replace(/\-/g, "하락")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w가-힣]/g, "_")
+    .replace(/_+/g, "_");
 
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
       {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
       {name:"중앙경찰",   basePrice:25000000 , multiplier:1, livePrice:25000000},
       {name:"벌집",   basePrice:24000000 , multiplier:1, livePrice:24000000},
-      {name:"Ems",        basePrice:26000000, multiplier:1, livePrice:26000000},
+      {name:"의료국",        basePrice:26000000, multiplier:1, livePrice:26000000},
       {name:"작두",       basePrice:28000000 , multiplier:1, livePrice:28000000},
       {name:"칠성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
       {name:"무명",       basePrice:24000000, multiplier:1, livePrice:24000000},
-      {name:"온 더 락스",     basePrice:26700000, multiplier:1, livePrice:26700000},
+      {name:"온더락스",     basePrice:26700000, multiplier:1, livePrice:26700000},
        {name:"백호자동차",     basePrice:26700000, multiplier:1, livePrice:26700000},
       {name:"jewelry",     basePrice:27700000, multiplier:1, livePrice:27700000},
       {name:"inback",     basePrice:28400000, multiplier:1, livePrice:28400000},
       {name:"블루문",     basePrice:22400000, multiplier:1, livePrice:28400000},
       {name:"방송국",     basePrice:26900000, multiplier:1, livePrice:26900000},
-      {name:"RIZENT",     basePrice:27400000, multiplier:1, livePrice:27400000},
-      {name:"리얼월드/ 관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
+      {name:"rizent",     basePrice:27400000, multiplier:1, livePrice:27400000},
+      {name:"리얼월드관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const companiesCoin = [
@@ -1660,33 +1663,99 @@ async function exchangeCashToCoin(){
         await updateDoc(doc(db,"withdrawRequests",id),{status:'rejected', updatedAt:Date.now()});
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
+    
+// ======= 주가 조작 =======
+function renderStockTuner() {
+  const host = document.getElementById("stockTuner");
+  if (!host) return;
 
-    // ======= 주가 조작 =======
-    function renderStockTuner(){
-      const host = document.getElementById('stockTuner'); if(!host) return;
-      let html = "";
-      companies.forEach(c=>{
-        const disabled = c.delisted ? "disabled" : "";
-        html += `
-          <div class='req-card'>
-            <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}</div>
-            <div style='display:flex; gap:6px;'>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -100000)">-10만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', -10000)">-1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 10000)">+1만</button>
-              <button ${disabled} onclick="applyStockTarget('${c.name}', 100000)">+10만</button>
-            </div>
-          </div>`;
-      });
-      host.innerHTML = html;
-    }
-    async function applyStockTarget(name, delta){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c=findCompanyById(name); if(!c) return;
-      if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
-      await adjustCompanyPrice(c.name, delta);
-    }
+  let html = "";
+  companies.forEach((c) => {
+    const idSafe = safeId(c.name);
+    const isDelisted = !!c.delisted;
+    const safeName = c.name.replace(/'/g, "\\'"); // 따옴표 이스케이프
 
+    html += `
+      <div class="req-card">
+        <div>
+          <strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW
+          ${
+            isDelisted
+              ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>"
+              : ""
+          }
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <input type="number" id="tick-${idSafe}" placeholder="틱"
+            min="1" style="width:70px; padding:6px; border-radius:6px;"
+            ${isDelisted ? "disabled" : ""}>
+          <select id="dir-${idSafe}" style="padding:6px; border-radius:6px;"
+            ${isDelisted ? "disabled" : ""}>
+            <option value="up">상승(+)</option>
+            <option value="down">하락(−)</option>
+          </select>
+          <input type="number" id="price-${idSafe}" placeholder="가격"
+            min="1" style="width:90px; padding:6px; border-radius:6px;"
+            ${isDelisted ? "disabled" : ""}>
+          <button ${isDelisted ? "disabled" : ""}
+            onclick="applyStockTarget('${safeName}')">확인</button>
+        </div>
+      </div>`;
+  });
+
+  host.innerHTML = html || "<div>📉 등록된 기업이 없습니다.</div>";
+}
+
+// ======= 주가 적용 로직 =======
+async function applyStockTarget(name) {
+  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
+
+  // 기업 탐색
+  const c = companies.find((x) => x.name.trim() === name.trim());
+  if (!c) {
+    alert(`"${name}" 회사를 찾을 수 없습니다.`);
+    console.log("❌ 못 찾음:", { name, all: companies.map((c) => c.name) });
+    return;
+  }
+
+  const idSafe = safeId(c.name);
+  const tickEl = document.getElementById("tick-" + idSafe);
+  const priceEl = document.getElementById("price-" + idSafe);
+  const dirEl = document.getElementById("dir-" + idSafe);
+
+  if (!tickEl || !priceEl || !dirEl) {
+    console.error("❌ 입력칸을 찾을 수 없음", { idSafe, tickEl, priceEl, dirEl });
+    alert(`⚠️ '${name}'의 입력칸을 찾을 수 없습니다. (id=${idSafe})`);
+    return;
+  }
+
+  const tickVal = Number(tickEl.value);
+  const priceVal = Number(priceEl.value);
+  const direction = dirEl.value === "up" ? 1 : -1;
+
+  if (isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0) {
+    console.log("📊 입력값:", { name, tickVal, priceVal, direction });
+    alert("⚠️ 틱과 가격을 모두 입력해주세요.");
+    return;
+  }
+
+  const perTickChange = (priceVal / tickVal) * direction;
+  console.log(
+    `🎛 ${c.name} | ${tickVal}틱 동안 총 ${
+      direction > 0 ? "+" : "−"
+    }${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`
+  );
+
+  for (let i = 1; i <= tickVal; i++) {
+    setTimeout(async () => {
+      await adjustCompanyPrice(c.name, perTickChange);
+      console.log(
+        `🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`
+      );
+    }, i * 1000);
+  }
+}
+    
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2157,7 +2226,7 @@ const fakeNewsPool = {
     "RIZENT 유명 가수 섭외 성공! 가수는 누구?",
     "RIZENT 가수 쵸X의 등장에 팬들 환호"
   ],
-  "리얼월드/관리자":[
+  "리얼월드 관리자":[
     "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
     "긴급 리붓, 디도스의 소행인가?"
   ]
@@ -2210,7 +2279,7 @@ function startAutoNews() {
     const isReal = Math.random() < 0.5;
     if (isReal) generateRealNews();
     else generateFakeNews();
-  }, 5 * 60 * 1000);
+  }, 1 * 60 * 1000);
   console.log("📰 뉴스 자동생성 시작됨 (장 시작)");
 }
 
@@ -2518,6 +2587,36 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
