@@ -511,6 +511,17 @@ window.lastIntervalCoin  = lastIntervalCoin;
       return id;
     })();
 
+    // ======= 유틸리티 =======
+// 회사 이름을 HTML id로 안전하게 변환
+const safeId = (name) =>
+  String(name ?? "")
+    .trim()
+    .replace(/\+/g, "상승")
+    .replace(/\-/g, "하락")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w가-힣]/g, "_")
+    .replace(/_+/g, "_");
+
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
       {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
@@ -1653,17 +1664,6 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
-// ======= 유틸리티 =======
-// 회사 이름을 HTML id로 안전하게 변환
-const safeId = (name) =>
-  String(name ?? "")
-    .trim()
-    .replace(/\+/g, "상승")
-    .replace(/\-/g, "하락")
-    .replace(/\s+/g, "_")
-    .replace(/[^\w가-힣]/g, "_")
-    .replace(/_+/g, "_");
-
 // ======= 주가 조작 =======
 function renderStockTuner() {
   const host = document.getElementById("stockTuner");
@@ -2587,6 +2587,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
