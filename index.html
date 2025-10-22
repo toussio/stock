@@ -511,12 +511,15 @@ window.lastIntervalCoin  = lastIntervalCoin;
       return id;
     })();
 
-    const safeId = (name) =>
+   const safeId = (name) =>
   String(name ?? "")
     .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9가-힣_]/g, "");
-
+    .replace(/\s+/g, "_")              // 공백 → 언더바
+    .replace(/\+/g, "상승")            // + → 상승
+    .replace(/\-/g, "하락")            // - → 하락
+    .replace(/[^\w가-힣]/g, "_")       // 그 외 특수문자 전부 언더바
+    .replace(/_+/g, "_");              // 언더바 여러 개면 하나로
+    
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
       {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
@@ -2574,6 +2577,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
