@@ -268,8 +268,8 @@
           <h3>📊 그래프/금액 제어 패널</h3>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <button onclick="marketStart()">장 시작 + 시세 시작</button>
-            <button onclick="marketEnd()">장 마감 + 시세 정지</button>
+            <button onclick="marketOpen()">장 시작 + 시세 시작</button>
+            <button onclick="marketClose()">장 마감 + 시세 정지</button>
             <button onclick="resetGraph()">그래프 초기화</button>
             <label style="margin-left:20px;">전체 조정 ±금액</label>
             <input type="number" id="allDelta" value="100" style="width:100px;">
@@ -2501,6 +2501,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
