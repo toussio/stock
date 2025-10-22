@@ -1697,8 +1697,8 @@ function renderStockTuner() {
           <input type="number" id="price-${idSafe}" placeholder="가격"
           min="1" style="width:90px; padding:6px; border-radius:6px;"
           ${isDelisted ? "disabled" : ""}>
-          <button ${isDelisted ? "disabled" : ""}
-            onclick="applyStockTarget('${safeName}')">확인</button>
+         <button ${isDelisted ? "disabled" : ""}
+          onclick="applyStockTarget('${idSafe}')">확인</button>
         </div>
       </div>`;
   });
@@ -1707,34 +1707,24 @@ function renderStockTuner() {
 }
 
 // ======= 주가 적용 로직 =======
-async function applyStockTarget(name) {
-  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-
-  // 기업 탐색
-  const c = companies.find((x) => x.name.trim() === name.trim());
+async function applyStockTarget(idSafe) {
+  const c = companies.find(x => safeId(x.name) === idSafe);
   if (!c) {
-    alert(`"${name}" 회사를 찾을 수 없습니다.`);
-    console.log("❌ 못 찾음:", { name, all: companies.map((c) => c.name) });
+    alert(`"${idSafe}" 회사를 찾을 수 없습니다.`);
+    console.log("❌ 못 찾음:", { idSafe, all: companies.map(c => safeId(c.name)) });
     return;
   }
 
-  const idSafe = safeId(c.name);
   const tickEl = document.getElementById("tick-" + idSafe);
   const priceEl = document.getElementById("price-" + idSafe);
   const dirEl = document.getElementById("dir-" + idSafe);
 
-  if (!tickEl || !priceEl || !dirEl) {
-    console.error("❌ 입력칸을 찾을 수 없음", { idSafe, tickEl, priceEl, dirEl });
-    alert(`⚠️ '${name}'의 입력칸을 찾을 수 없습니다. (id=${idSafe})`);
-    return;
-  }
+  const tickVal = Number(tickEl?.value);
+  const priceVal = Number(priceEl?.value);
+  const direction = dirEl?.value === "up" ? 1 : -1;
 
-  const tickVal = Number(tickEl.value);
-  const priceVal = Number(priceEl.value);
-  const direction = dirEl.value === "up" ? 1 : -1;
-
-  if (isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0) {
-    console.log("📊 입력값:", { name, tickVal, priceVal, direction });
+  if (!tickVal || !priceVal) {
+    console.log("📊 입력값:", { name: c.name, tickVal, priceVal, direction });
     alert("⚠️ 틱과 가격을 모두 입력해주세요.");
     return;
   }
@@ -2587,6 +2577,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
