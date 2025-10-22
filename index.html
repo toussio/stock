@@ -514,11 +514,11 @@ window.lastIntervalCoin  = lastIntervalCoin;
    const safeId = (name) =>
   String(name ?? "")
     .trim()
-    .replace(/\s+/g, "_")              // 공백 → 언더바
-    .replace(/\+/g, "상승")            // + → 상승
-    .replace(/\-/g, "하락")            // - → 하락
-    .replace(/[^\w가-힣]/g, "_")       // 그 외 특수문자 전부 언더바
-    .replace(/_+/g, "_");              // 언더바 여러 개면 하나로
+    .replace(/\+/g, "상승")    // + → 상승
+    .replace(/\-/g, "하락")    // - → 하락
+    .replace(/\s+/g, "_")      // 공백 → _
+    .replace(/[^\w가-힣]/g, "_") // 나머지 특수문자 → _
+    .replace(/_+/g, "_");      // 언더바 중복 정리
     
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
@@ -1711,12 +1711,15 @@ async function applyStockTarget(name) {
   const dirEl = document.getElementById("dir-" + idSafe);
   const priceEl = document.getElementById("price-" + idSafe);
 
-  // 입력칸 유효성 검사
-  if (!tickEl || !priceEl || !dirEl) {
-    alert(`⚠️ '${name}'의 입력 요소를 찾을 수 없습니다. (idSafe=${idSafe})`);
+  // ✅ 요소가 존재하는지 먼저 체크
+  if (!tickEl || !dirEl || !priceEl) {
+    console.error("❌ 입력칸을 찾을 수 없습니다:", { idSafe, tickEl, dirEl, priceEl });
+    alert(`⚠️ '${name}'의 입력 칸을 찾을 수 없습니다. (id=${idSafe})`);
     return;
   }
-  if (!tickEl.value.trim() || !priceEl.value.trim()) {
+
+  // ✅ 값이 비었는지 검사
+  if (!tickEl.value || !priceEl.value) {
     alert("⚠️ 틱과 가격을 모두 입력해주세요.");
     return;
   }
@@ -2575,6 +2578,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
