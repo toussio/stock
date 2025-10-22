@@ -256,7 +256,6 @@
           <button onclick="showTab('graph')">📊 그래프</button>
           <button onclick="showTab('users')">👥 유저</button>
           <button onclick="showTab('finance')">💳 입출금</button>
-          <button onclick="showTab('stock')">🎛️ 주가조작</button>
           <button onclick="showTab('change')">📈 배율/확률</button>
           <button onclick="showTab('news')">📰 뉴스</button>
           <button onclick="showTab('notice')">📢 공지사항</button>
@@ -1598,54 +1597,6 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
-// ======= 주가 조작 =======
-   function renderStockTuner(){
-  const host = document.getElementById('stockTuner'); 
-  if(!host) return;
-  let html = "";
-  companies.forEach(c=>{
-    const disabled = c.delisted ? "disabled" : "";
-    html += `
-      <div class='req-card'>
-        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
-          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-        </div>
-        <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
-          <input type="number" id="tick-${c.id}" placeholder="틱" min="0" style="width:70px; padding:6px; border-radius:6px;">
-          <input type="number" id="price-${c.id}" placeholder="가격" min="0" style="width:90px; padding:6px; border-radius:6px;">
-          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
-        </div>
-      </div>`;
-  });
-  host.innerHTML = html;
-}
-
-   async function applyStockTarget(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); 
-  if(!c) return;
-  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
-
-  const tickEl  = document.getElementById("tick-" + c.id);
-  const priceEl = document.getElementById("price-" + c.id);
-
-  const tickVal  = parseInt(tickEl?.value || 0);
-  const priceVal = parseInt(priceEl?.value || 0);
-
-  // 🔹 방향 선택: 상승/하락
-  let direction = confirm(`${c.name} 가격을 상승시킬까요?\n취소를 누르면 하락으로 적용됩니다.`) ? 1 : -1;
-
-  // 🔹 가격 목표 계산
-  const startPrice = c.livePrice || c.basePrice;
-  const targetPrice = priceVal > 0 
-    ? priceVal                     // 가격 직접 지정
-    : startPrice + (deltaMax * tickVal * direction); // 틱 수만큼 목표가 계산
-
-  if(isNaN(targetPrice) || targetPrice <= 0){
-    alert("⚠️ 틱 또는 가격을 올바르게 입력하세요.");
-    return;
-  }
-
   // 🔹 그래프 주기값 가져오기 (주식/코인 모드별)
   const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
   const totalTicks = tickVal > 0 ? tickVal : 1; // 최소 1틱
@@ -2469,4 +2420,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
