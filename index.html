@@ -1688,37 +1688,35 @@ async function exchangeCashToCoin(){
   host.innerHTML = html;
 }
 
-  async function applyStockTarget(name){
+ async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name); 
   if(!c) return;
   if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
 
-  const tickEl  = document.getElementById("tick-" + c.id);
   const priceEl = document.getElementById("price-" + c.id);
+  const rawInput = (priceEl?.value || "").trim(); // 예: "3틱 +1000000"
 
-  const tickVal  = parseInt(tickEl?.value || 0);
+  // 🔹 "틱"과 "금액" 분리
+  const tickMatch = rawInput.match(/(\d+)틱/);
+  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 틱 없으면 1틱
+  const priceMatch = rawInput.match(/([+\-]?\d+)/);
+  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
 
-  // 🟢 입력 문자열 전처리
-  const rawPrice = (priceEl?.value || "").trim(); // 앞뒤 공백 제거
-  const cleanPrice = rawPrice.replace(/[^0-9+\-]/g, ""); // 숫자, +, -만 허용
-  const priceVal = Number(cleanPrice);
-
-  if (isNaN(priceVal) || priceVal === 0) {
-    alert("⚠️ 가격을 입력해주세요. (예: +1000000 또는 -1000000)");
+  if (isNaN(priceVal)) {
+    alert("⚠️ '3틱 +1000000' 또는 '+1000000' 형식으로 입력하세요.");
     return;
   }
 
   const startPrice = c.livePrice || c.basePrice;
   const direction = priceVal > 0 ? 1 : -1;
   const absVal = Math.abs(priceVal);
-  const targetPrice = Math.max(1, startPrice + absVal * direction);
 
   const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
   const totalTicks = tickVal > 0 ? tickVal : 1;
-  const priceStep = (targetPrice - startPrice) / totalTicks;
+  const priceStep = (absVal / totalTicks) * direction;
 
-  console.log(`📊 ${c.name}: ${totalTicks}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원 (${priceStep.toLocaleString()}원씩)`);
+  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
 
   for(let i=1; i<=totalTicks; i++){
     await new Promise(res => setTimeout(res, intervalMs));
@@ -1729,10 +1727,10 @@ async function exchangeCashToCoin(){
     if(el) el.textContent = newVal.toLocaleString();
   }
 
-  console.log(`✅ ${c.name} 주가조작 완료 (${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원)`);
-  tickEl.value = ""; 
+  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
   priceEl.value = "";
 }
+
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2564,6 +2562,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
