@@ -1691,15 +1691,19 @@ function renderStockTuner(){
 async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
 
-  const c = companies.find(x => x.name === name);
-  if(!c) return alert(`"${name}" 회사를 찾을 수 없습니다.`);
+  // 🔍 디버깅용
+  console.log("🔍 기업찾기:", name, companies.map(c => c.name));
 
-  const idSafe = safeId(c.name);
-  const tickEl  = document.getElementById("tick-" + idSafe);
-  const dirEl   = document.getElementById("dir-" + idSafe);
-  const priceEl = document.getElementById("price-" + idSafe);
+  const c = companies.find(x => x.name.trim() === name.trim());
+  if(!c){
+    alert(`"${name}" 회사를 찾을 수 없습니다.`);
+    return;
+  }
 
-  console.log("🎯 tickEl:", tickEl?.value, "priceEl:", priceEl?.value, "dir:", dirEl?.value);
+  const sid = safeId(c.name);
+  const tickEl  = document.getElementById("tick-" + sid);
+  const dirEl   = document.getElementById("dir-" + sid);
+  const priceEl = document.getElementById("price-" + sid);
 
   const tickVal  = Number(tickEl?.value);
   const priceVal = Number(priceEl?.value);
@@ -1719,6 +1723,7 @@ async function applyStockTarget(name){
     }, i * 1000);
   }
 }
+
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2550,6 +2555,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
