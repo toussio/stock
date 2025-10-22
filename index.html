@@ -1691,9 +1691,6 @@ function renderStockTuner(){
 async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
 
-  // 🔍 디버깅용
-  console.log("🔍 기업찾기:", name, companies.map(c => c.name));
-
   const c = companies.find(x => x.name.trim() === name.trim());
   if(!c){
     alert(`"${name}" 회사를 찾을 수 없습니다.`);
@@ -1702,24 +1699,32 @@ async function applyStockTarget(name){
 
   const sid = safeId(c.name);
   const tickEl  = document.getElementById("tick-" + sid);
-  const dirEl   = document.getElementById("dir-" + sid);
   const priceEl = document.getElementById("price-" + sid);
+  const dirEl   = document.getElementById("dir-" + sid);
 
   const tickVal  = Number(tickEl?.value);
   const priceVal = Number(priceEl?.value);
   const direction = dirEl?.value === "up" ? 1 : -1;
 
+  // 🔍 디버깅용 출력
+  console.log("입력값:", {tickVal, priceVal, direction});
+
+  if(!tickEl || !priceEl){
+    alert("⚠️ 입력칸을 찾을 수 없습니다. (id 문제)");
+    return;
+  }
   if(isNaN(tickVal) || isNaN(priceVal) || tickVal <= 0 || priceVal <= 0){
-    return alert("틱(>0)과 가격(>0)을 모두 입력하세요.");
+    alert("틱(>0)과 가격(>0)을 모두 입력하세요.");
+    return;
   }
 
   const perTickChange = (priceVal / tickVal) * direction;
-  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 총 ${direction>0?'+':'−'}${priceVal.toLocaleString()}원 (${perTickChange.toLocaleString()}원/틱)`);
+  console.log(`🎛 ${c.name} | ${tickVal}틱 동안 ${direction>0?'+':'−'}${priceVal}원 (${perTickChange}원/틱)`);
 
   for(let i=1; i<=tickVal; i++){
     setTimeout(async ()=>{
       await adjustCompanyPrice(c.name, perTickChange);
-      console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange.toLocaleString()}원)`);
+      console.log(`🟢 ${c.name} ${i}/${tickVal}틱 적용 (${perTickChange}원)`);
     }, i * 1000);
   }
 }
@@ -2555,6 +2560,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
