@@ -268,8 +268,8 @@
           <h3>📊 그래프/금액 제어 패널</h3>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <button onclick="marketOpen()">장 시작 + 시세 시작</button>
-            <button onclick="marketClose()">장 마감 + 시세 정지</button>
+            <button onclick="marketStart()">장 시작 + 시세 시작</button>
+            <button onclick="marketEnd()">장 마감 + 시세 정지</button>
             <button onclick="resetGraph()">그래프 초기화</button>
             <label style="margin-left:20px;">전체 조정 ±금액</label>
             <input type="number" id="allDelta" value="100" style="width:100px;">
@@ -333,14 +333,10 @@
         </div>
 
         <!-- 주가조작 -->
-<div id="tab-stock" class="tab-section" style="display:none;">
-  <h3>🎛️ 주가 조작 / 개별 종목 금액 조정</h3>
-  <p style="color:#9ca3af; font-size:13px; margin-bottom:8px;">
-    ※ 개별 종목의 금액을 직접 조정할 수 있습니다. (예: "3틱 +1000000")
-  </p>
-  <div id="graphCompanyAdjust"></div>
-</div>
-
+        <div id="tab-stock" class="tab-section" style="display:none;">
+          <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
+          <div id="stockTuner"></div>
+        </div>
 
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
@@ -1253,71 +1249,104 @@ function subscribeCompanySettings(){
       });
     }
 
-    // 📈 개별 종목 금액 조정 (틱 기반 버전)
-function renderGraphAdjustPanel(){
-  const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
-  let html="";
-  companies.forEach(c=>{
-    html += `
-      <div class='req-card'>
-        <div><strong>${c.name}</strong> | 현재가:
-          <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
-          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-        </div>
-        <div style='display:flex; gap:8px; align-items:center; flex-wrap:wrap;'>
-          <input type='text' id='adj-${c.id}' placeholder='예: 3틱 +1000000 / -500000' style='width:150px;' ${c.delisted?'disabled':''}>
-          <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
-        </div>
-      </div>`;
-  });
-  wrap.innerHTML = html || "회사 데이터 없음";
+    // ======= 그래프/가격 관리 =======
+    function renderGraphAdjustPanel(){
+      const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
+      let html="";
+      companies.forEach(c=>{
+        const id = "adj-" + c.id;
+        html += `
+          <div class='req-card'>
+            <div><strong>${c.name}</strong> | 현재가:
+              <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
+              ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+            </div>
+            <div style='display:flex; gap:8px; align-items:center;'>
+              <input type='number' id='${id}' placeholder='±금액' style='width:100px;' ${c.delisted?'disabled':''}>
+              <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
+            </div>
+          </div>`;
+      });
+      wrap.innerHTML = html || "회사 데이터 없음";
+    }
+
+    async function adjustCompanyPrice(name, overrideDelta=null){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const c = findCompanyById(name); if(!c) return;
+      if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
+      const inputEl = document.getElementById("adj-" + c.id);
+      const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
+      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
+      await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
+      c.livePrice=newVal;
+      const p = document.getElementById("panel-price-" + c.id);
+      if(p) p.textContent=getDisplayPrice(c).toLocaleString();
+      const el = document.getElementById("price-" + c.id);
+      if(el) el.textContent=getDisplayPrice(c).toLocaleString();
+      updateMaxBuyUI();
+    }
+
+    async function adjustAllPrices(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const delta = parseInt(document.getElementById("allDelta").value) || 0;
+      const tickAt = Date.now();
+      const batch = writeBatch(db);
+      for(const c of companies){
+        if(c.delisted) continue;
+        const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
+        c.livePrice = newVal;
+        batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
+      }
+      await batch.commit();
+      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
+      updateMaxBuyUI();
+    }
+
+    function applyDeltaMax(){
+      const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
+      deltaMax = Math.max(1, val);
+      alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
+    }
+
+function applyGraphIntervalStock(){
+  const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
+  const ms  = Math.max(1, sec) * 1000;
+  setDoc(doc(db,"marketState","main"), 
+    { intervalStock: ms, updatedAt:Date.now() }, 
+    { merge:true })
+  .then(()=> alert("✅ 주식 변동주기 적용됨: " + sec + "초"))
+  .catch(e=>console.error("변동주기 저장 실패:", e));
 }
 
-// 📈 틱 입력 지원: ex) "3틱 +1000000"
-async function adjustCompanyPrice(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); if(!c) return;
-  if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
-
-  const inputEl = document.getElementById("adj-" + c.id);
-  const raw = (inputEl?.value || "").trim();
-  if(!raw){ alert("⚠️ 금액을 입력해주세요."); return; }
-
-  // 🔹 "틱"과 "금액" 분리
-  const tickMatch = raw.match(/(\d+)틱/);
-  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 없으면 1틱
-  const priceMatch = raw.match(/([+\-]?\d+)/);
-  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
-
-  if(isNaN(priceVal)){
-    alert("⚠️ '+1000000' 또는 '3틱 +1000000' 형식으로 입력해주세요.");
-    return;
-  }
-
-  const startPrice = c.livePrice || c.basePrice;
-  const direction = priceVal > 0 ? 1 : -1;
-  const absVal = Math.abs(priceVal);
-  const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
-  const totalTicks = tickVal > 0 ? tickVal : 1;
-  const step = (absVal / totalTicks) * direction;
-
-  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
-
-  for(let i=1;i<=totalTicks;i++){
-    await new Promise(res=>setTimeout(res, intervalMs));
-    const newVal = Math.max(1, Math.round(startPrice + step*i));
-    await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt:Date.now() }, { merge:true });
-    c.livePrice = newVal;
-    const p1=document.getElementById("panel-price-"+c.id);
-    const p2=document.getElementById("price-"+c.id);
-    if(p1) p1.textContent=newVal.toLocaleString();
-    if(p2) p2.textContent=newVal.toLocaleString();
-  }
-
-  inputEl.value="";
-  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
+function applyGraphIntervalCoin(){
+  const sec = parseInt(document.getElementById("intervalCoinInput").value) || 5;
+  const ms  = Math.max(1, sec) * 1000;
+  setDoc(doc(db,"marketState","main"), 
+    { intervalCoin: ms, updatedAt:Date.now() }, 
+    { merge:true })
+  .then(()=> alert("✅ 코인 변동주기 적용됨: " + sec + "초"))
+  .catch(e=>console.error("변동주기 저장 실패:", e));
 }
 
+    async function resetGraph(){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const tickAt = Date.now();
+      const batch = writeBatch(db);
+      for(const c of companies){
+        if(c.delisted) continue;
+        c.livePrice=c.basePrice;
+        batch.set(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: tickAt }, { merge:true });
+      }
+      await batch.commit();
+      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
+      if(chart){
+        chart.data.labels = [];
+        chart.data.datasets.forEach(d=> d.data = []);
+        chart.update();
+        lastChartTick = 0;
+      }
+      updateMaxBuyUI();
+    }
 
     // ======= 입/출금 =======
     async function requestDeposit(){
@@ -1379,36 +1408,6 @@ async function adjustCompanyPrice(name){
         alert('출금 요청 오류: ' + (e.message || e));
       }
     }
-
-    // 📈 전체 종목 금액 일괄 조정
-async function adjustAllPrices(){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const deltaInput = document.getElementById("allDelta");
-  const delta = parseInt(deltaInput?.value || 0);
-  if(isNaN(delta) || delta === 0){
-    alert("⚠️ 조정 금액을 올바르게 입력하세요.");
-    return;
-  }
-
-  const batch = writeBatch(db);
-  const now = Date.now();
-
-  // 주식 + 코인 전체 종목 반영
-  [...companiesStock, ...companiesCoin].forEach(c=>{
-    if(c.delisted) return;
-    const next = Math.max(1, (c.livePrice || c.basePrice) + delta);
-    c.livePrice = next;
-    batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: now }, { merge:true });
-  });
-
-  try{
-    await batch.commit();
-    alert(`✅ 모든 종목 가격에 ${delta>0?'+':''}${delta.toLocaleString()} 적용 완료`);
-  }catch(e){
-    console.error("전체 조정 실패:", e);
-    alert("전체 조정 실패: " + (e.message||e));
-  }
-}
 
     // ======= 관리자 패널/권한 =======
     function checkAdmin(){
@@ -1689,38 +1688,44 @@ async function exchangeCashToCoin(){
   host.innerHTML = html;
 }
 
- async function applyStockTarget(name){
+   async function applyStockTarget(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name); 
   if(!c) return;
   if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
 
+  const tickEl  = document.getElementById("tick-" + c.id);
   const priceEl = document.getElementById("price-" + c.id);
-  const rawInput = (priceEl?.value || "").trim(); // 예: "3틱 +1000000"
 
-  // 🔹 "틱"과 "금액" 분리
-  const tickMatch = rawInput.match(/(\d+)틱/);
-  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 틱 없으면 1틱
-  const priceMatch = rawInput.match(/([+\-]?\d+)/);
-  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
+  const tickVal  = parseInt(tickEl?.value || 0);
+  const priceVal = parseInt(priceEl?.value || 0);
 
-  if (isNaN(priceVal)) {
-    alert("⚠️ '3틱 +1000000' 또는 '+1000000' 형식으로 입력하세요.");
+  // 🔹 방향 선택: 상승/하락
+  let direction = confirm(`${c.name} 가격을 상승시킬까요?\n취소를 누르면 하락으로 적용됩니다.`) ? 1 : -1;
+
+  // 🔹 가격 목표 계산
+  const startPrice = c.livePrice || c.basePrice;
+  const targetPrice = priceVal > 0 
+    ? priceVal                     // 가격 직접 지정
+    : startPrice + (deltaMax * tickVal * direction); // 틱 수만큼 목표가 계산
+
+  if(isNaN(targetPrice) || targetPrice <= 0){
+    alert("⚠️ 틱 또는 가격을 올바르게 입력하세요.");
     return;
   }
 
-  const startPrice = c.livePrice || c.basePrice;
-  const direction = priceVal > 0 ? 1 : -1;
-  const absVal = Math.abs(priceVal);
-
+  // 🔹 그래프 주기값 가져오기 (주식/코인 모드별)
   const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
-  const totalTicks = tickVal > 0 ? tickVal : 1;
-  const priceStep = (absVal / totalTicks) * direction;
+  const totalTicks = tickVal > 0 ? tickVal : 1; // 최소 1틱
 
-  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
+  const stepDelay = intervalMs; // 1틱당 그래프 변동 주기
+  const priceStep = (targetPrice - startPrice) / totalTicks;
 
+  alert(`📊 ${c.name} 가격을 ${totalTicks}틱(${(stepDelay/1000)*totalTicks}초) 동안 ${direction>0?'상승':'하락'}시킵니다.`);
+
+  // 🔹 단계적 변화 실행
   for(let i=1; i<=totalTicks; i++){
-    await new Promise(res => setTimeout(res, intervalMs));
+    await new Promise(res => setTimeout(res, stepDelay));
     const newVal = Math.max(1, Math.round(startPrice + priceStep * i));
     await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
     c.livePrice = newVal;
@@ -1728,10 +1733,11 @@ async function exchangeCashToCoin(){
     if(el) el.textContent = newVal.toLocaleString();
   }
 
-  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
+  console.log(`🎛 ${c.name} ${tickVal>0 ? `${tickVal}틱` : '즉시'} (${direction>0?'상승':'하락'}) 완료`);
+  tickEl.value = ""; 
   priceEl.value = "";
 }
-
+    
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2169,6 +2175,38 @@ toggleBtn.addEventListener('click', () => {
 const fakeNewsPool = {
   "사쿠라":[
     "사쿠라 조직원 A씨의 발언 “꽃길이 아닌 불꽃길이었다”"
+  ],
+  "중앙경찰":[
+    "경찰, 죄 없는 시민 무력진압",
+    "경찰청장, 범죄에는 즉각적이고 강력하게 대응할 것."
+  ],
+  "벌집":[
+    "사유지 RP 중 디컨 의혹 조사 착수",
+    "벌집 사유지 쓰레기 무단 투기, 시민들의 소행인가?"
+  ],
+  "EMS":[
+    "병원장 박칠X, 무차별 스팸 광고의 주범?",
+    "부원장 재X, 차량 트렁크에서 다량의 팬티 발견?"
+  ],
+  "작두":[
+    "작두 회장의 불륜 제보 사실인가 거짓인가?",
+    "작두 독서모임, 경찰들도 참여해 논란"
+  ],
+  "칠성파":[
+    "김장 RP 중 인플루언서 A씨 방송에 잡혀 즉시 검거",
+    "칠성파 조직원 B씨, 경찰 A씨에게 뇌물 전달?"
+  ],
+  "무명":[
+    "호스트바 개최 중 취객 난입, 단상 술판 논란",
+    "무명 회장 정X장이 호스트바 선수로 활동?"
+  ],
+  "방송국":[
+    "DJ 한X 라디오 도중 노쇼? 급한 용무 때문?",
+    "DJ 강준X 보이는 라디오 중 괴한의 습격?"
+  ],
+  "RIZENT":[
+    "RIZENT 유명 가수 섭외 성공! 가수는 누구?",
+    "RIZENT 가수 쵸X의 등장에 팬들 환호"
   ],
   "리얼월드 관리자":[
     "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
