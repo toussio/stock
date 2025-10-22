@@ -332,12 +332,6 @@
           <div id="withdrawRequests">대기중인 출금 요청 없음</div>
         </div>
 
-        <!-- 주가조작 -->
-        <div id="tab-stock" class="tab-section" style="display:none;">
-          <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
-          <div id="stockTuner"></div>
-        </div>
-
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
           <h3>📈 배율 & 확률 관리 패널</h3>
@@ -1285,69 +1279,7 @@ function subscribeCompanySettings(){
       if(el) el.textContent=getDisplayPrice(c).toLocaleString();
       updateMaxBuyUI();
     }
-
-    async function adjustAllPrices(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const delta = parseInt(document.getElementById("allDelta").value) || 0;
-      const tickAt = Date.now();
-      const batch = writeBatch(db);
-      for(const c of companies){
-        if(c.delisted) continue;
-        const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
-        c.livePrice = newVal;
-        batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
-      }
-      await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
-      updateMaxBuyUI();
-    }
-
-    function applyDeltaMax(){
-      const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
-      deltaMax = Math.max(1, val);
-      alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
-    }
-
-function applyGraphIntervalStock(){
-  const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
-  const ms  = Math.max(1, sec) * 1000;
-  setDoc(doc(db,"marketState","main"), 
-    { intervalStock: ms, updatedAt:Date.now() }, 
-    { merge:true })
-  .then(()=> alert("✅ 주식 변동주기 적용됨: " + sec + "초"))
-  .catch(e=>console.error("변동주기 저장 실패:", e));
-}
-
-function applyGraphIntervalCoin(){
-  const sec = parseInt(document.getElementById("intervalCoinInput").value) || 5;
-  const ms  = Math.max(1, sec) * 1000;
-  setDoc(doc(db,"marketState","main"), 
-    { intervalCoin: ms, updatedAt:Date.now() }, 
-    { merge:true })
-  .then(()=> alert("✅ 코인 변동주기 적용됨: " + sec + "초"))
-  .catch(e=>console.error("변동주기 저장 실패:", e));
-}
-
-    async function resetGraph(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const tickAt = Date.now();
-      const batch = writeBatch(db);
-      for(const c of companies){
-        if(c.delisted) continue;
-        c.livePrice=c.basePrice;
-        batch.set(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: tickAt }, { merge:true });
-      }
-      await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
-      if(chart){
-        chart.data.labels = [];
-        chart.data.datasets.forEach(d=> d.data = []);
-        chart.update();
-        lastChartTick = 0;
-      }
-      updateMaxBuyUI();
-    }
-
+    
     // ======= 입/출금 =======
     async function requestDeposit(){
       const id   = currentUser?.id || "";
@@ -2176,38 +2108,6 @@ const fakeNewsPool = {
   "사쿠라":[
     "사쿠라 조직원 A씨의 발언 “꽃길이 아닌 불꽃길이었다”"
   ],
-  "중앙경찰":[
-    "경찰, 죄 없는 시민 무력진압",
-    "경찰청장, 범죄에는 즉각적이고 강력하게 대응할 것."
-  ],
-  "벌집":[
-    "사유지 RP 중 디컨 의혹 조사 착수",
-    "벌집 사유지 쓰레기 무단 투기, 시민들의 소행인가?"
-  ],
-  "EMS":[
-    "병원장 박칠X, 무차별 스팸 광고의 주범?",
-    "부원장 재X, 차량 트렁크에서 다량의 팬티 발견?"
-  ],
-  "작두":[
-    "작두 회장의 불륜 제보 사실인가 거짓인가?",
-    "작두 독서모임, 경찰들도 참여해 논란"
-  ],
-  "칠성파":[
-    "김장 RP 중 인플루언서 A씨 방송에 잡혀 즉시 검거",
-    "칠성파 조직원 B씨, 경찰 A씨에게 뇌물 전달?"
-  ],
-  "무명":[
-    "호스트바 개최 중 취객 난입, 단상 술판 논란",
-    "무명 회장 정X장이 호스트바 선수로 활동?"
-  ],
-  "방송국":[
-    "DJ 한X 라디오 도중 노쇼? 급한 용무 때문?",
-    "DJ 강준X 보이는 라디오 중 괴한의 습격?"
-  ],
-  "RIZENT":[
-    "RIZENT 유명 가수 섭외 성공! 가수는 누구?",
-    "RIZENT 가수 쵸X의 등장에 팬들 환호"
-  ],
   "리얼월드 관리자":[
     "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
     "긴급 리붓, 디도스의 소행인가?"
@@ -2569,3 +2469,4 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
