@@ -1854,7 +1854,6 @@ async function scheduleDelist(name) {
 function subscribeDelistTimers() {
   const timersRef = collection(db, "delistTimers");
   onSnapshot(timersRef, (snap) => {
-    if (!marketOpenFlag) return; // 장 닫혔을 때는 무시
     const now = Date.now();
 
     snap.forEach(async (docu) => {
@@ -1863,16 +1862,21 @@ function subscribeDelistTimers() {
 
       if (data.dueAt <= now) {
         console.log(`⏱ ${data.companyName} 상장폐지 실행`);
-        await delistCompany(data.companyName);
-
-        // 실행 후 비활성화
-        await updateDoc(doc(db, "delistTimers", docu.id), { active: false });
+        try {
+          await delistCompany(data.companyName);
+          await updateDoc(doc(db, "delistTimers", docu.id), { active: false });
+        } catch (e) {
+          console.error("상장폐지 실행 오류:", e);
+        }
+      } else {
+        // 아직 시간이 안 됐으면 남은 시간 계산 (디버그용)
+        const left = Math.round((data.dueAt - now) / 1000);
+        console.log(`⏳ ${data.companyName}: ${left}초 남음`);
       }
     });
   });
 }
 
-// 🔹 즉시 상장폐지
 // 🔹 즉시 상장폐지 (이름 -> ID 매칭 수정)
 async function delistCompany(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -2572,6 +2576,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
