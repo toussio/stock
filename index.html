@@ -1873,21 +1873,30 @@ function subscribeDelistTimers() {
 }
 
 // 🔹 즉시 상장폐지
+// 🔹 즉시 상장폐지 (이름 -> ID 매칭 수정)
 async function delistCompany(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name);
-  if (!c) return;
+  const c = findCompanyById(safeId(name)); // ✅ 이름 대신 ID 변환으로 검색
+  if (!c) return alert(`회사 ${name} 를 찾을 수 없습니다.`);
 
   // 가격을 0으로 낮추는 시뮬레이션 (점진적 하락 효과)
   const dropSteps = 10;
   const start = c.livePrice || c.basePrice;
   for (let i = 1; i <= dropSteps; i++) {
     const next = Math.max(0, Math.floor(start * (1 - i / dropSteps)));
-    await setDoc(doc(db, "companyPrices", c.id), { current: next, updatedAt: Date.now() }, { merge: true });
+    await setDoc(doc(db, "companyPrices", c.id), {
+      current: next,
+      updatedAt: Date.now()
+    }, { merge: true });
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  await setDoc(doc(db, "companySettings", c.id), { delisted: true, updatedAt: Date.now() }, { merge: true });
+  // ✅ 실제 상장폐지 처리
+  await setDoc(doc(db, "companySettings", c.id), {
+    delisted: true,
+    updatedAt: Date.now()
+  }, { merge: true });
+
   c.delisted = true;
   alert(`⚫ ${c.name} 상장폐지 완료`);
   renderDelistPanel();
@@ -1895,6 +1904,7 @@ async function delistCompany(name) {
   renderGraphAdjustPanel();
   renderMarketStatus();
 }
+
 
 // 🔹 재상장
 async function restoreCompany(name) {
@@ -2562,6 +2572,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
