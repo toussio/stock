@@ -419,7 +419,31 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+<!-- 로그 함수 추가 (Chart.js 바로 아래) -->
+  <script>
+    function log(msg, type = "") {
+      const logDiv = document.getElementById("log");
+      if (!logDiv) return;
+      const time = new Date().toLocaleTimeString();
 
+      const color =
+        type === "buy" ? "#16a34a" :
+        type === "sell" ? "#dc2626" :
+        type === "deposit" ? "#3b82f6" :
+        type === "withdraw" ? "#f59e0b" : "#e5e7eb";
+
+      const line = `<div style="margin:2px 0; color:${color};">
+        [${time}] ${msg}
+      </div>`;
+      logDiv.insertAdjacentHTML("afterbegin", line);
+
+      // 로그 최대 120줄 유지
+      while (logDiv.children.length > 120) {
+        logDiv.removeChild(logDiv.lastChild);
+      }
+    }
+  </script>
   <!-- App Script -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
@@ -2483,4 +2507,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
