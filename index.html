@@ -1452,15 +1452,14 @@ function applyGraphIntervalCoin(){
       showTab('graph');
       updateAdminSummary().catch(()=>{});
     }
-    function closeAdmin(id){
-      const el=document.getElementById(id);
-      if(el) el.style.display='none';
-      if(id==='adminPanelAll'){
-        if(unsubUsers){ try{unsubUsers();}catch(e){} unsubUsers=null; }
-        if(unsubDeposits){ try{unsubDeposits();}catch(e){} unsubDeposits=null; }
-        if(unsubWithdraws){ try{unsubWithdraws();}catch(e){} unsubWithdraws=null; }
-      }
-    }
+   function closeAdmin(id){
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+
+  // 🔹 관리자 패널만 닫고, 감시나 타이머는 그대로 둔다
+  // 🔹 아래 unsubscribe 부분은 절대 실행하지 않음
+}
+
 
 // ======= 환전 =======
 function openExchangeModal(){
