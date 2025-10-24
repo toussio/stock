@@ -262,55 +262,38 @@
           <button onclick="showTab('delist')">⚫ 상장폐지</button>
         </div>
 
-        <!-- 그래프 패널 -->
-        <div id="tab-graph" class="tab-section">
-          <h3>📊 그래프/금액 제어 패널</h3>
+       <div id="tab-graph" class="tab-section">
+  <h3>📊 그래프 제어 패널</h3>
 
-          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <button onclick="marketStart()">장 시작 + 시세 시작</button>
-            <button onclick="marketEnd()">장 마감 + 시세 정지</button>
-            <button onclick="resetGraph()">그래프 초기화</button>
-            <label style="margin-left:20px;">전체 조정 ±금액</label>
-            <input type="number" id="allDelta" value="100" style="width:100px;">
-            <button onclick="adjustAllPrices()">적용</button>
-          </div>
+  <div style="margin-top:6px;">
+    <strong>⏱️ 코인 변동 주기 (초):</strong>
+    <input type="number" id="coinIntervalInput" value="5" min="1" style="width:80px;">
+    <button onclick="applyCoinInterval()">적용</button>
+  </div>
 
-          <!-- 주식용 -->
+  <div style="color:#9ca3af; font-size:12px; margin-top:4px;">
+    ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
+  </div>
 
-  <strong>⏱️ 주식 변동 주기 (초):</strong>
-  <input type="number" id="intervalStockInput" value="5" min="1" style="width:90px;">
-  <button onclick="applyGraphIntervalStock()">적용</button>
+  <!-- 📊 변동폭 상한 -->
+  <div style="margin-top:10px;">
+    <strong>📊 주식 변동폭 상한(±원):</strong>
+    <input type="number" id="deltaMaxStockInput" value="500000" min="1" style="width:120px;">
+    <button onclick="applyDeltaMaxStock()">적용</button>
+  </div>
+
+  <div style="margin-top:10px;">
+    <strong>📊 코인 변동폭 상한(±원):</strong>
+    <input type="number" id="deltaMaxCoinInput" value="2000000" min="1" style="width:120px;">
+    <button onclick="applyDeltaMaxCoin()">적용</button>
+  </div>
+
+  <hr style="opacity:.2; margin-top:12px;">
+  <h4>📈 개별 종목 금액 조정</h4>
+  <div id="graphCompanyAdjust" style="margin-bottom:8px;"></div>
+  <p style="color:#9ca3af; margin-top:4px;">※ '현재가(livePrice)'를 직접 조정합니다.</p>
 </div>
 
-<!-- 코인용 -->
-<div style="margin-top:10px;">
-  <strong>⏱️ 코인 변동 주기 (초):</strong>
-  <input type="number" id="intervalCoinInput" value="5" min="1" style="width:90px;">
-  <button onclick="applyGraphIntervalCoin()">적용</button>
-</div>
-
-<div style="color:#9ca3af; font-size:12px; margin-top:4px;">
-  ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
-</div>
-
-          <!-- 📊 변동폭 상한 분리 -->
-<div style="margin-top:10px;">
-  <strong>📊 주식 변동폭 상한(±원):</strong>
-  <input type="number" id="deltaMaxStockInput" value="500000" min="1" style="width:120px;">
-  <button onclick="applyDeltaMaxStock()">적용</button>
-</div>
-
-<div style="margin-top:10px;">
-  <strong>📊 코인 변동폭 상한(±원):</strong>
-  <input type="number" id="deltaMaxCoinInput" value="2000000" min="1" style="width:120px;">
-  <button onclick="applyDeltaMaxCoin()">적용</button>
-</div>
-
-          <hr style="opacity:.2">
-          <h4>📈 개별 종목 금액 조정</h4>
-          <div id="graphCompanyAdjust"></div>
-          <p style="color:#9ca3af; margin-top:8px;">※ '현재가(livePrice)'를 직접 조정합니다.</p>
-        </div>
 
         <!-- 유저 -->
         <div id="tab-users" class="tab-section" style="display:none;">
@@ -2508,6 +2491,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
