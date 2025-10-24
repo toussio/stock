@@ -430,6 +430,13 @@
 
   <!-- App Script -->
   <script type="module">
+    // ✅ 문자열에서 숫자만 추출해서 정수로 변환
+function parseNumber(value) {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  return parseInt(String(value).replace(/[^0-9.-]/g, ''), 10) || 0;
+}
+
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import {
