@@ -794,7 +794,6 @@ async function updatePricesSet(targetCompanies){
     const signed = isUp ? stepPct : -stepPct;
     let nextRaw = prev * (1 + signed);
 
-    const diff = nextRaw - prev;
    const diff = nextRaw - prev;
 const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
 if (Math.abs(diff) > limit) {
@@ -2477,5 +2476,6 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
