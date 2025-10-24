@@ -2584,6 +2584,11 @@ window.applyManualAdjust = async function(name){
     alert("가격 조정 예약 실패: " + (e.message || e));
   }
 };
+    // ✅ 차트 초기화 함수 (initChart 미정의 오류 방지용)
+function initChart() {
+  console.log("📊 initChart() 호출됨 — 차트 초기화 대기 중");
+}
+
   </script>
   <div id="chatBox">
     <div id="chatHeader">
@@ -2599,6 +2604,7 @@ window.applyManualAdjust = async function(name){
   </div>
 </body>
 </html>
+
 
 
 
