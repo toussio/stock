@@ -2132,7 +2132,7 @@ const fakeNewsPool = {
     "사유지 RP 중 디컨 의혹 조사 착수",
     "벌집 사유지 쓰레기 무단 투기, 시민들의 소행인가?"
   ],
-  "EMS":[
+  "의료국":[
     "병원장 박칠X, 무차별 스팸 광고의 주범?",
     "부원장 재X, 차량 트렁크에서 다량의 팬티 발견?"
   ],
@@ -2209,7 +2209,7 @@ function startAutoNews() {
     const isReal = Math.random() < 0.5;
     if (isReal) generateRealNews();
     else generateFakeNews();
-  }, 1 * 60 * 1000);
+  }, 5 * 60 * 1000);
   console.log("📰 뉴스 자동생성 시작됨 (장 시작)");
 }
 
@@ -2514,6 +2514,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
