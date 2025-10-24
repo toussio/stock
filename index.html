@@ -1302,21 +1302,51 @@ function subscribeCompanySettings(){
       wrap.innerHTML = html || "회사 데이터 없음";
     }
 
-    async function adjustCompanyPrice(name, overrideDelta=null){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c = findCompanyById(name); if(!c) return;
-      if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
-      const inputEl = document.getElementById("adj-" + c.id);
-      const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
-      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
-      await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
-      c.livePrice=newVal;
-      const p = document.getElementById("panel-price-" + c.id);
-      if(p) p.textContent=getDisplayPrice(c).toLocaleString();
-      const el = document.getElementById("price-" + c.id);
-      if(el) el.textContent=getDisplayPrice(c).toLocaleString();
-      updateMaxBuyUI();
-    }
+    async function adjustCompanyPrice(name, overrideDelta = null) {
+  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); 
+  if (!c) return;
+  
+  if (c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
+
+  const inputEl = document.getElementById("adj-" + c.id);
+  const delta = (overrideDelta !== null && !isNaN(overrideDelta)) ? Number(overrideDelta) : 
+               (parseInt(inputEl && inputEl.value) || 0);
+  
+  const newVal = Math.max(1, (c.livePrice || c.basePrice) + delta);
+  
+  // 변동 주기(틱 간격) 계산
+  const tickDelay = updateIntervalStock * 1000;  // 주식 변동 주기를 밀리초로 설정
+
+  // 변동 주기 후 가격 변경 (setTimeout을 사용하여 지연 실행)
+  setTimeout(async () => {
+    // Firestore에 가격 업데이트
+    await setDoc(doc(db, "companyPrices", c.id), { current: newVal, updatedAt: Date.now() }, { merge: true });
+    
+    // 회사 객체의 실시간 가격 업데이트
+    c.livePrice = newVal;
+
+    // UI 업데이트 (가격 변경 후)
+    const p = document.getElementById("panel-price-" + c.id);
+    if (p) p.textContent = getDisplayPrice(c).toLocaleString();
+    
+    const el = document.getElementById("price-" + c.id);
+    if (el) el.textContent = getDisplayPrice(c).toLocaleString();
+    
+    // 최대 구매 UI 업데이트
+    updateMaxBuyUI();
+  }, tickDelay);  // 변동 주기만큼 지연
+
+  // UI에서 예상되는 가격을 바로 보여주기
+  const p = document.getElementById("panel-price-" + c.id);
+  if (p) p.textContent = (c.livePrice + delta).toLocaleString();  // 예상 금액
+  
+  const el = document.getElementById("price-" + c.id);
+  if (el) el.textContent = (c.livePrice + delta).toLocaleString();  // 예상 금액
+
+  // 알림 (타이머가 끝난 후 가격이 적용됨을 알림)
+  alert(`${c.name}의 가격 조정이 ${tickDelay / 1000}초 뒤에 적용됩니다.`);
+}
 
     async function adjustAllPrices(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -2566,6 +2596,7 @@ function stopAutoNews() {
   
 </body>
 </html>
+
 
 
 
