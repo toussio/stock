@@ -276,7 +276,7 @@
           </div>
 
           <!-- 주식용 -->
-<div style="margin-top:10px;">
+
   <strong>⏱️ 주식 변동 주기 (초):</strong>
   <input type="number" id="intervalStockInput" value="5" min="1" style="width:90px;">
   <button onclick="applyGraphIntervalStock()">적용</button>
@@ -293,11 +293,19 @@
   ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
 </div>
 
-          <div style="margin-top:10px;">
-            <strong>📊 변동폭 상한(±원):</strong>
-            <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
-            <button onclick="applyDeltaMax()">적용</button>
-          </div>
+          <!-- 📊 변동폭 상한 분리 -->
+<div style="margin-top:10px;">
+  <strong>📊 주식 변동폭 상한(±원):</strong>
+  <input type="number" id="deltaMaxStockInput" value="500000" min="1" style="width:120px;">
+  <button onclick="applyDeltaMaxStock()">적용</button>
+</div>
+
+<div style="margin-top:10px;">
+  <strong>📊 코인 변동폭 상한(±원):</strong>
+  <input type="number" id="deltaMaxCoinInput" value="2000000" min="1" style="width:120px;">
+  <button onclick="applyDeltaMaxCoin()">적용</button>
+</div>
+
           <hr style="opacity:.2">
           <h4>📈 개별 종목 금액 조정</h4>
           <div id="graphCompanyAdjust"></div>
@@ -472,7 +480,9 @@ let currentDriver = null;
 window.lastIntervalStock = lastIntervalStock;
 window.lastIntervalCoin  = lastIntervalCoin;
     
-    let deltaMax = 1000000;
+    let deltaMaxStock = 500000;  // 주식용 변동 상한
+    let deltaMaxCoin  = 2000000; // 코인용 변동 상한
+
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
 
@@ -785,9 +795,12 @@ async function updatePricesSet(targetCompanies){
     let nextRaw = prev * (1 + signed);
 
     const diff = nextRaw - prev;
-    if(Math.abs(diff) > deltaMax){
-      nextRaw = prev + Math.sign(diff) * deltaMax;
-    }
+   const diff = nextRaw - prev;
+const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
+if (Math.abs(diff) > limit) {
+  nextRaw = prev + Math.sign(diff) * limit;
+}
+
 
     const next = Math.max(1, Math.round(nextRaw));
 
@@ -1299,6 +1312,18 @@ function subscribeCompanySettings(){
       deltaMax = Math.max(1, val);
       alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
     }
+    
+function applyDeltaMaxStock() {
+  const val = parseInt(document.getElementById("deltaMaxStockInput").value) || 1;
+  deltaMaxStock = Math.max(1, val);
+  alert("✅ 주식 변동폭 상한 적용: " + deltaMaxStock.toLocaleString() + "원");
+}
+
+function applyDeltaMaxCoin() {
+  const val = parseInt(document.getElementById("deltaMaxCoinInput").value) || 1;
+  deltaMaxCoin = Math.max(1, val);
+  alert("✅ 코인 변동폭 상한 적용: " + deltaMaxCoin.toLocaleString() + "원");
+}
 
 function applyGraphIntervalStock(){
   const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
@@ -2452,4 +2477,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
