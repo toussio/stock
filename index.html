@@ -19,12 +19,19 @@
     #userInfo { font-size:16px; }
 body {
   font-family: Arial, sans-serif;
-  background: linear-gradient(135deg, #7f1d1d 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #7f1d1d, #0f172a, #1e293b, #7f1d1d);
+  background-size: 400% 400%;
+  animation: gradientMove 10s ease infinite;
   color: var(--ink);
   margin: 0;
   padding: 20px;
 }
 
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
     /* 🔽 새로 추가: 뉴스 아래 2차 버튼줄 */
     #secondRow {
       margin: -8px auto 10px; 
@@ -2634,6 +2641,7 @@ function stopAutoNews() {
   </script>
 </body>
 </html>
+
 
 
 
