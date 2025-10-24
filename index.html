@@ -2560,7 +2560,17 @@ function stopAutoNews() {
     document.body.style.userSelect = '';
   });
 })();
-    
+    function applyDeltaMaxStock() {
+      const val = parseInt(document.getElementById("deltaMaxStockInput").value) || 1;
+      deltaMaxStock = Math.max(1, val);
+      alert("✅ 주식 변동폭 상한 적용: ±" + deltaMaxStock.toLocaleString());
+    }
+
+    function applyDeltaMaxCoin() {
+      const val = parseInt(document.getElementById("deltaMaxCoinInput").value) || 1;
+      deltaMaxCoin = Math.max(1, val);
+      alert("✅ 코인 변동폭 상한 적용: ±" + deltaMaxCoin.toLocaleString());
+    }
   </script>
 
   <div id="chatBox">
