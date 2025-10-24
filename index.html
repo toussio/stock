@@ -2558,7 +2558,19 @@ function stopAutoNews() {
     document.body.style.userSelect = '';
   });
 })();
-
+    
+<!-- 🔍 타이머 상태 모니터링 로그 -->
+setInterval(() => {
+  console.log(
+    "🩵 [TIMER CHECK]",
+    "\n📈 주식:", priceTimerStock ? "ON ✅" : "OFF ❌",
+    "\n🪙 코인:", priceTimerCoin ? "ON ✅" : "OFF ❌",
+    "\n📊 상장폐지 감시:", typeof subscribeDelistTimers === "function" ? "READY 🟢" : "MISSING 🔴",
+    "\n🧠 Driver:", marketDriverId === localSimId ? "내 브라우저가 드라이버 🧩" : "다른 브라우저가 드라이버 ⚪",
+    "\n🕐 장 상태:", marketOpenFlag ? "열림 ✅" : "닫힘 ❌",
+    "\n📅 시간:", new Date().toLocaleTimeString()
+  );
+}, 5000);
   </script>
 
   <div id="chatBox">
