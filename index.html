@@ -806,44 +806,48 @@ async function updatePricesSet(targetCompanies){
   for(const c of targetCompanies){
     if(c.delisted) continue;
 
+    const ref = doc(db,"companyPrices", c.id);
+    const snap = await getDoc(ref);
+    const data = snap.exists() ? snap.data() : {};
+    let adjust = Number(data.pendingAdjust || 0);
+
     const prev = c.livePrice || c.basePrice;
     const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
     const denom = Math.max(1e-6, (chance.profit + chance.loss));
     let isUp = Math.random() < (chance.profit / denom);
 
-    // 거래량(매수/매도 영향도)
-    const bias = marketState.bias[c.id] || 0; // 직전 영향도 (-1~1)
-    marketState.bias[c.id] = bias * 0.9; // 점차 완화
-
-    // 거래량에 따라 변동폭 증가
-    const tradeImpact = Math.abs(bias) * 5; // bias가 크면 변동폭 커짐
+    const bias = marketState.bias[c.id] || 0;
+    marketState.bias[c.id] = bias * 0.9;
+    const tradeImpact = Math.abs(bias) * 5;
     const baseVol = volatility + tradeImpact;
 
     const stepPct = ((Math.random() * baseVol) / 100) * Math.max(0, c.multiplier || 1);
     const signed = isUp ? stepPct : -stepPct;
     let nextRaw = prev * (1 + signed);
 
-   const diff = nextRaw - prev;
-const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
-if (Math.abs(diff) > limit) {
-  nextRaw = prev + Math.sign(diff) * limit;
-}
+    // 🔹 pendingAdjust 값 반영
+    if(adjust !== 0){
+      nextRaw += adjust;
+      adjust = 0;
+      // 🔹 반영 후 Firestore에서 pendingAdjust 삭제
+      batch.set(ref, { pendingAdjust: 0 }, { merge:true });
+    }
+
+    const diff = nextRaw - prev;
+    const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
+    if (Math.abs(diff) > limit) {
+      nextRaw = prev + Math.sign(diff) * limit;
+    }
 
     const next = Math.max(1, Math.round(nextRaw));
-
-    // 가격 저장
     c.livePrice = next;
-    batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
+
+    batch.set(ref, { current: next, updatedAt: tickAt }, { merge:true });
   }
 
-  try{
-    await batch.commit();
-    await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
-  }catch(e){
-    console.error("시뮬레이션 반영 실패:", e);
-  }
+  await batch.commit();
+  await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
 }
-
     // ======= 차트 =======
     function initChart(){
       if(chart) return;
@@ -2557,6 +2561,7 @@ function stopAutoNews() {
   });
 })();
     // ✅ 개별 금액 조정 버튼 동작 (applyManualAdjust)
+// ✅ 개별 금액 조정 버튼 동작 (applyManualAdjust)
 window.applyManualAdjust = async function(name){
   if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name);
@@ -2569,30 +2574,21 @@ window.applyManualAdjust = async function(name){
     return alert("±금액을 올바르게 입력하세요.");
   }
 
-  const newVal = Math.max(1, (c.livePrice || c.basePrice) + val);
   try{
+    // 📊 즉시 반영 대신 다음 변동틱에 반영 예약
     await setDoc(doc(db,"companyPrices", c.id), {
-      current: newVal,
+      pendingAdjust: val,  // ✅ 다음 틱에 적용될 금액 저장
       updatedAt: Date.now()
     }, { merge:true });
-    c.livePrice = newVal;
 
-    // 화면 즉시 반영
-    const panelPrice = document.getElementById("panel-price-" + c.id);
-    const cardPrice  = document.getElementById("price-" + c.id);
-    if(panelPrice) panelPrice.textContent = newVal.toLocaleString();
-    if(cardPrice)  cardPrice.textContent  = newVal.toLocaleString();
-
-    log(`📈 ${c.name} 수동조정: ${val>0?'+':''}${val.toLocaleString()} → ${newVal.toLocaleString()} KRW`);
     input.value = "";
+    alert(`📊 ${c.name} 금액 조정이 완료되었습니다.\n다음 변동틱에 반영됩니다.`);
   }catch(e){
-    console.error("가격 수동조정 실패:", e);
-    alert("가격 조정 실패: " + (e.message || e));
+    console.error("가격 조정 예약 실패:", e);
+    alert("가격 조정 예약 실패: " + (e.message || e));
   }
 };
-
   </script>
-
   <div id="chatBox">
     <div id="chatHeader">
       <span>💬 실시간 채팅</span>
@@ -2605,9 +2601,9 @@ window.applyManualAdjust = async function(name){
     </div>
     <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
   </div>
-  
 </body>
 </html>
+
 
 
 
