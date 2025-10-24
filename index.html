@@ -2556,7 +2556,41 @@ function stopAutoNews() {
     document.body.style.userSelect = '';
   });
 })();
-    
+    // ✅ 개별 금액 조정 버튼 동작 (applyManualAdjust)
+window.applyManualAdjust = async function(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name);
+  if(!c) return alert("해당 회사를 찾을 수 없습니다.");
+  if(c.delisted) return alert("⚫ 상장폐지된 종목은 조정할 수 없습니다.");
+
+  const input = document.getElementById("adj-" + c.id);
+  const val = parseInt(input?.value || "0", 10);
+  if(isNaN(val) || val === 0){
+    return alert("±금액을 올바르게 입력하세요.");
+  }
+
+  const newVal = Math.max(1, (c.livePrice || c.basePrice) + val);
+  try{
+    await setDoc(doc(db,"companyPrices", c.id), {
+      current: newVal,
+      updatedAt: Date.now()
+    }, { merge:true });
+    c.livePrice = newVal;
+
+    // 화면 즉시 반영
+    const panelPrice = document.getElementById("panel-price-" + c.id);
+    const cardPrice  = document.getElementById("price-" + c.id);
+    if(panelPrice) panelPrice.textContent = newVal.toLocaleString();
+    if(cardPrice)  cardPrice.textContent  = newVal.toLocaleString();
+
+    log(`📈 ${c.name} 수동조정: ${val>0?'+':''}${val.toLocaleString()} → ${newVal.toLocaleString()} KRW`);
+    input.value = "";
+  }catch(e){
+    console.error("가격 수동조정 실패:", e);
+    alert("가격 조정 실패: " + (e.message || e));
+  }
+};
+
   </script>
 
   <div id="chatBox">
@@ -2574,6 +2608,7 @@ function stopAutoNews() {
   
 </body>
 </html>
+
 
 
 
