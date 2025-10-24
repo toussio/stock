@@ -2559,21 +2559,6 @@ function stopAutoNews() {
   });
 })();
     
-// 🔍 타이머 상태 모니터링 로그 (안전 버전)
-setInterval(() => {
-  const driverId = marketState?.driverId ?? "unknown";
-  const isDriver = driverId === localSimId;
-  
-  console.log(
-    "🩵 [TIMER CHECK]",
-    "\n📈 주식:", typeof priceTimerStock !== "undefined" && priceTimerStock ? "ON ✅" : "OFF ❌",
-    "\n🪙 코인:", typeof priceTimerCoin !== "undefined" && priceTimerCoin ? "ON ✅" : "OFF ❌",
-    "\n📊 상장폐지 감시:", typeof subscribeDelistTimers === "function" ? "READY 🟢" : "MISSING 🔴",
-    `\n🧠 Driver: ${isDriver ? "내 브라우저가 드라이버 🧩" : "다른 브라우저가 드라이버 ⚪"} (${driverId})`,
-    "\n🕐 장 상태:", typeof marketOpenFlag !== "undefined" && marketOpenFlag ? "열림 ✅" : "닫힘 ❌",
-    "\n📅 시간:", new Date().toLocaleTimeString()
-  );
-}, 5000);
   </script>
 
   <div id="chatBox">
@@ -2590,6 +2575,7 @@ setInterval(() => {
   </div>
 </body>
 </html>
+
 
 
 
