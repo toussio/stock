@@ -2354,13 +2354,29 @@ function stopAutoNews() {
     window.approveWithdraw = approveWithdraw;
     window.rejectWithdraw = rejectWithdraw;
     
-    window.showTab = function(name){
-      document.querySelectorAll('#adminPanelAll .tab-section')
-        .forEach(sec => sec.style.display = 'none');
-      const t = document.getElementById('tab-'+name);
-      if(t) t.style.display='block';
-    };
+   window.showTab = function(name){
+  // 모든 탭 섹션 숨기기
+  document.querySelectorAll('#adminPanelAll .tab-section').forEach(sec=>{
+    sec.style.display = 'none';
+  });
 
+  // 선택한 탭만 표시
+  const target = document.getElementById('tab-'+name);
+  if(target){
+    target.style.display = 'block';
+    // 스크롤 최상단으로 이동 (그래프 패널이 겹쳐 있을 경우 방지)
+    target.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  // 🔹 그래프 탭이 아닐 때는 그래프 조정 패널 숨김
+  if(name !== 'graph'){
+    const adjust = document.getElementById('graphCompanyAdjust');
+    if(adjust) adjust.style.display = 'none';
+  } else {
+    const adjust = document.getElementById('graphCompanyAdjust');
+    if(adjust) adjust.style.display = '';
+  }
+};
     window.checkAdmin = checkAdmin; window.closeAdmin = closeAdmin;
     window.openAdminPanel = openAdminPanel;
 
@@ -2492,6 +2508,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
