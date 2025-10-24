@@ -1302,20 +1302,15 @@ function subscribeCompanySettings(){
       wrap.innerHTML = html || "회사 데이터 없음";
     }
 
-    async function adjustCompanyPrice(name, overrideDelta = null) {
+    async function adjustCompanyPrice(name, delta) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); 
-  if (!c) return;
-  
-  if (c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
+  const c = findCompanyById(name);
+  if (!c) return alert("회사를 찾을 수 없습니다.");
 
-  const inputEl = document.getElementById("adj-" + c.id);
-  const delta = (overrideDelta !== null && !isNaN(overrideDelta)) ? Number(overrideDelta) : 
-               (parseInt(inputEl && inputEl.value) || 0);
-  
+  // 현재 가격 + 변동폭을 계산
   const newVal = Math.max(1, (c.livePrice || c.basePrice) + delta);
-  
-  // 변동 주기(틱 간격) 계산
+
+  // 변동 주기 (예: 10초 뒤에 적용)
   const tickDelay = updateIntervalStock * 1000;  // 주식 변동 주기를 밀리초로 설정
 
   // 변동 주기 후 가격 변경 (setTimeout을 사용하여 지연 실행)
@@ -2596,6 +2591,7 @@ function stopAutoNews() {
   
 </body>
 </html>
+
 
 
 
