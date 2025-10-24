@@ -276,12 +276,12 @@
             <button onclick="adjustAllPrices()">적용</button>
           </div>
 
-          <!-- 개별금액 -->
+<!-- 📈 개별 종목 금액 조정 -->
 <div id="tab-price" class="tab-section" style="display:none;">
   <h3>📈 개별 종목 금액 조정</h3>
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
     <label>전체 조정 ±금액</label>
-    <input type="number" id="allDelta" value="100" style="width:100px;">
+    <input type="number" id="priceAllDelta" value="100" style="width:100px;"> <!-- ✅ ID 변경 -->
     <button onclick="adjustAllPrices()">적용</button>
     <button onclick="resetGraph()">그래프 초기화</button>
   </div>
@@ -1303,21 +1303,21 @@ function subscribeCompanySettings(){
       updateMaxBuyUI();
     }
 
-    async function adjustAllPrices(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const delta = parseInt(document.getElementById("allDelta").value) || 0;
-      const tickAt = Date.now();
-      const batch = writeBatch(db);
-      for(const c of companies){
-        if(c.delisted) continue;
-        const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
-        c.livePrice = newVal;
-        batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
-      }
-      await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
-      updateMaxBuyUI();
-    }
+   async function adjustAllPrices(){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const delta = parseInt(document.getElementById("priceAllDelta").value) || 0; // ✅ 변경
+  const tickAt = Date.now();
+  const batch = writeBatch(db);
+  for(const c of companies){
+    if(c.delisted) continue;
+    const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
+    c.livePrice = newVal;
+    batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
+  }
+  await batch.commit();
+  await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
+  updateMaxBuyUI();
+}
 
     function applyDeltaMax(){
       const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
@@ -2514,6 +2514,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
