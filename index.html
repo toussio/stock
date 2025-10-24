@@ -2377,11 +2377,47 @@ function stopAutoNews() {
     window.rejectWithdraw = rejectWithdraw;
     
     window.showTab = function(name){
-      document.querySelectorAll('#adminPanelAll .tab-section')
-        .forEach(sec => sec.style.display = 'none');
-      const t = document.getElementById('tab-'+name);
-      if(t) t.style.display='block';
-    };
+  // 🔸 모든 탭 숨기기
+  document.querySelectorAll('#adminPanelAll .tab-section')
+    .forEach(sec => sec.style.display = 'none');
+
+  // 🔸 선택한 탭만 표시
+  const target = document.getElementById('tab-' + name);
+  if(target){
+    target.style.display = 'block';
+  } else {
+    console.warn('탭을 찾을 수 없습니다:', name);
+  }
+
+  // 🔸 탭별로 초기화 동작
+  switch(name){
+    case 'graph':
+      if(typeof renderGraphAdjustPanel === 'function') renderGraphAdjustPanel();
+      break;
+    case 'users':
+      if(typeof renderUserList === 'function') renderUserList(true);
+      break;
+    case 'finance':
+      if(typeof renderFinanceQueues === 'function') renderFinanceQueues(true);
+      break;
+    case 'price':
+      if(typeof renderGraphAdjustPanel === 'function') renderGraphAdjustPanel();
+      break;
+    case 'change':
+      if(typeof renderChangePanel === 'function') renderChangePanel();
+      break;
+    case 'news':
+      if(typeof renderNewsAdminList === 'function') renderNewsAdminList();
+      break;
+    case 'notice':
+      if(typeof renderNoticeAdminList === 'function') renderNoticeAdminList();
+      break;
+    case 'delist':
+      if(typeof renderDelistPanel === 'function') renderDelistPanel();
+      break;
+  }
+};
+
 
     window.checkAdmin = checkAdmin; window.closeAdmin = closeAdmin;
     window.openAdminPanel = openAdminPanel;
@@ -2514,6 +2550,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
