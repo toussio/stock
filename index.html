@@ -256,6 +256,7 @@
           <button onclick="showTab('graph')">📊 그래프</button>
           <button onclick="showTab('users')">👥 유저</button>
           <button onclick="showTab('finance')">💳 입출금</button>
+          <button onclick="showTab('stock')">🎛️ 주가조작</button>
           <button onclick="showTab('change')">📈 배율/확률</button>
           <button onclick="showTab('news')">📰 뉴스</button>
           <button onclick="showTab('notice')">📢 공지사항</button>
@@ -330,7 +331,13 @@
           <h4 style="margin-top:12px;">출금 요청</h4>
           <div id="withdrawRequests">대기중인 출금 요청 없음</div>
         </div>
-        
+
+        <!-- 주가조작 -->
+        <div id="tab-stock" class="tab-section" style="display:none;">
+          <h3>🎛️ 주가 조작 패널 (틱 단위 이동)</h3>
+          <div id="stockTuner"></div>
+        </div>
+
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
           <h3>📈 배율 & 확률 관리 패널</h3>
@@ -419,31 +426,7 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-<!-- 로그 함수 추가 (Chart.js 바로 아래) -->
-  <script>
-    function log(msg, type = "") {
-      const logDiv = document.getElementById("log");
-      if (!logDiv) return;
-      const time = new Date().toLocaleTimeString();
 
-      const color =
-        type === "buy" ? "#16a34a" :
-        type === "sell" ? "#dc2626" :
-        type === "deposit" ? "#3b82f6" :
-        type === "withdraw" ? "#f59e0b" : "#e5e7eb";
-
-      const line = `<div style="margin:2px 0; color:${color};">
-        [${time}] ${msg}
-      </div>`;
-      logDiv.insertAdjacentHTML("afterbegin", line);
-
-      // 로그 최대 120줄 유지
-      while (logDiv.children.length > 120) {
-        logDiv.removeChild(logDiv.lastChild);
-      }
-    }
-  </script>
   <!-- App Script -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
@@ -550,10 +533,11 @@ const safeId = (name) =>
       {name:"작두",       basePrice:28000000 , multiplier:1, livePrice:28000000},
       {name:"칠성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
       {name:"무명",       basePrice:24000000, multiplier:1, livePrice:24000000},
-      {name:"백호자동차",     basePrice:26700000, multiplier:1, livePrice:26700000},
+      {name:"온더락스",     basePrice:26700000, multiplier:1, livePrice:26700000},
+       {name:"백호자동차",     basePrice:26700000, multiplier:1, livePrice:26700000},
       {name:"jewelry",     basePrice:27700000, multiplier:1, livePrice:27700000},
-      {name:"FIT블리",     basePrice:25700000, multiplier:1, livePrice:27700000},
       {name:"inback",     basePrice:28400000, multiplier:1, livePrice:28400000},
+      {name:"블루문",     basePrice:22400000, multiplier:1, livePrice:28400000},
       {name:"방송국",     basePrice:26900000, multiplier:1, livePrice:26900000},
       {name:"rizent",     basePrice:27400000, multiplier:1, livePrice:27400000},
       {name:"리얼월드관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
@@ -947,6 +931,7 @@ function subscribeCompanySettings(){
     // 여기서는 UI 전체 초기화 X
     renderChangePanel();
     renderDelistPanel();
+    renderStockTuner();
     renderGraphAdjustPanel();
     renderMarketStatus();
     // initCompaniesUI(); // ← 주석 처리
@@ -1440,6 +1425,7 @@ function applyGraphIntervalCoin(){
       renderGraphAdjustPanel();
       renderUserList(true);
       renderFinanceQueues(true);
+      renderStockTuner();
       renderChangePanel();
       renderNewsAdminList();
       renderNoticeAdminList();
@@ -1452,14 +1438,15 @@ function applyGraphIntervalCoin(){
       showTab('graph');
       updateAdminSummary().catch(()=>{});
     }
-   function closeAdmin(id){
-  const el = document.getElementById(id);
-  if (el) el.style.display = 'none';
-
-  // 🔹 관리자 패널만 닫고, 감시나 타이머는 그대로 둔다
-  // 🔹 아래 unsubscribe 부분은 절대 실행하지 않음
-}
-
+    function closeAdmin(id){
+      const el=document.getElementById(id);
+      if(el) el.style.display='none';
+      if(id==='adminPanelAll'){
+        if(unsubUsers){ try{unsubUsers();}catch(e){} unsubUsers=null; }
+        if(unsubDeposits){ try{unsubDeposits();}catch(e){} unsubDeposits=null; }
+        if(unsubWithdraws){ try{unsubWithdraws();}catch(e){} unsubWithdraws=null; }
+      }
+    }
 
 // ======= 환전 =======
 function openExchangeModal(){
@@ -1679,6 +1666,78 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
+// ======= 주가 조작 =======
+   function renderStockTuner(){
+  const host = document.getElementById('stockTuner'); 
+  if(!host) return;
+  let html = "";
+  companies.forEach(c=>{
+    const disabled = c.delisted ? "disabled" : "";
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
+        <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
+          <input type="number" id="tick-${c.id}" placeholder="틱" min="0" style="width:70px; padding:6px; border-radius:6px;">
+          <input type="number" id="price-${c.id}" placeholder="가격" min="0" style="width:90px; padding:6px; border-radius:6px;">
+          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
+        </div>
+      </div>`;
+  });
+  host.innerHTML = html;
+}
+
+   async function applyStockTarget(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); 
+  if(!c) return;
+  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
+
+  const tickEl  = document.getElementById("tick-" + c.id);
+  const priceEl = document.getElementById("price-" + c.id);
+
+  const tickVal  = parseInt(tickEl?.value || 0);
+  const priceVal = parseInt(priceEl?.value || 0);
+
+  // 🔹 방향 선택: 상승/하락
+  let direction = confirm(`${c.name} 가격을 상승시킬까요?\n취소를 누르면 하락으로 적용됩니다.`) ? 1 : -1;
+
+  // 🔹 가격 목표 계산
+  const startPrice = c.livePrice || c.basePrice;
+  const targetPrice = priceVal > 0 
+    ? priceVal                     // 가격 직접 지정
+    : startPrice + (deltaMax * tickVal * direction); // 틱 수만큼 목표가 계산
+
+  if(isNaN(targetPrice) || targetPrice <= 0){
+    alert("⚠️ 틱 또는 가격을 올바르게 입력하세요.");
+    return;
+  }
+
+  // 🔹 그래프 주기값 가져오기 (주식/코인 모드별)
+  const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
+  const totalTicks = tickVal > 0 ? tickVal : 1; // 최소 1틱
+
+  const stepDelay = intervalMs; // 1틱당 그래프 변동 주기
+  const priceStep = (targetPrice - startPrice) / totalTicks;
+
+  alert(`📊 ${c.name} 가격을 ${totalTicks}틱(${(stepDelay/1000)*totalTicks}초) 동안 ${direction>0?'상승':'하락'}시킵니다.`);
+
+  // 🔹 단계적 변화 실행
+  for(let i=1; i<=totalTicks; i++){
+    await new Promise(res => setTimeout(res, stepDelay));
+    const newVal = Math.max(1, Math.round(startPrice + priceStep * i));
+    await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
+    c.livePrice = newVal;
+    const el = document.getElementById("price-" + c.id);
+    if(el) el.textContent = newVal.toLocaleString();
+  }
+
+  console.log(`🎛 ${c.name} ${tickVal>0 ? `${tickVal}틱` : '즉시'} (${direction>0?'상승':'하락'}) 완료`);
+  tickEl.value = ""; 
+  priceEl.value = "";
+}
+    
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -1789,141 +1848,73 @@ async function exchangeCashToCoin(){
       setTimeout(()=>{ companies.forEach(c=>{ marketState.bias[c.id] = 0; }); }, 60000);
     }
 
-    // ======= 상장폐지 패널 (타이머 예약 + 재상장 추가) =======
-function renderDelistPanel() {
-  const host = document.getElementById("delistPanel");
-  if (!host) return;
-  let html = "";
+    // ======= 상장폐지 패널 =======
+    function renderDelistPanel(){
+      const host = document.getElementById("delistPanel"); if(!host) return;
+      let html = "";
+      companies.forEach(c=>{
+        const isDelisted = !!c.delisted;
+        html += `
+          <div class="req-card">
+            <div>
+              <strong>${c.name}</strong>
+              <span style="margin-left:6px; ${isDelisted?'color:#ef4444;':'color:#10b981;'}">${isDelisted?'⚫ 상장폐지':'🟢 상장'}</span>
+              <div style="font-size:12px;color:#9ca3af;margin-top:4px;">현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier||1)}</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              ${isDelisted
+                ? `<button onclick="restoreCompany('${c.name}')">복구</button>`
+                : `<button onclick="delistCompany('${c.name}')" style="background:#7f1d1d;">상장폐지</button>`}
+            </div>
+          </div>`;
+      });
+      host.innerHTML = html || "기업 없음";
+    }
 
-  companies.forEach(c => {
-    const isDelisted = !!c.delisted;
-    html += `
-      <div class="req-card">
-        <div>
-          <strong>${c.name}</strong>
-          <span style="margin-left:6px; ${isDelisted ? 'color:#ef4444;' : 'color:#10b981;'}">
-            ${isDelisted ? '⚫ 상장폐지' : '🟢 상장'}
-          </span>
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
-            현재가: ${getDisplayPrice(c).toLocaleString()} KRW, 배율: ${Number(c.multiplier || 1)}
-          </div>
-        </div>
+    async function delistCompany(name){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const c = findCompanyById(name); if(!c) return;
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          ${
-            isDelisted
-              ? `<button onclick="restoreCompany('${c.name}')">🟢 재상장</button>`
-              : `
-              <input type="number" id="delistTimer-${c.id}" placeholder="분" min="1" style="width:70px;">
-              <button onclick="scheduleDelist('${c.name}')" style="background:#7f1d1d;">⏱ 상장폐지 예약</button>
-              <button onclick="delistCompany('${c.name}')" style="background:#991b1b;">⚫ 즉시 폐지</button>
-              `
+      await setDoc(doc(db,"companySettings",c.id), { delisted:true, updatedAt:Date.now() }, { merge:true });
+      c.delisted = true;
+
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        const batch = writeBatch(db);
+        snap.forEach(docu => {
+          const u = docu.data();
+          if(u.holdings && u.holdings[c.name] > 0){
+            const newHoldings = {...u.holdings};
+            newHoldings[c.name] = 0;
+            batch.update(doc(db,"users",docu.id), { holdings:newHoldings, updatedAt:Date.now() });
           }
-        </div>
-      </div>
-    `;
-  });
-
-  host.innerHTML = html || "기업 없음";
-}
-
-// 🔹 상장폐지 예약 저장 (Firestore)
-async function scheduleDelist(name) {
-  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name);
-  if (!c) return alert("회사 찾을 수 없음");
-  const input = document.getElementById(`delistTimer-${c.id}`);
-  const mins = parseInt(input?.value || "0");
-  if (isNaN(mins) || mins <= 0) return alert("올바른 분 단위를 입력하세요.");
-
-  const due = Date.now() + mins * 60 * 1000;
-
-  await setDoc(doc(db, "delistTimers", c.id), {
-    companyId: c.id,
-    companyName: c.name,
-    dueAt: due,
-    createdAt: Date.now(),
-    active: true,
-  });
-
-  alert(`⏱ ${c.name} 상장폐지 ${mins}분 뒤 예약됨`);
-}
-
-// 🔹 Firestore 실시간 감시 (드라이버만)
-function subscribeDelistTimers() {
-  const timersRef = collection(db, "delistTimers");
-  onSnapshot(timersRef, (snap) => {
-    const now = Date.now();
-
-    snap.forEach(async (docu) => {
-      const data = docu.data();
-      if (!data.active) return;
-
-      if (data.dueAt <= now) {
-        console.log(`⏱ ${data.companyName} 상장폐지 실행`);
-        try {
-          await delistCompany(data.companyName);
-          await updateDoc(doc(db, "delistTimers", docu.id), { active: false });
-        } catch (e) {
-          console.error("상장폐지 실행 오류:", e);
-        }
-      } else {
-        // 아직 시간이 안 됐으면 남은 시간 계산 (디버그용)
-        const left = Math.round((data.dueAt - now) / 1000);
-        console.log(`⏳ ${data.companyName}: ${left}초 남음`);
+        });
+        await batch.commit();
+        console.log(`✅ 모든 유저 보유 ${c.name} 주식 0으로 처리 완료`);
+      } catch(e){
+        console.error("상장폐지 주식 제거 실패:", e);
       }
-    });
-  });
+
+      alert(`⚫ ${c.name} 상장폐지 완료 (보유 주식 0으로 변경됨)`);
+      renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
+      renderMarketStatus(); initCompaniesUI();
+    }
+
+   async function restoreCompany(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); if(!c) return;
+
+  // 1. Firestore에 먼저 확실히 반영
+  await setDoc(doc(db,"companySettings",c.id),
+    { delisted:false, updatedAt:Date.now() },
+    { merge:true });
+
+  // 2. 로컬 값은 onSnapshot이 알아서 바꿔줄 것이므로 건드리지 않음
+  // c.delisted = false;  // ← 이 줄 제거
+
+  // 3. UI는 onSnapshot → renderDelistPanel() 통해 자동갱신되므로 호출 생략
+  alert(`🟢 ${c.name} 복구 완료 (Firestore 반영됨)`);
 }
-
-// 🔹 즉시 상장폐지 (이름 -> ID 매칭 수정)
-async function delistCompany(name) {
-  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(safeId(name)); // ✅ 이름 대신 ID 변환으로 검색
-  if (!c) return alert(`회사 ${name} 를 찾을 수 없습니다.`);
-
-  // 가격을 0으로 낮추는 시뮬레이션 (점진적 하락 효과)
-  const dropSteps = 10;
-  const start = c.livePrice || c.basePrice;
-  for (let i = 1; i <= dropSteps; i++) {
-    const next = Math.max(0, Math.floor(start * (1 - i / dropSteps)));
-    await setDoc(doc(db, "companyPrices", c.id), {
-      current: next,
-      updatedAt: Date.now()
-    }, { merge: true });
-    await new Promise((r) => setTimeout(r, 300));
-  }
-
-  // ✅ 실제 상장폐지 처리
-  await setDoc(doc(db, "companySettings", c.id), {
-    delisted: true,
-    updatedAt: Date.now()
-  }, { merge: true });
-
-  c.delisted = true;
-  alert(`⚫ ${c.name} 상장폐지 완료`);
-  renderDelistPanel();
-  renderChangePanel();
-  renderGraphAdjustPanel();
-  renderMarketStatus();
-}
-
-
-// 🔹 재상장
-async function restoreCompany(name) {
-  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name);
-  if (!c) return;
-
-  await setDoc(doc(db, "companySettings", c.id), { delisted: false, updatedAt: Date.now() }, { merge: true });
-  c.delisted = false;
-  alert(`🟢 ${c.name} 재상장 완료`);
-  renderDelistPanel();
-  renderChangePanel();
-  renderGraphAdjustPanel();
-  renderMarketStatus();
-}
-
 
     // ======= 모드 전환 (주식/코인) =======
     function toggleMode(){
@@ -1934,6 +1925,7 @@ async function restoreCompany(name) {
       renderGraphAdjustPanel();
       renderChangePanel();
       renderDelistPanel();
+      renderStockTuner();
       renderMarketStatus();
       renderUserInfo();
 
@@ -2362,7 +2354,6 @@ function stopAutoNews() {
        initChart();
   subscribeCompanyPrices();
   subscribeCompanySettings(); // 여기서는 구독만
-  subscribeDelistTimers(); // ✅ 상장폐지 타이머 실시간 구독
   subscribeCompanyChances();
   subscribeGlobals();
   subscribeNews();
@@ -2455,6 +2446,9 @@ function stopAutoNews() {
   window.applyGraphIntervalCoin  = applyGraphIntervalCoin;
     window.resetGraph = resetGraph;
 
+    window.applyStockTarget = applyStockTarget;
+    window.renderStockTuner = renderStockTuner;
+
     window.renderChangePanel = renderChangePanel;
     window.applyMultiplier = applyMultiplier;
     window.bumpCompany = bumpCompany;
@@ -2515,7 +2509,7 @@ function stopAutoNews() {
     window.renderDelistPanel = renderDelistPanel;
     window.delistCompany = delistCompany;
     window.restoreCompany = restoreCompany;
-    window.scheduleDelist = scheduleDelist;
+
     window.sendChat = sendChat;
 
     window.openAttendanceModal = openAttendanceModal;
@@ -2558,7 +2552,7 @@ function stopAutoNews() {
     document.body.style.userSelect = '';
   });
 })();
-    
+
   </script>
 
   <div id="chatBox">
@@ -2575,11 +2569,3 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
