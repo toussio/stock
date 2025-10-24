@@ -17,6 +17,13 @@
     #userRow,#log { margin:20px auto; max-width:1100px; }
     #userRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
     #userInfo { font-size:16px; }
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #7f1d1d 0%, #0f172a 100%);
+  color: var(--ink);
+  margin: 0;
+  padding: 20px;
+}
 
     /* 🔽 새로 추가: 뉴스 아래 2차 버튼줄 */
     #secondRow {
@@ -2563,7 +2570,71 @@ function stopAutoNews() {
     </div>
     <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
   </div>
+    <!-- 🔽 여기에 추가 -->
+  <div id="delayNotice" style="
+    display:none; position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(31,41,55,0.95); color:#e5e7eb;
+    padding:20px 30px; border-radius:12px;
+    font-size:16px; text-align:center;
+    z-index:9999; box-shadow:0 0 20px rgba(0,0,0,0.4);
+    backdrop-filter:blur(6px);
+  ">
+    📊 적용이 완료되었습니다.<br>
+    <span style="color:#22c55e;">다음 변동틱</span>에 반영됩니다.
+    <div style="margin-top:8px; font-size:13px; color:#94a3b8;">화면을 클릭하면 닫힙니다.</div>
+  </div>
+
+  <script>
+    // 🔹 대기열
+    let pendingAdjustments = [];
+
+    // 🔹 금액 조정 시 (즉시 반영 X)
+    async function adjustPrice(name, diff) {
+      const existing = pendingAdjustments.find(a => a.name === name);
+      if (existing) existing.diff += diff;
+      else pendingAdjustments.push({ name, diff });
+      showDelayNotice();
+    }
+
+    // 🔹 알림창 표시
+    function showDelayNotice() {
+      const box = document.getElementById("delayNotice");
+      box.style.display = "block";
+      setTimeout(() => { box.style.display = "none"; }, 3000);
+      document.addEventListener("click", hideNoticeOnce);
+    }
+
+    function hideNoticeOnce() {
+      document.getElementById("delayNotice").style.display = "none";
+      document.removeEventListener("click", hideNoticeOnce);
+    }
+
+    // 🔹 다음 틱에 반영
+    async function updatePrices() {
+      // 기존 랜덤 변동 로직 그대로 유지
+
+      if (pendingAdjustments.length > 0) {
+        const temp = [...pendingAdjustments];
+        pendingAdjustments = [];
+
+        for (const adj of temp) {
+          try {
+            const ref = doc(db, "stocks", adj.name);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const data = snap.data();
+              const newPrice = data.livePrice + adj.diff;
+              await updateDoc(ref, { livePrice: newPrice });
+            }
+          } catch (e) {}
+        }
+      }
+    }
+  </script>
 </body>
 </html>
+
+
 
 
