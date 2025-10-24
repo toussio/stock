@@ -797,65 +797,53 @@ async function updatePricesForBoth(){
 }
 
 // 🔄 거래량 기반 가격 변동
-// 🔄 거래량 기반 가격 변동 + 다음 틱 반영
 async function updatePricesSet(targetCompanies){
   if(!marketOpenFlag) return;
 
   const tickAt = Math.floor(Date.now() / 1000) * 1000;
   const batch = writeBatch(db);
 
-  for (const c of targetCompanies){
-    if (c.delisted) continue;
+  for(const c of targetCompanies){
+    if(c.delisted) continue;
 
-    // ✅ Firestore에서 기존 데이터 가져오기 (pendingAdjust 반영용)
-    const ref = doc(db, "companyPrices", c.id);
-    const snap = await getDoc(ref);
-    const data = snap.exists() ? snap.data() : {};
-
-    const prev = (data.current ?? c.livePrice ?? c.basePrice);
-    const pending = data.pendingAdjust || 0;
-
-    // ✅ 1️⃣ pendingAdjust가 있으면 바로 적용 (랜덤 변동은 건너뜀)
-    if (pending !== 0){
-      const newVal = Math.max(1, prev + pending);
-      batch.set(ref, { current: newVal, pendingAdjust: 0, updatedAt: tickAt }, { merge:true });
-      c.livePrice = newVal;
-      console.log(`📊 ${c.name} 다음 틱 반영 완료: ${pending > 0 ? '+' : ''}${pending.toLocaleString()} → ${newVal.toLocaleString()}`);
-      continue;
-    }
-
-    // 🔹 2️⃣ 일반 랜덤 변동 (주식/코인 구분)
-    const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
+    const prev = c.livePrice || c.basePrice;
     const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
     const denom = Math.max(1e-6, (chance.profit + chance.loss));
-    const isUp = Math.random() < (chance.profit / denom);
+    let isUp = Math.random() < (chance.profit / denom);
 
-    const bias = marketState.bias[c.id] || 0;
-    marketState.bias[c.id] = bias * 0.9;
-    const tradeImpact = Math.abs(bias) * 5;
+    // 거래량(매수/매도 영향도)
+    const bias = marketState.bias[c.id] || 0; // 직전 영향도 (-1~1)
+    marketState.bias[c.id] = bias * 0.9; // 점차 완화
+
+    // 거래량에 따라 변동폭 증가
+    const tradeImpact = Math.abs(bias) * 5; // bias가 크면 변동폭 커짐
     const baseVol = volatility + tradeImpact;
+
     const stepPct = ((Math.random() * baseVol) / 100) * Math.max(0, c.multiplier || 1);
     const signed = isUp ? stepPct : -stepPct;
     let nextRaw = prev * (1 + signed);
 
-    const diff = nextRaw - prev;
-    if (Math.abs(diff) > limit) {
-      nextRaw = prev + Math.sign(diff) * limit;
-    }
+   const diff = nextRaw - prev;
+const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
+if (Math.abs(diff) > limit) {
+  nextRaw = prev + Math.sign(diff) * limit;
+}
 
     const next = Math.max(1, Math.round(nextRaw));
 
-    batch.set(ref, { current: next, updatedAt: tickAt }, { merge:true });
+    // 가격 저장
     c.livePrice = next;
+    batch.set(doc(db,"companyPrices", c.id), { current: next, updatedAt: tickAt }, { merge:true });
   }
 
-  try {
+  try{
     await batch.commit();
     await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
-  } catch (e) {
+  }catch(e){
     console.error("시뮬레이션 반영 실패:", e);
   }
 }
+
     // ======= 차트 =======
     function initChart(){
       if(chart) return;
@@ -2560,17 +2548,7 @@ function stopAutoNews() {
     document.body.style.userSelect = '';
   });
 })();
-    function applyDeltaMaxStock() {
-      const val = parseInt(document.getElementById("deltaMaxStockInput").value) || 1;
-      deltaMaxStock = Math.max(1, val);
-      alert("✅ 주식 변동폭 상한 적용: ±" + deltaMaxStock.toLocaleString());
-    }
-
-    function applyDeltaMaxCoin() {
-      const val = parseInt(document.getElementById("deltaMaxCoinInput").value) || 1;
-      deltaMaxCoin = Math.max(1, val);
-      alert("✅ 코인 변동폭 상한 적용: ±" + deltaMaxCoin.toLocaleString());
-    }
+    
   </script>
 
   <div id="chatBox">
@@ -2585,12 +2563,9 @@ function stopAutoNews() {
     </div>
     <div id="chatResizer" title="드래그해서 채팅창 높이 조절"></div>
   </div>
+  
 </body>
 </html>
-
-
-
-
 
 
 
