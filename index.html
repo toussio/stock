@@ -797,87 +797,83 @@ async function updatePricesForBoth(){
 }
 
 // 🔄 거래량 기반 가격 변동
-async function updatePricesSet(targetCompanies){
-  if(!marketOpenFlag) return;
+async function updatePricesSet() {
+  const q = query(collection(db, "companyPrices"));
+  const querySnapshot = await getDocs(q);
 
-  const tickAt = Math.floor(Date.now() / 1000) * 1000;
-  const batch = writeBatch(db);
+  for (const docSnap of querySnapshot.docs) {
+    const id = docSnap.id;
+    const c = docSnap.data();
 
-  for(const c of targetCompanies){
-    if(c.delisted) continue;
+    // ✅ 1️⃣ pendingAdjust 값 확인
+    if (c.pendingAdjust && c.pendingAdjust !== 0) {
+      // 기존 가격 불러오기
+      const current = c.current || 0;
+      const adjust = c.pendingAdjust;
+      const newVal = Math.max(1, current + adjust);
 
-    const ref = doc(db,"companyPrices", c.id);
-    const snap = await getDoc(ref);
-    const data = snap.exists() ? snap.data() : {};
-    let adjust = Number(data.pendingAdjust || 0);
+      // ✅ Firestore에 실제 반영
+      await updateDoc(doc(db, "companyPrices", id), {
+        current: newVal,
+        pendingAdjust: 0, // 초기화
+        updatedAt: Date.now()
+      });
 
-    const prev = c.livePrice || c.basePrice;
-    const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
-    const denom = Math.max(1e-6, (chance.profit + chance.loss));
-    let isUp = Math.random() < (chance.profit / denom);
-
-    const bias = marketState.bias[c.id] || 0;
-    marketState.bias[c.id] = bias * 0.9;
-    const tradeImpact = Math.abs(bias) * 5;
-    const baseVol = volatility + tradeImpact;
-
-    const stepPct = ((Math.random() * baseVol) / 100) * Math.max(0, c.multiplier || 1);
-    const signed = isUp ? stepPct : -stepPct;
-    let nextRaw = prev * (1 + signed);
-
-    // 🔹 pendingAdjust 값 반영
-    if(adjust !== 0){
-      nextRaw += adjust;
-      adjust = 0;
-      // 🔹 반영 후 Firestore에서 pendingAdjust 삭제
-      batch.set(ref, { pendingAdjust: 0 }, { merge:true });
+      console.log(`📊 ${id} 다음 틱 반영 완료: ${adjust > 0 ? "+" : ""}${adjust.toLocaleString()} → ${newVal.toLocaleString()}`);
+      continue; // 이 틱에서는 랜덤 변동 건너뜀
     }
 
-    const diff = nextRaw - prev;
-    const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
-    if (Math.abs(diff) > limit) {
-      nextRaw = prev + Math.sign(diff) * limit;
-    }
+    // 🔹 2️⃣ 일반 랜덤 변동 (기존 로직 유지)
+    const diff = randomBetween(-deltaMaxStock, deltaMaxStock);
+    const newVal = Math.max(1, (c.current || 0) + diff);
 
-    const next = Math.max(1, Math.round(nextRaw));
-    c.livePrice = next;
-
-    batch.set(ref, { current: next, updatedAt: tickAt }, { merge:true });
+    await updateDoc(doc(db, "companyPrices", id), {
+      current: newVal,
+      updatedAt: Date.now()
+    });
   }
 
-  await batch.commit();
-  await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
+  console.log("📈 주식 가격 틱 완료");
 }
-    // ======= 차트 =======
-    function initChart(){
-      if(chart) return;
-      const ctx = document.getElementById("chart").getContext("2d");
-      chart = new Chart(ctx, {
-        type:"line",
-        data:{
-          labels:[],
-          datasets: companies.map(c => ({ label:c.name, data:[], borderWidth:2, fill:false, tension:0.25 }))
-        },
-        options:{
-          responsive:true, maintainAspectRatio:false, animation:false,
-          plugins:{ legend:{position:"bottom"} },
-          scales:{ x:{ title:{display:true, text:"시간"} }, y:{ title:{display:true, text:`가격 (KRW)`}, beginAtZero:false } }
-        }
+// 🪙 코인용 변동틱 반영 함수
+async function updateCoinPricesSet() {
+  const q = query(collection(db, "coinPrices"));
+  const querySnapshot = await getDocs(q);
+
+  for (const docSnap of querySnapshot.docs) {
+    const id = docSnap.id;
+    const c = docSnap.data();
+
+    // ✅ 1️⃣ pendingAdjust 값이 있으면 다음 틱에 반영
+    if (c.pendingAdjust && c.pendingAdjust !== 0) {
+      const current = c.current || 0;
+      const adjust = c.pendingAdjust;
+      const newVal = Math.max(1, current + adjust);
+
+      await updateDoc(doc(db, "coinPrices", id), {
+        current: newVal,
+        pendingAdjust: 0, // 초기화
+        updatedAt: Date.now()
       });
+
+      console.log(
+        `🪙 ${id} 코인 조정 반영 완료: ${adjust > 0 ? "+" : ""}${adjust.toLocaleString()} → ${newVal.toLocaleString()}`
+      );
+      continue; // 이번 틱에서는 랜덤 변동 스킵
     }
 
-    function appendChartPoint(tickMs){
-      if(!chart) return;
-      const label = new Date(tickMs||Date.now()).toLocaleTimeString();
-      chart.data.labels.push(label);
-      companies.forEach((c,i)=>{ chart.data.datasets[i].data.push(getDisplayPrice(c)); });
-      const MAX=120;
-      if(chart.data.labels.length>MAX){
-        chart.data.labels.splice(0, chart.data.labels.length-MAX);
-        chart.data.datasets.forEach(d=>{ if(d.data.length>MAX) d.data.splice(0, d.data.length-MAX); });
-      }
-      chart.update("none");
-    }
+    // 🔹 2️⃣ 일반 랜덤 변동 (기존 로직 유지)
+    const diff = randomBetween(-deltaMaxCoin, deltaMaxCoin);
+    const newVal = Math.max(1, (c.current || 0) + diff);
+
+    await updateDoc(doc(db, "coinPrices", id), {
+      current: newVal,
+      updatedAt: Date.now()
+    });
+  }
+
+  console.log("🪙 코인 가격 틱 완료");
+}
 
     // ======= 상태/버튼 =======
     function updateTradeButtons(){
@@ -2603,6 +2599,7 @@ window.applyManualAdjust = async function(name){
   </div>
 </body>
 </html>
+
 
 
 
