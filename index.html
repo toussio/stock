@@ -436,6 +436,15 @@ function parseNumber(value) {
   if (!value) return 0;
   return parseInt(String(value).replace(/[^0-9.-]/g, ''), 10) || 0;
 }
+    
+// ✅ 콘솔 + HTML 로그 동시에 출력하는 함수
+function log(message) {
+  const logDiv = document.getElementById("log");
+  const time = new Date().toLocaleTimeString();
+  console.log(`[${time}] ${message}`); // 콘솔 출력
+  if (!logDiv) return;
+  logDiv.innerHTML = `<div>[${time}] ${message}</div>` + logDiv.innerHTML;
+}
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
@@ -2483,6 +2492,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
