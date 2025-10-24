@@ -1814,11 +1814,7 @@ function renderDelistPanel() {
           ${
             isDelisted
               ? `<button onclick="restoreCompany('${c.name}')">🟢 재상장</button>`
-              : `
-              <input type="number" id="delistTimer-${c.id}" placeholder="분" min="1" style="width:70px;">
-              <button onclick="scheduleDelist('${c.name}')" style="background:#7f1d1d;">⏱ 상장폐지 예약</button>
-              <button onclick="delistCompany('${c.name}')" style="background:#991b1b;">⚫ 즉시 폐지</button>
-              `
+              : `<button onclick="delistCompany('${c.name}')" style="background:#991b1b;">⚫ 즉시 폐지</button>`
           }
         </div>
       </div>
@@ -1827,51 +1823,6 @@ function renderDelistPanel() {
 
   host.innerHTML = html || "기업 없음";
 }
-
-// 🔹 상장폐지 예약 저장 (Firestore)
-async function scheduleDelist(name) {
-  if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name);
-  if (!c) return alert("회사 찾을 수 없음");
-  const input = document.getElementById(`delistTimer-${c.id}`);
-  const mins = parseInt(input?.value || "0");
-  if (isNaN(mins) || mins <= 0) return alert("올바른 분 단위를 입력하세요.");
-
-  const due = Date.now() + mins * 60 * 1000;
-
-  await setDoc(doc(db, "delistTimers", c.id), {
-    companyId: c.id,
-    companyName: c.name,
-    dueAt: due,
-    createdAt: Date.now(),
-    active: true,
-  });
-
-  alert(`⏱ ${c.name} 상장폐지 ${mins}분 뒤 예약됨`);
-}
-
-// 🔹 Firestore 실시간 감시 (드라이버만)
-function subscribeDelistTimers() {
-  const timersRef = collection(db, "delistTimers");
-  onSnapshot(timersRef, (snap) => {
-    if (!marketOpenFlag) return; // 장 닫혔을 때는 무시
-    const now = Date.now();
-
-    snap.forEach(async (docu) => {
-      const data = docu.data();
-      if (!data.active) return;
-
-      if (data.dueAt <= now) {
-        console.log(`⏱ ${data.companyName} 상장폐지 실행`);
-        await delistCompany(data.companyName);
-
-        // 실행 후 비활성화
-        await updateDoc(doc(db, "delistTimers", docu.id), { active: false });
-      }
-    });
-  });
-}
-
 // 🔹 즉시 상장폐지
 async function delistCompany(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
@@ -2349,7 +2300,6 @@ function stopAutoNews() {
        initChart();
   subscribeCompanyPrices();
   subscribeCompanySettings(); // 여기서는 구독만
-  subscribeDelistTimers(); // ✅ 상장폐지 타이머 실시간 구독
   subscribeCompanyChances();
   subscribeGlobals();
   subscribeNews();
@@ -2562,4 +2512,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
