@@ -256,7 +256,6 @@
           <button onclick="showTab('graph')">📊 그래프</button>
           <button onclick="showTab('users')">👥 유저</button>
           <button onclick="showTab('finance')">💳 입출금</button>
-          <button onclick="showTab('stock')">🎛️ 주가조작</button>
           <button onclick="showTab('change')">📈 배율/확률</button>
           <button onclick="showTab('news')">📰 뉴스</button>
           <button onclick="showTab('notice')">📢 공지사항</button>
@@ -331,16 +330,6 @@
           <h4 style="margin-top:12px;">출금 요청</h4>
           <div id="withdrawRequests">대기중인 출금 요청 없음</div>
         </div>
-
-        <!-- 주가조작 -->
-<div id="tab-stock" class="tab-section" style="display:none;">
-  <h3>🎛️ 주가 조작 / 개별 종목 금액 조정</h3>
-  <p style="color:#9ca3af; font-size:13px; margin-bottom:8px;">
-    ※ 개별 종목의 금액을 직접 조정할 수 있습니다. (예: "3틱 +1000000")
-  </p>
-  <div id="graphCompanyAdjust"></div>
-</div>
-
 
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
@@ -1253,72 +1242,43 @@ function subscribeCompanySettings(){
       });
     }
 
-    // 📈 개별 종목 금액 조정 (틱 기반 버전)
-function renderGraphAdjustPanel(){
-  const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
-  let html="";
-  companies.forEach(c=>{
-    html += `
-      <div class='req-card'>
-        <div><strong>${c.name}</strong> | 현재가:
-          <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
-          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-        </div>
-        <div style='display:flex; gap:8px; align-items:center; flex-wrap:wrap;'>
-          <input type='text' id='adj-${c.id}' placeholder='예: 3틱 +1000000 / -500000' style='width:150px;' ${c.delisted?'disabled':''}>
-          <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
-        </div>
-      </div>`;
-  });
-  wrap.innerHTML = html || "회사 데이터 없음";
-}
+    // ======= 그래프/가격 관리 =======
+    function renderGraphAdjustPanel(){
+      const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
+      let html="";
+      companies.forEach(c=>{
+        const id = "adj-" + c.id;
+        html += `
+          <div class='req-card'>
+            <div><strong>${c.name}</strong> | 현재가:
+              <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
+              ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+            </div>
+            <div style='display:flex; gap:8px; align-items:center;'>
+              <input type='number' id='${id}' placeholder='±금액' style='width:100px;' ${c.delisted?'disabled':''}>
+              <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
+            </div>
+          </div>`;
+      });
+      wrap.innerHTML = html || "회사 데이터 없음";
+    }
 
-// 📈 틱 입력 지원: ex) "3틱 +1000000"
-async function adjustCompanyPrice(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); if(!c) return;
-  if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
-
-  const inputEl = document.getElementById("adj-" + c.id);
-  const raw = (inputEl?.value || "").trim();
-  if(!raw){ alert("⚠️ 금액을 입력해주세요."); return; }
-
-  // 🔹 "틱"과 "금액" 분리
-  const tickMatch = raw.match(/(\d+)틱/);
-  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 없으면 1틱
-  const priceMatch = raw.match(/([+\-]?\d+)/);
-  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
-
-  if(isNaN(priceVal)){
-    alert("⚠️ '+1000000' 또는 '3틱 +1000000' 형식으로 입력해주세요.");
-    return;
-  }
-
-  const startPrice = c.livePrice || c.basePrice;
-  const direction = priceVal > 0 ? 1 : -1;
-  const absVal = Math.abs(priceVal);
-  const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
-  const totalTicks = tickVal > 0 ? tickVal : 1;
-  const step = (absVal / totalTicks) * direction;
-
-  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
-
-  for(let i=1;i<=totalTicks;i++){
-    await new Promise(res=>setTimeout(res, intervalMs));
-    const newVal = Math.max(1, Math.round(startPrice + step*i));
-    await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt:Date.now() }, { merge:true });
-    c.livePrice = newVal;
-    const p1=document.getElementById("panel-price-"+c.id);
-    const p2=document.getElementById("price-"+c.id);
-    if(p1) p1.textContent=newVal.toLocaleString();
-    if(p2) p2.textContent=newVal.toLocaleString();
-  }
-
-  inputEl.value="";
-  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
-}
-
-
+    async function adjustCompanyPrice(name, overrideDelta=null){
+      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+      const c = findCompanyById(name); if(!c) return;
+      if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
+      const inputEl = document.getElementById("adj-" + c.id);
+      const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
+      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
+      await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
+      c.livePrice=newVal;
+      const p = document.getElementById("panel-price-" + c.id);
+      if(p) p.textContent=getDisplayPrice(c).toLocaleString();
+      const el = document.getElementById("price-" + c.id);
+      if(el) el.textContent=getDisplayPrice(c).toLocaleString();
+      updateMaxBuyUI();
+    }
+    
     // ======= 입/출금 =======
     async function requestDeposit(){
       const id   = currentUser?.id || "";
@@ -1637,60 +1597,18 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
-// ======= 주가 조작 =======
-   function renderStockTuner(){
-  const host = document.getElementById('stockTuner'); 
-  if(!host) return;
-  let html = "";
-  companies.forEach(c=>{
-    const disabled = c.delisted ? "disabled" : "";
-    html += `
-      <div class='req-card'>
-        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
-          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-        </div>
-        <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
-          <input type="number" id="tick-${c.id}" placeholder="틱" min="0" style="width:70px; padding:6px; border-radius:6px;">
-          <input type="number" id="price-${c.id}" placeholder="가격" min="0" style="width:90px; padding:6px; border-radius:6px;">
-          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
-        </div>
-      </div>`;
-  });
-  host.innerHTML = html;
-}
-
- async function applyStockTarget(name){
-  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name); 
-  if(!c) return;
-  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
-
-  const priceEl = document.getElementById("price-" + c.id);
-  const rawInput = (priceEl?.value || "").trim(); // 예: "3틱 +1000000"
-
-  // 🔹 "틱"과 "금액" 분리
-  const tickMatch = rawInput.match(/(\d+)틱/);
-  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 틱 없으면 1틱
-  const priceMatch = rawInput.match(/([+\-]?\d+)/);
-  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
-
-  if (isNaN(priceVal)) {
-    alert("⚠️ '3틱 +1000000' 또는 '+1000000' 형식으로 입력하세요.");
-    return;
-  }
-
-  const startPrice = c.livePrice || c.basePrice;
-  const direction = priceVal > 0 ? 1 : -1;
-  const absVal = Math.abs(priceVal);
-
+  // 🔹 그래프 주기값 가져오기 (주식/코인 모드별)
   const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
-  const totalTicks = tickVal > 0 ? tickVal : 1;
-  const priceStep = (absVal / totalTicks) * direction;
+  const totalTicks = tickVal > 0 ? tickVal : 1; // 최소 1틱
 
-  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
+  const stepDelay = intervalMs; // 1틱당 그래프 변동 주기
+  const priceStep = (targetPrice - startPrice) / totalTicks;
 
+  alert(`📊 ${c.name} 가격을 ${totalTicks}틱(${(stepDelay/1000)*totalTicks}초) 동안 ${direction>0?'상승':'하락'}시킵니다.`);
+
+  // 🔹 단계적 변화 실행
   for(let i=1; i<=totalTicks; i++){
-    await new Promise(res => setTimeout(res, intervalMs));
+    await new Promise(res => setTimeout(res, stepDelay));
     const newVal = Math.max(1, Math.round(startPrice + priceStep * i));
     await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
     c.livePrice = newVal;
@@ -1698,10 +1616,11 @@ async function exchangeCashToCoin(){
     if(el) el.textContent = newVal.toLocaleString();
   }
 
-  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
+  console.log(`🎛 ${c.name} ${tickVal>0 ? `${tickVal}틱` : '즉시'} (${direction>0?'상승':'하락'}) 완료`);
+  tickEl.value = ""; 
   priceEl.value = "";
 }
-
+    
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -2501,3 +2420,4 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
