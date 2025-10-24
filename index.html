@@ -541,6 +541,14 @@ const safeId = (name) =>
     .replace(/[^\w가-힣]/g, "_")
     .replace(/_+/g, "_");
 
+    // 🔹 문자열에서 숫자만 추출해 정수로 변환
+function parseNumber(val) {
+  if (!val) return 0;
+  // "1,000,000" 같은 형식도 처리 가능
+  const num = parseInt(String(val).replace(/[^0-9.-]/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+}
+
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
       {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
@@ -2575,6 +2583,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
