@@ -256,44 +256,54 @@
           <button onclick="showTab('graph')">📊 그래프</button>
           <button onclick="showTab('users')">👥 유저</button>
           <button onclick="showTab('finance')">💳 입출금</button>
+          <button onclick="showTab('stock')">🎛️ 주가조작</button>
           <button onclick="showTab('change')">📈 배율/확률</button>
           <button onclick="showTab('news')">📰 뉴스</button>
           <button onclick="showTab('notice')">📢 공지사항</button>
           <button onclick="showTab('delist')">⚫ 상장폐지</button>
         </div>
 
-       <div id="tab-graph" class="tab-section">
-  <h3>📊 그래프 제어 패널</h3>
+        <!-- 그래프 패널 -->
+        <div id="tab-graph" class="tab-section">
+          <h3>📊 그래프/금액 제어 패널</h3>
 
-  <div style="margin-top:6px;">
-    <strong>⏱️ 코인 변동 주기 (초):</strong>
-    <input type="number" id="coinIntervalInput" value="5" min="1" style="width:80px;">
-    <button onclick="applyCoinInterval()">적용</button>
-  </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+            <button onclick="marketStart()">장 시작 + 시세 시작</button>
+            <button onclick="marketEnd()">장 마감 + 시세 정지</button>
+            <button onclick="resetGraph()">그래프 초기화</button>
+            <label style="margin-left:20px;">전체 조정 ±금액</label>
+            <input type="number" id="allDelta" value="100" style="width:100px;">
+            <button onclick="adjustAllPrices()">적용</button>
+          </div>
 
-  <div style="color:#9ca3af; font-size:12px; margin-top:4px;">
-    ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
-  </div>
-
-  <!-- 📊 변동폭 상한 -->
-  <div style="margin-top:10px;">
-    <strong>📊 주식 변동폭 상한(±원):</strong>
-    <input type="number" id="deltaMaxStockInput" value="500000" min="1" style="width:120px;">
-    <button onclick="applyDeltaMaxStock()">적용</button>
-  </div>
-
-  <div style="margin-top:10px;">
-    <strong>📊 코인 변동폭 상한(±원):</strong>
-    <input type="number" id="deltaMaxCoinInput" value="2000000" min="1" style="width:120px;">
-    <button onclick="applyDeltaMaxCoin()">적용</button>
-  </div>
-
-  <hr style="opacity:.2; margin-top:12px;">
-  <h4>📈 개별 종목 금액 조정</h4>
-  <div id="graphCompanyAdjust" style="margin-bottom:8px;"></div>
-  <p style="color:#9ca3af; margin-top:4px;">※ '현재가(livePrice)'를 직접 조정합니다.</p>
+          <!-- 주식용 -->
+<div style="margin-top:10px;">
+  <strong>⏱️ 주식 변동 주기 (초):</strong>
+  <input type="number" id="intervalStockInput" value="5" min="1" style="width:90px;">
+  <button onclick="applyGraphIntervalStock()">적용</button>
 </div>
 
+<!-- 코인용 -->
+<div style="margin-top:10px;">
+  <strong>⏱️ 코인 변동 주기 (초):</strong>
+  <input type="number" id="intervalCoinInput" value="5" min="1" style="width:90px;">
+  <button onclick="applyGraphIntervalCoin()">적용</button>
+</div>
+
+<div style="color:#9ca3af; font-size:12px; margin-top:4px;">
+  ※ 드라이버(갱신 담당) 브라우저에서만 타이머가 돌고 전체에 동기화됩니다.
+</div>
+
+          <div style="margin-top:10px;">
+            <strong>📊 변동폭 상한(±원):</strong>
+            <input type="number" id="deltaMaxInput" value="1000000" min="1" style="width:120px;">
+            <button onclick="applyDeltaMax()">적용</button>
+          </div>
+          <hr style="opacity:.2">
+          <h4>📈 개별 종목 금액 조정</h4>
+          <div id="graphCompanyAdjust"></div>
+          <p style="color:#9ca3af; margin-top:8px;">※ '현재가(livePrice)'를 직접 조정합니다.</p>
+        </div>
 
         <!-- 유저 -->
         <div id="tab-users" class="tab-section" style="display:none;">
@@ -321,6 +331,16 @@
           <h4 style="margin-top:12px;">출금 요청</h4>
           <div id="withdrawRequests">대기중인 출금 요청 없음</div>
         </div>
+
+        <!-- 주가조작 -->
+<div id="tab-stock" class="tab-section" style="display:none;">
+  <h3>🎛️ 주가 조작 / 개별 종목 금액 조정</h3>
+  <p style="color:#9ca3af; font-size:13px; margin-bottom:8px;">
+    ※ 개별 종목의 금액을 직접 조정할 수 있습니다. (예: "3틱 +1000000")
+  </p>
+  <div id="graphCompanyAdjust"></div>
+</div>
+
 
         <!-- 배율/확률 -->
         <div id="tab-change" class="tab-section" style="display:none;">
@@ -413,22 +433,6 @@
 
   <!-- App Script -->
   <script type="module">
-    // ✅ 문자열에서 숫자만 추출해서 정수로 변환
-function parseNumber(value) {
-  if (typeof value === 'number') return value;
-  if (!value) return 0;
-  return parseInt(String(value).replace(/[^0-9.-]/g, ''), 10) || 0;
-}
-    
-// ✅ 콘솔 + HTML 로그 동시에 출력하는 함수
-function log(message) {
-  const logDiv = document.getElementById("log");
-  const time = new Date().toLocaleTimeString();
-  console.log(`[${time}] ${message}`); // 콘솔 출력
-  if (!logDiv) return;
-  logDiv.innerHTML = `<div>[${time}] ${message}</div>` + logDiv.innerHTML;
-}
-
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import {
@@ -479,9 +483,7 @@ let currentDriver = null;
 window.lastIntervalStock = lastIntervalStock;
 window.lastIntervalCoin  = lastIntervalCoin;
     
-    let deltaMaxStock = 500000;  // 주식용 변동 상한
-    let deltaMaxCoin  = 2000000; // 코인용 변동 상한
-
+    let deltaMax = 1000000;
     let marketOpenFlag = false;
     let ADMIN_MODE = false;
 
@@ -793,12 +795,10 @@ async function updatePricesSet(targetCompanies){
     const signed = isUp ? stepPct : -stepPct;
     let nextRaw = prev * (1 + signed);
 
-   const diff = nextRaw - prev;
-const limit = (targetCompanies === companiesStock) ? deltaMaxStock : deltaMaxCoin;
-if (Math.abs(diff) > limit) {
-  nextRaw = prev + Math.sign(diff) * limit;
-}
-
+    const diff = nextRaw - prev;
+    if(Math.abs(diff) > deltaMax){
+      nextRaw = prev + Math.sign(diff) * deltaMax;
+    }
 
     const next = Math.max(1, Math.round(nextRaw));
 
@@ -935,6 +935,7 @@ function subscribeCompanySettings(){
     // 여기서는 UI 전체 초기화 X
     renderChangePanel();
     renderDelistPanel();
+    renderStockTuner();
     renderGraphAdjustPanel();
     renderMarketStatus();
     // initCompaniesUI(); // ← 주석 처리
@@ -1252,116 +1253,71 @@ function subscribeCompanySettings(){
       });
     }
 
-    // ======= 그래프/가격 관리 =======
-    function renderGraphAdjustPanel(){
-      const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
-      let html="";
-      companies.forEach(c=>{
-        const id = "adj-" + c.id;
-        html += `
-          <div class='req-card'>
-            <div><strong>${c.name}</strong> | 현재가:
-              <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
-              ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-            </div>
-            <div style='display:flex; gap:8px; align-items:center;'>
-              <input type='number' id='${id}' placeholder='±금액' style='width:100px;' ${c.delisted?'disabled':''}>
-              <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
-            </div>
-          </div>`;
-      });
-      wrap.innerHTML = html || "회사 데이터 없음";
-    }
-
-    async function adjustCompanyPrice(name, overrideDelta=null){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const c = findCompanyById(name); if(!c) return;
-      if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
-      const inputEl = document.getElementById("adj-" + c.id);
-      const delta = (overrideDelta!==null && !isNaN(overrideDelta)) ? Number(overrideDelta) : (parseInt(inputEl && inputEl.value) || 0);
-      const newVal=Math.max(1,(c.livePrice||c.basePrice)+delta);
-      await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
-      c.livePrice=newVal;
-      const p = document.getElementById("panel-price-" + c.id);
-      if(p) p.textContent=getDisplayPrice(c).toLocaleString();
-      const el = document.getElementById("price-" + c.id);
-      if(el) el.textContent=getDisplayPrice(c).toLocaleString();
-      updateMaxBuyUI();
-    }
-
-    async function adjustAllPrices(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const delta = parseInt(document.getElementById("allDelta").value) || 0;
-      const tickAt = Date.now();
-      const batch = writeBatch(db);
-      for(const c of companies){
-        if(c.delisted) continue;
-        const newVal = Math.max(1,(c.livePrice||c.basePrice)+delta);
-        c.livePrice = newVal;
-        batch.set(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: tickAt }, { merge:true });
-      }
-      await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
-      updateMaxBuyUI();
-    }
-
-    function applyDeltaMax(){
-      const val = parseInt(document.getElementById("deltaMaxInput").value) || 1;
-      deltaMax = Math.max(1, val);
-      alert("✅ 1틱 상한(±원) 적용: " + deltaMax.toLocaleString());
-    }
-    
-function applyDeltaMaxStock() {
-  const val = parseInt(document.getElementById("deltaMaxStockInput").value) || 1;
-  deltaMaxStock = Math.max(1, val);
-  alert("✅ 주식 변동폭 상한 적용: " + deltaMaxStock.toLocaleString() + "원");
+    // 📈 개별 종목 금액 조정 (틱 기반 버전)
+function renderGraphAdjustPanel(){
+  const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
+  let html="";
+  companies.forEach(c=>{
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | 현재가:
+          <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> KRW
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
+        <div style='display:flex; gap:8px; align-items:center; flex-wrap:wrap;'>
+          <input type='text' id='adj-${c.id}' placeholder='예: 3틱 +1000000 / -500000' style='width:150px;' ${c.delisted?'disabled':''}>
+          <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
+        </div>
+      </div>`;
+  });
+  wrap.innerHTML = html || "회사 데이터 없음";
 }
 
-function applyDeltaMaxCoin() {
-  const val = parseInt(document.getElementById("deltaMaxCoinInput").value) || 1;
-  deltaMaxCoin = Math.max(1, val);
-  alert("✅ 코인 변동폭 상한 적용: " + deltaMaxCoin.toLocaleString() + "원");
+// 📈 틱 입력 지원: ex) "3틱 +1000000"
+async function adjustCompanyPrice(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); if(!c) return;
+  if(c.delisted) return alert("⚫ 상장폐지 종목은 가격 조정 불가 (복구 후 조정하세요).");
+
+  const inputEl = document.getElementById("adj-" + c.id);
+  const raw = (inputEl?.value || "").trim();
+  if(!raw){ alert("⚠️ 금액을 입력해주세요."); return; }
+
+  // 🔹 "틱"과 "금액" 분리
+  const tickMatch = raw.match(/(\d+)틱/);
+  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 없으면 1틱
+  const priceMatch = raw.match(/([+\-]?\d+)/);
+  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
+
+  if(isNaN(priceVal)){
+    alert("⚠️ '+1000000' 또는 '3틱 +1000000' 형식으로 입력해주세요.");
+    return;
+  }
+
+  const startPrice = c.livePrice || c.basePrice;
+  const direction = priceVal > 0 ? 1 : -1;
+  const absVal = Math.abs(priceVal);
+  const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
+  const totalTicks = tickVal > 0 ? tickVal : 1;
+  const step = (absVal / totalTicks) * direction;
+
+  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
+
+  for(let i=1;i<=totalTicks;i++){
+    await new Promise(res=>setTimeout(res, intervalMs));
+    const newVal = Math.max(1, Math.round(startPrice + step*i));
+    await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt:Date.now() }, { merge:true });
+    c.livePrice = newVal;
+    const p1=document.getElementById("panel-price-"+c.id);
+    const p2=document.getElementById("price-"+c.id);
+    if(p1) p1.textContent=newVal.toLocaleString();
+    if(p2) p2.textContent=newVal.toLocaleString();
+  }
+
+  inputEl.value="";
+  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
 }
 
-function applyGraphIntervalStock(){
-  const sec = parseInt(document.getElementById("intervalStockInput").value) || 5;
-  const ms  = Math.max(1, sec) * 1000;
-  setDoc(doc(db,"marketState","main"), 
-    { intervalStock: ms, updatedAt:Date.now() }, 
-    { merge:true })
-  .then(()=> alert("✅ 주식 변동주기 적용됨: " + sec + "초"))
-  .catch(e=>console.error("변동주기 저장 실패:", e));
-}
-
-function applyGraphIntervalCoin(){
-  const sec = parseInt(document.getElementById("intervalCoinInput").value) || 5;
-  const ms  = Math.max(1, sec) * 1000;
-  setDoc(doc(db,"marketState","main"), 
-    { intervalCoin: ms, updatedAt:Date.now() }, 
-    { merge:true })
-  .then(()=> alert("✅ 코인 변동주기 적용됨: " + sec + "초"))
-  .catch(e=>console.error("변동주기 저장 실패:", e));
-}
-
-    async function resetGraph(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      const tickAt = Date.now();
-      const batch = writeBatch(db);
-      for(const c of companies){
-        if(c.delisted) continue;
-        c.livePrice=c.basePrice;
-        batch.set(doc(db,"companyPrices", c.id), { current: c.basePrice, updatedAt: tickAt }, { merge:true });
-      }
-      await batch.commit();
-      await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt }, { merge:true });
-      if(chart){
-        chart.data.labels = [];
-        chart.data.datasets.forEach(d=> d.data = []);
-        chart.update();
-        lastChartTick = 0;
-      }
-      updateMaxBuyUI();
-    }
 
     // ======= 입/출금 =======
     async function requestDeposit(){
@@ -1440,6 +1396,7 @@ function applyGraphIntervalCoin(){
       renderGraphAdjustPanel();
       renderUserList(true);
       renderFinanceQueues(true);
+      renderStockTuner();
       renderChangePanel();
       renderNewsAdminList();
       renderNoticeAdminList();
@@ -1680,6 +1637,71 @@ async function exchangeCashToCoin(){
       }catch(e){ console.error(e); alert('거절 처리 실패: ' + (e.message || e)); }
     }
     
+// ======= 주가 조작 =======
+   function renderStockTuner(){
+  const host = document.getElementById('stockTuner'); 
+  if(!host) return;
+  let html = "";
+  companies.forEach(c=>{
+    const disabled = c.delisted ? "disabled" : "";
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | ${getDisplayPrice(c).toLocaleString()} KRW 
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
+        <div style='display:flex; gap:6px; flex-wrap:wrap; align-items:center;'>
+          <input type="number" id="tick-${c.id}" placeholder="틱" min="0" style="width:70px; padding:6px; border-radius:6px;">
+          <input type="number" id="price-${c.id}" placeholder="가격" min="0" style="width:90px; padding:6px; border-radius:6px;">
+          <button ${disabled} onclick="applyStockTarget('${c.name}')">적용</button>
+        </div>
+      </div>`;
+  });
+  host.innerHTML = html;
+}
+
+ async function applyStockTarget(name){
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  const c = findCompanyById(name); 
+  if(!c) return;
+  if(c.delisted) return alert("⚫ 상장폐지 종목은 조정 불가 (복구 후 조정)");
+
+  const priceEl = document.getElementById("price-" + c.id);
+  const rawInput = (priceEl?.value || "").trim(); // 예: "3틱 +1000000"
+
+  // 🔹 "틱"과 "금액" 분리
+  const tickMatch = rawInput.match(/(\d+)틱/);
+  const tickVal = tickMatch ? parseInt(tickMatch[1]) : 1; // 틱 없으면 1틱
+  const priceMatch = rawInput.match(/([+\-]?\d+)/);
+  const priceVal = priceMatch ? parseInt(priceMatch[1]) : NaN;
+
+  if (isNaN(priceVal)) {
+    alert("⚠️ '3틱 +1000000' 또는 '+1000000' 형식으로 입력하세요.");
+    return;
+  }
+
+  const startPrice = c.livePrice || c.basePrice;
+  const direction = priceVal > 0 ? 1 : -1;
+  const absVal = Math.abs(priceVal);
+
+  const intervalMs = currentMode === 'stock' ? updateIntervalStock : updateIntervalCoin;
+  const totalTicks = tickVal > 0 ? tickVal : 1;
+  const priceStep = (absVal / totalTicks) * direction;
+
+  console.log(`📊 ${c.name}: ${tickVal}틱 동안 ${priceVal>0?'상승':'하락'} ${absVal.toLocaleString()}원`);
+
+  for(let i=1; i<=totalTicks; i++){
+    await new Promise(res => setTimeout(res, intervalMs));
+    const newVal = Math.max(1, Math.round(startPrice + priceStep * i));
+    await setDoc(doc(db,"companyPrices", c.id), { current:newVal, updatedAt: Date.now() }, { merge:true });
+    c.livePrice = newVal;
+    const el = document.getElementById("price-" + c.id);
+    if(el) el.textContent = newVal.toLocaleString();
+  }
+
+  console.log(`✅ ${c.name} ${tickVal}틱 ${priceVal>0?'상승':'하락'} 완료`);
+  priceEl.value = "";
+}
+
     // ======= 배율/확률 =======
     function renderChangePanel(){
       const host = document.getElementById('changePanel'); if(!host) return;
@@ -1838,7 +1860,7 @@ async function exchangeCashToCoin(){
       }
 
       alert(`⚫ ${c.name} 상장폐지 완료 (보유 주식 0으로 변경됨)`);
-      renderDelistPanel(); renderChangePanel(); renderGraphAdjustPanel();
+      renderDelistPanel(); renderChangePanel(); renderStockTuner(); renderGraphAdjustPanel();
       renderMarketStatus(); initCompaniesUI();
     }
 
@@ -1867,6 +1889,7 @@ async function exchangeCashToCoin(){
       renderGraphAdjustPanel();
       renderChangePanel();
       renderDelistPanel();
+      renderStockTuner();
       renderMarketStatus();
       renderUserInfo();
 
@@ -2337,29 +2360,13 @@ function stopAutoNews() {
     window.approveWithdraw = approveWithdraw;
     window.rejectWithdraw = rejectWithdraw;
     
-   window.showTab = function(name){
-  // 모든 탭 섹션 숨기기
-  document.querySelectorAll('#adminPanelAll .tab-section').forEach(sec=>{
-    sec.style.display = 'none';
-  });
+    window.showTab = function(name){
+      document.querySelectorAll('#adminPanelAll .tab-section')
+        .forEach(sec => sec.style.display = 'none');
+      const t = document.getElementById('tab-'+name);
+      if(t) t.style.display='block';
+    };
 
-  // 선택한 탭만 표시
-  const target = document.getElementById('tab-'+name);
-  if(target){
-    target.style.display = 'block';
-    // 스크롤 최상단으로 이동 (그래프 패널이 겹쳐 있을 경우 방지)
-    target.scrollIntoView({ behavior:'smooth', block:'start' });
-  }
-
-  // 🔹 그래프 탭이 아닐 때는 그래프 조정 패널 숨김
-  if(name !== 'graph'){
-    const adjust = document.getElementById('graphCompanyAdjust');
-    if(adjust) adjust.style.display = 'none';
-  } else {
-    const adjust = document.getElementById('graphCompanyAdjust');
-    if(adjust) adjust.style.display = '';
-  }
-};
     window.checkAdmin = checkAdmin; window.closeAdmin = closeAdmin;
     window.openAdminPanel = openAdminPanel;
 
@@ -2370,6 +2377,9 @@ function stopAutoNews() {
    window.applyGraphIntervalStock = applyGraphIntervalStock;
   window.applyGraphIntervalCoin  = applyGraphIntervalCoin;
     window.resetGraph = resetGraph;
+
+    window.applyStockTarget = applyStockTarget;
+    window.renderStockTuner = renderStockTuner;
 
     window.renderChangePanel = renderChangePanel;
     window.applyMultiplier = applyMultiplier;
@@ -2491,9 +2501,3 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
-
-
-
-
-
-
