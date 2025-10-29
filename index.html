@@ -1283,65 +1283,65 @@ function subscribeCompanySettings(){
     }
 
     // ======= 그래프/가격 관리 =======
-    function renderGraphAdjustPanel(){
-      const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
-      let html="";
-      companies.forEach(c=>{
-        const id = "adj-" + c.id;
-        html += `
-          <div class='req-card'>
-            <div><strong>${c.name}</strong> | 현재가:
-              <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> RWW
-              ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
-            </div>
-            <div style='display:flex; gap:8px; align-items:center;'>
-              <input type='number' id='${id}' placeholder='±금액' style='width:100px;' ${c.delisted?'disabled':''}>
-              <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
-            </div>
-          </div>`;
-      });
-      wrap.innerHTML = html || "회사 데이터 없음";
-    }
+   function renderGraphAdjustPanel(){
+  const wrap = document.getElementById("graphCompanyAdjust"); if(!wrap) return;
+  let html="";
+  companies.forEach(c=>{
+    const id = "adj-" + c.id;
+    html += `
+      <div class='req-card'>
+        <div><strong>${c.name}</strong> | 현재가:
+          <span id='panel-price-${c.id}'>${getDisplayPrice(c).toLocaleString()}</span> RWW
+          ${c.delisted ? "<span style='margin-left:8px;color:#ef4444;'>⚫ 상장폐지</span>" : ""}
+        </div>
+        <div style='display:flex; gap:8px; align-items:center;'>
+          <input type='number' id='tick-${c.id}' placeholder='틱' value='1' style='width:70px;' ${c.delisted?'disabled':''}>
+          <input type='number' id='${id}' placeholder='±금액' style='width:100px;' ${c.delisted?'disabled':''}>
+          <button ${c.delisted?'disabled':''} onclick="adjustCompanyPrice('${c.name}')">적용</button>
+        </div>
+      </div>`;
+  });
+  wrap.innerHTML = html || "회사 데이터 없음";
+}
 
-    async function adjustCompanyPrice(name, delta) {
+    async function adjustCompanyPrice(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name);
   if (!c) return alert("회사를 찾을 수 없습니다.");
 
-  // 현재 가격 + 변동폭을 계산
+  const delta = parseInt(document.getElementById(`adj-${c.id}`)?.value || 0);
+  const ticks = parseInt(document.getElementById(`tick-${c.id}`)?.value || 1);
+  if (isNaN(delta) || delta === 0) return alert("±금액을 입력하세요.");
+  if (isNaN(ticks) || ticks <= 0) return alert("틱을 올바르게 입력하세요.");
+
+  const intervalMs =
+    currentMode === "coin" ? updateIntervalCoin : updateIntervalStock;
+  const delay = ticks * intervalMs;
+
   const newVal = Math.max(1, (c.livePrice || c.basePrice) + delta);
 
-  // 변동 주기 (예: 10초 뒤에 적용)
-  const tickDelay = updateIntervalStock * 1000;  // 주식 변동 주기를 밀리초로 설정
-
-  // 변동 주기 후 가격 변경 (setTimeout을 사용하여 지연 실행)
-  setTimeout(async () => {
-    // Firestore에 가격 업데이트
-    await setDoc(doc(db, "companyPrices", c.id), { current: newVal, updatedAt: Date.now() }, { merge: true });
-    
-    // 회사 객체의 실시간 가격 업데이트
-    c.livePrice = newVal;
-
-    // UI 업데이트 (가격 변경 후)
-    const p = document.getElementById("panel-price-" + c.id);
-    if (p) p.textContent = getDisplayPrice(c).toLocaleString();
-    
-    const el = document.getElementById("price-" + c.id);
-    if (el) el.textContent = getDisplayPrice(c).toLocaleString();
-    
-    // 최대 구매 UI 업데이트
-    updateMaxBuyUI();
-  }, tickDelay);  // 변동 주기만큼 지연
-
-  // UI에서 예상되는 가격을 바로 보여주기
+  // 미리 예고 표시
   const p = document.getElementById("panel-price-" + c.id);
-  if (p) p.textContent = (c.livePrice + delta).toLocaleString();  // 예상 금액
-  
-  const el = document.getElementById("price-" + c.id);
-  if (el) el.textContent = (c.livePrice + delta).toLocaleString();  // 예상 금액
+  if (p) p.textContent = (c.livePrice + delta).toLocaleString();
 
-  // 알림 (타이머가 끝난 후 가격이 적용됨을 알림)
-  alert(`${c.name}의 가격 조정이 ${tickDelay / 1000}초 뒤에 적용됩니다.`);
+  const el = document.getElementById("price-" + c.id);
+  if (el) el.textContent = (c.livePrice + delta).toLocaleString();
+
+  alert(`${c.name}의 가격 조정이 ${ticks}틱(${delay / 1000}초) 뒤 적용됩니다.`);
+
+  setTimeout(async () => {
+    await setDoc(
+      doc(db, "companyPrices", c.id),
+      { current: newVal, updatedAt: Date.now() },
+      { merge: true }
+    );
+
+    c.livePrice = newVal;
+    if (p) p.textContent = getDisplayPrice(c).toLocaleString();
+    if (el) el.textContent = getDisplayPrice(c).toLocaleString();
+    updateMaxBuyUI();
+    log(`📈 ${c.name} 가격 조정 ${ticks}틱 뒤 적용됨: ${newVal.toLocaleString()} RWW`);
+  }, delay);
 }
 
     async function adjustAllPrices(){
