@@ -1309,39 +1309,38 @@ function subscribeCompanySettings(){
   const c = findCompanyById(name);
   if (!c) return alert("회사를 찾을 수 없습니다.");
 
-  const delta = parseInt(document.getElementById(`adj-${c.id}`)?.value || 0);
+  const totalDelta = parseInt(document.getElementById(`adj-${c.id}`)?.value || 0);
   const ticks = parseInt(document.getElementById(`tick-${c.id}`)?.value || 1);
-  if (isNaN(delta) || delta === 0) return alert("±금액을 입력하세요.");
+  if (isNaN(totalDelta) || totalDelta === 0) return alert("±금액을 입력하세요.");
   if (isNaN(ticks) || ticks <= 0) return alert("틱을 올바르게 입력하세요.");
 
-  const intervalMs =
+  const baseInterval =
     currentMode === "coin" ? updateIntervalCoin : updateIntervalStock;
-  const delay = ticks * intervalMs;
+  const totalDuration = baseInterval * ticks; // 총 변동 시간
+  const halfInterval = totalDuration / ticks; // 틱마다 적용 간격 (즉, 10초에 한 번)
+  const perStep = Math.floor(totalDelta / ticks); // 한 번당 적용 금액
 
-  const newVal = Math.max(1, (c.livePrice || c.basePrice) + delta);
+  alert(`${c.name}의 가격이 ${ticks}틱(${totalDuration / 1000}초) 동안 ${Math.abs(totalDelta).toLocaleString()} RWW (${Math.abs(perStep).toLocaleString()}씩 ${halfInterval / 1000}초마다) 변동됩니다.`);
 
-  // 미리 예고 표시
-  const p = document.getElementById("panel-price-" + c.id);
-  if (p) p.textContent = (c.livePrice + delta).toLocaleString();
+  for (let i = 1; i <= ticks; i++) {
+    setTimeout(async () => {
+      const newVal = Math.max(1, (c.livePrice || c.basePrice) + perStep * i);
+      await setDoc(doc(db, "companyPrices", c.id),
+        { current: newVal, updatedAt: Date.now() },
+        { merge: true }
+      );
+      c.livePrice = newVal;
 
-  const el = document.getElementById("price-" + c.id);
-  if (el) el.textContent = (c.livePrice + delta).toLocaleString();
+      const p = document.getElementById("panel-price-" + c.id);
+      const el = document.getElementById("price-" + c.id);
+      if (p) p.textContent = getDisplayPrice(c).toLocaleString();
+      if (el) el.textContent = getDisplayPrice(c).toLocaleString();
 
-  alert(`${c.name}의 가격 조정이 ${ticks}틱(${delay / 1000}초) 뒤 적용됩니다.`);
+      log(`📊 ${c.name} ${i}/${ticks}틱 적용: ${perStep > 0 ? "+" : ""}${perStep.toLocaleString()} → 현재가 ${newVal.toLocaleString()} RWW`);
 
-  setTimeout(async () => {
-    await setDoc(
-      doc(db, "companyPrices", c.id),
-      { current: newVal, updatedAt: Date.now() },
-      { merge: true }
-    );
-
-    c.livePrice = newVal;
-    if (p) p.textContent = getDisplayPrice(c).toLocaleString();
-    if (el) el.textContent = getDisplayPrice(c).toLocaleString();
-    updateMaxBuyUI();
-    log(`📈 ${c.name} 가격 조정 ${ticks}틱 뒤 적용됨: ${newVal.toLocaleString()} RWW`);
-  }, delay);
+      if (i === ticks) log(`✅ ${c.name} 가격 조정 완료`);
+    }, i * halfInterval);
+  }
 }
 
     async function adjustAllPrices(){
@@ -2588,3 +2587,4 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
