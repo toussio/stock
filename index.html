@@ -1304,46 +1304,59 @@ function subscribeCompanySettings(){
   wrap.innerHTML = html || "회사 데이터 없음";
 }
 
-    async function adjustCompanyPrice(name) {
+    // 📈 개별 종목 금액 조정 (틱 단위 분할 반영 시스템)
+async function adjustCompanyPrice(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
   const c = findCompanyById(name);
   if (!c) return alert("회사를 찾을 수 없습니다.");
 
-  const delta = parseInt(document.getElementById(`adj-${c.id}`)?.value || 0);
-  const ticks = parseInt(document.getElementById(`tick-${c.id}`)?.value || 1);
-  if (isNaN(delta) || delta === 0) return alert("±금액을 입력하세요.");
+  const priceInput = document.getElementById(`adjustInput-${name}`);
+  const tickInput = document.getElementById(`tickInput-${name}`);
+  const totalDelta = parseInt(priceInput.value);
+  const ticks = parseInt(tickInput?.value || 1);
+
+  if (isNaN(totalDelta) || totalDelta === 0) return alert("±금액을 입력하세요.");
   if (isNaN(ticks) || ticks <= 0) return alert("틱을 올바르게 입력하세요.");
 
-  const intervalMs =
-    currentMode === "coin" ? updateIntervalCoin : updateIntervalStock;
-  const delay = ticks * intervalMs;
+  // 틱당 변동량 계산
+  const perTickDelta = Math.floor(totalDelta / ticks);
 
-  const newVal = Math.max(1, (c.livePrice || c.basePrice) + delta);
+  // 모드별 변동주기 설정
+  const intervalSec = currentMode === "coin" ? updateIntervalCoin : updateIntervalStock;
+  const delay = intervalSec * 1000; // ms
 
-  // 미리 예고 표시
-  const p = document.getElementById("panel-price-" + c.id);
-  if (p) p.textContent = (c.livePrice + delta).toLocaleString();
+  alert(`✅ ${c.name}의 가격이 ${ticks}틱 (${intervalSec * ticks}초)에 걸쳐 ${totalDelta > 0 ? "+" : ""}${totalDelta.toLocaleString()} RWW 만큼 변동됩니다.\n(틱당 ${perTickDelta.toLocaleString()} RWW씩)`);
 
-  const el = document.getElementById("price-" + c.id);
-  if (el) el.textContent = (c.livePrice + delta).toLocaleString();
+  // 각 틱마다 순차 적용
+  for (let i = 1; i <= ticks; i++) {
+    setTimeout(async () => {
+      try {
+        const docRef = doc(db, "companyPrices", c.id);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const newPrice = (snap.data().livePrice || c.basePrice) + perTickDelta;
+          await updateDoc(docRef, { livePrice: newPrice });
+          c.livePrice = newPrice;
 
-  alert(`${c.name}의 가격 조정이 ${ticks}틱(${delay / 1000}초) 뒤 적용됩니다.`);
+          const p = document.getElementById("panel-price-" + c.id);
+          if (p) p.textContent = newPrice.toLocaleString();
+          const el = document.getElementById("price-" + c.id);
+          if (el) el.textContent = newPrice.toLocaleString();
 
-  setTimeout(async () => {
-    await setDoc(
-      doc(db, "companyPrices", c.id),
-      { current: newVal, updatedAt: Date.now() },
-      { merge: true }
-    );
+          console.log(`📈 [${c.name}] ${i}틱 (${i * intervalSec}s)째 ${perTickDelta > 0 ? "+" : ""}${perTickDelta.toLocaleString()} RWW 반영됨`);
+          if (i === ticks) console.log(`✅ ${c.name} 총 ${totalDelta.toLocaleString()} RWW 반영 완료`);
+        }
+      } catch (e) {
+        console.error("가격 조정 실패:", e);
+      }
+    }, delay * i);
+  }
 
-    c.livePrice = newVal;
-    if (p) p.textContent = getDisplayPrice(c).toLocaleString();
-    if (el) el.textContent = getDisplayPrice(c).toLocaleString();
-    updateMaxBuyUI();
-    log(`📈 ${c.name} 가격 조정 ${ticks}틱 뒤 적용됨: ${newVal.toLocaleString()} RWW`);
-  }, delay);
+  // 입력 초기화
+  priceInput.value = "";
 }
 
+}
     async function adjustAllPrices(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const delta = parseInt(document.getElementById("allDelta").value) || 0;
