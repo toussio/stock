@@ -1355,8 +1355,6 @@ async function adjustCompanyPrice(name) {
   // 입력 초기화
   priceInput.value = "";
 }
-
-}
     async function adjustAllPrices(){
       if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
       const delta = parseInt(document.getElementById("allDelta").value) || 0;
@@ -2601,4 +2599,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
