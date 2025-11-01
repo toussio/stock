@@ -558,37 +558,37 @@ function parseNumber(val) {
 
     // ======= 회사 목록 (주식/코인) =======
     const companiesStock = [
-      {name:"사쿠라",     basePrice:27000000 , multiplier:1, livePrice:27000000},
-      {name:"중앙경찰",   basePrice:25000000 , multiplier:1, livePrice:25000000},
-      {name:"벌집",   basePrice:24000000 , multiplier:1, livePrice:24000000},
-      {name:"의료국",        basePrice:26000000, multiplier:1, livePrice:26000000},
-      {name:"작두",       basePrice:28000000 , multiplier:1, livePrice:28000000},
-      {name:"칠성파",       basePrice:25600000 , multiplier:1, livePrice:25600000},
-      {name:"무명",       basePrice:24000000, multiplier:1, livePrice:24000000},
+      {name:"사쿠라",     basePrice:5066827 , multiplier:1, livePrice:5066827},
+      {name:"중앙경찰",   basePrice:30821343 , multiplier:1, livePrice:30821343},
+      {name:"벌집",   basePrice:47363624 , multiplier:1, livePrice:47363624},
+      {name:"의료국",        basePrice:35561125, multiplier:1, livePrice:35561125},
+      {name:"작두",       basePrice:29642348 , multiplier:1, livePrice:29642348},
+      {name:"칠성파",       basePrice:35266012 , multiplier:1, livePrice:35266012},
+      {name:"무명",       basePrice:23726749, multiplier:1, livePrice:23726749},
       {name:"백호자동차",     basePrice:26700000, multiplier:1, livePrice:26700000},
-      {name:"느와르",     basePrice:26700000, multiplier:1, livePrice:26700000},
+      {name:"느와르",     basePrice:27320000, multiplier:1, livePrice:27320000},
       {name:"갈증",     basePrice:26700000, multiplier:1, livePrice:26700000},
-      {name:"jewelry",     basePrice:27700000, multiplier:1, livePrice:27700000},
-      {name:"FIT블리",     basePrice:25700000, multiplier:1, livePrice:27700000},
-      {name:"inback",     basePrice:28400000, multiplier:1, livePrice:28400000},
-      {name:"방송국",     basePrice:26900000, multiplier:1, livePrice:26900000},
-      {name:"rizent",     basePrice:27400000, multiplier:1, livePrice:27400000},
-      {name:"리얼월드관리자", basePrice:26300000, multiplier:1, livePrice:26300000},
+      {name:"jewelry",     basePrice:33799250, multiplier:1, livePrice:33799250},
+      {name:"FIT블리",     basePrice:26300000, multiplier:1, livePrice:26300000},
+      {name:"inback",     basePrice:21211719, multiplier:1, livePrice:21211719},
+      {name:"방송국",     basePrice:27651520, multiplier:1, livePrice:27651520},
+      {name:"rizent",     basePrice:24530717, multiplier:1, livePrice:24530717},
+      {name:"리얼월드관리자", basePrice:53188060, multiplier:1, livePrice:53188060},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     const companiesCoin = [
-      {name:"나쁘니", basePrice:48000000, multiplier:1, livePrice:48000000},
-      {name:"짝두", basePrice:23000000,  multiplier:1, livePrice:23000000},
-      {name:"삼쿠라",     basePrice:13000000,      multiplier:1, livePrice:13000000},
-      {name:"애기월드",   basePrice:5000000,   multiplier:1, livePrice:5000000},
-      {name:"FOX",   basePrice:7840000,      multiplier:1, livePrice:7840000},
-      {name:"야타족",     basePrice:9800000,      multiplier:1, livePrice:9800000},
-      {name:"테토녀",   basePrice:6820000,    multiplier:1, livePrice:6820000},
-      {name:"소방국",   basePrice:16500000,     multiplier:1, livePrice:16500000},
-      {name:"리얼대학교", basePrice:13200000,    multiplier:1, livePrice:13200000},
-      {name:"관동연합", basePrice:8760000,    multiplier:1, livePrice:8760000},
-      {name:"인형뽑기",   basePrice:12600000,     multiplier:1, livePrice:12600000},
-      {name:"린민공화국",     basePrice:11000000,      multiplier:1, livePrice:11000000},
+      {name:"나쁘니", basePrice:17369103, multiplier:1, livePrice:17369103},
+      {name:"짝두", basePrice:12493520,  multiplier:1, livePrice:12493520},
+      {name:"삼쿠라",     basePrice:43303232,      multiplier:1, livePrice:43303232},
+      {name:"애기월드",   basePrice:61281,   multiplier:1, livePrice:61281},
+      {name:"FOX",   basePrice:2355520,      multiplier:1, livePrice:2355520},
+      {name:"야타족",     basePrice:11042328,      multiplier:1, livePrice:11042328},
+      {name:"테토녀",   basePrice:60922,    multiplier:1, livePrice:60922},
+      {name:"소방국",   basePrice:474764,     multiplier:1, livePrice:474764},
+      {name:"리얼대학교", basePrice:2513862,    multiplier:1, livePrice:2513862},
+      {name:"관동연합", basePrice:1092015,    multiplier:1, livePrice:1092015},
+      {name:"인형뽑기",   basePrice:16268294,     multiplier:1, livePrice:16268294},
+      {name:"린민공화국",     basePrice:32876832,      multiplier:1, livePrice:32876832},
     ].map(c => ({...c, id: safeId(c.name), delisted:false}));
 
     // 🔽 현재 모드: stock | coin
@@ -2587,4 +2587,5 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
