@@ -497,7 +497,7 @@ let lastIntervalCoin  = updateIntervalCoin;
 
 // 🟩 driverId 추적용 (추가)
 let currentDriver = null;
-    
+let isDriver = false; // 현재 이 클라이언트가 드라이버인지 여부
 // 또는 window에 강제로 올리기
 window.lastIntervalStock = lastIntervalStock;
 window.lastIntervalCoin  = lastIntervalCoin;
@@ -639,7 +639,18 @@ function parseNumber(val) {
 
       renderUserInfo(); updateHoldingsUI();
       impactPrice(c.id, qty, 'buy');
-    }
+      try {
+    const slip = Math.min(0.02, qty / 60000); // 최대 +2%
+    const next = Math.max(1, Math.round(p * (1 + slip)));
+    c.livePrice = next;
+    await setDoc(doc(db, "companyPrices", c.id), {
+      current: next,
+      updatedAt: Date.now()
+    }, { merge: true });
+  } catch (e) {
+    console.warn("slippage(buy) 실패", e);
+  }
+}
 
     async function sell(name, qty){
       const c = findCompanyById(name); if(!c) return;
@@ -665,7 +676,19 @@ function parseNumber(val) {
 
       renderUserInfo(); updateHoldingsUI();
       impactPrice(c.id, qty, 'sell');
-    }
+       try {
+    const slip = Math.min(0.02, qty / 60000); // 최대 -2%
+    const next = Math.max(1, Math.round(p * (1 - slip)));
+    c.livePrice = next;
+    await setDoc(doc(db, "companyPrices", c.id), {
+      current: next,
+      updatedAt: Date.now()
+    }, { merge: true });
+  } catch (e) {
+    console.warn("slippage(sell) 실패", e);
+  }
+}
+
 
   // ======= 장 시작/마감 =======
 async function marketOpen(){
@@ -743,7 +766,7 @@ onSnapshot(doc(db,"marketState","main"), (snap)=>{
   }
 
   const amDriver = d.driverId === localSimId;
-
+  isDriver = amDriver; // ✅ 현재 드라이버 여부 저장
   renderMarketStatus();
 
   // 🟩 Driver 최초 지정 시만 타이머 시작 → 이미 타이머 있으면 중복 생성 X
@@ -810,8 +833,9 @@ async function updatePricesSet(targetCompanies){
     const prev = c.livePrice || c.basePrice;
     const chance = companyChances[c.id] || {profit:0.4, loss:0.6};
     const denom = Math.max(1e-6, (chance.profit + chance.loss));
-    let isUp = Math.random() < (chance.profit / denom);
-
+    const biasShift = Math.max(-0.15, Math.min(0.15, (marketState.bias[c.id] || 0) * -0.15));
+    const upProb = Math.max(0.02, Math.min(0.98, (chance.profit / denom) + biasShift));
+    let isUp = Math.random() < upProb;
     // 거래량(매수/매도 영향도)
     const bias = marketState.bias[c.id] || 0; // 직전 영향도 (-1~1)
     marketState.bias[c.id] = bias * 0.9; // 점차 완화
@@ -844,7 +868,6 @@ if (Math.abs(diff) > limit) {
     console.error("시뮬레이션 반영 실패:", e);
   }
 }
-
     // ======= 차트 =======
     function initChart(){
       if(chart) return;
@@ -1314,8 +1337,9 @@ function subscribeCompanySettings(){
   if (isNaN(totalDelta) || totalDelta === 0) return alert("±금액을 입력하세요.");
   if (isNaN(ticks) || ticks <= 0) return alert("틱을 올바르게 입력하세요.");
 
-  const baseInterval =
-    currentMode === "coin" ? updateIntervalCoin : updateIntervalStock;
+    // ✅ 회사가 속한 그룹(주식/코인)에 따라 간격 자동 선택
+  const belongsToStock = companiesStock.some(x => x.id === c.id);
+  const baseInterval = belongsToStock ? updateIntervalStock : updateIntervalCoin;
   const totalDuration = baseInterval * ticks; // 총 변동 시간
   const halfInterval = totalDuration / ticks; // 틱마다 적용 간격 (즉, 10초에 한 번)
   const perStep = Math.floor(totalDelta / ticks); // 한 번당 적용 금액
@@ -1901,6 +1925,7 @@ async function scheduleDelist(name) {
 function subscribeDelistTimers() {
   const timersRef = collection(db, "delistTimers");
   onSnapshot(timersRef, (snap) => {
+    if (!isDriver || !marketOpenFlag) return; // ✅ 드라이버만 실행
     const now = Date.now();
 
     snap.forEach(async (docu) => {
@@ -1956,11 +1981,10 @@ async function delistCompany(name) {
   renderMarketStatus();
 }
 
-
 // 🔹 재상장
 async function restoreCompany(name) {
   if (!ADMIN_MODE) return alert("관리자만 가능합니다.");
-  const c = findCompanyById(name);
+  const c = findCompanyById(safeId(name)); // ✅ 동일한 기준으로 변경
   if (!c) return;
 
   await setDoc(doc(db, "companySettings", c.id), { delisted: false, updatedAt: Date.now() }, { merge: true });
@@ -2146,7 +2170,6 @@ async function restoreCompany(name) {
         chatDiv.scrollTop = chatDiv.scrollHeight;
       });
     }
-
    function initChatUI(){
   const chatBox = document.getElementById('chatBox');
   const chatHeader = document.getElementById('chatHeader');
@@ -2196,7 +2219,6 @@ toggleBtn.addEventListener('click', () => {
       }
     });
   }
-
   // ✅ 높이 조절 드래그
   let startY = 0, startH = 0, dragging = false;
   const onDown = (e) => {
@@ -2224,30 +2246,12 @@ toggleBtn.addEventListener('click', () => {
   document.addEventListener('touchmove', onMove, { passive: false });
   document.addEventListener('touchend', onUp);
 }
-
 /* =======================================================
    📰 뉴스 자동 생성 시스템 (5분마다 진짜/가짜 뉴스)
    ======================================================= */
 const fakeNewsPool = {
   "사쿠라":[
     "사쿠라 조직원 A씨의 발언 “꽃길이 아닌 불꽃길이었다”"
-  ],
-  "리얼월드 관리자":[
-    "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
-    "긴급 리붓, 디도스의 소행인가?"
-  ],
-  "중앙경찰":[
-    "경찰, 죄 없는 시민 무력진압",
-    "경찰청장, 범죄에는 즉각적이고 강력하게 대응할 것."
-  ],
-  "벌집":[
-    "사유지 rp중 디컨 의혹 조사에 착수해야...",
-    "제작 테이블의 오류 발견 해결하기 전까지 판매중지.",
-    "벌집 사유지에 발견된 많은 쓰래기 시민들의 소행인가"
-  ],
-  "작두":[
-    "작두 회장의 불륜 제보 사실인가? 거짓인가?",
-    "작두에서 개최하는 독서모임 알고보니? ",
   ],
   "작두":[
     "방송국 DJ 한X 라디오 도중 노쇼? 알고보니 귀신잡느라 바뻐..",
@@ -2371,7 +2375,6 @@ function stopAutoNews() {
         alert('출석체크 오류: ' + (e.message || e));
       }
     }
-
     // ======= 초기화 =======
     window.onload = async () => {
       await ensureAuth();
@@ -2391,7 +2394,6 @@ function stopAutoNews() {
       }else{
         loginModal.style.display='flex';
       }
-
        initChart();
   subscribeCompanyPrices();
   subscribeCompanySettings(); // 여기서는 구독만
@@ -2403,10 +2405,8 @@ function stopAutoNews() {
   subscribeChat();
   initChatUI();
   renderMarketStatus();
-  initCompaniesUI(); // ← 여기서 최초 한 번만 실행
   enableDrag('adminPanelAll','adminPanelHeaderSticky');
 };
-
     // ======= 드래그(관리자 패널) =======
     function enableDrag(panelId='adminPanelAll', handleId='adminPanelHeaderSticky'){
       const panel = document.getElementById(panelId);
@@ -2449,7 +2449,6 @@ function stopAutoNews() {
         content.style.left = '0px';
         content.style.top  = '0px';
       };
-
       handle.addEventListener('mousedown', onDown);
       document.addEventListener('mousemove', onMove, {passive:false});
       document.addEventListener('mouseup', onUp);
@@ -2458,7 +2457,6 @@ function stopAutoNews() {
       document.addEventListener('touchmove', onMove, {passive:false});
       document.addEventListener('touchend', onUp);
     }
-
     // ======= 전역 바인딩 =======
     window.buy = buy; window.sell = sell; window.logout = logout;
     window.requestDeposit = requestDeposit;
@@ -2604,6 +2602,7 @@ function stopAutoNews() {
   </div>
 </body>
 </html>
+
 
 
 
