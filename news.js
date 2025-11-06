@@ -1,123 +1,164 @@
-// ===== 뉴스 / 공지 모듈 =====
-import { db, auth, log, formatDate } from "./app.js";
-import {
-  collection, addDoc, getDocs, query, orderBy, limit, onSnapshot, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+/* ============================================================
+   📰 작두 투자 센터 | 뉴스 시스템 (news.js)
+   기준: 시뚜님 최신 통합본 (파트2)
+   ============================================================ */
 
-// ===== 전역 =====
-let newsListEl;
-
-// ===== 초기화 =====
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("newsBtn");
-  if (btn) btn.addEventListener("click", openNewsModal);
-});
-
-// ===== 뉴스 모달 열기 =====
-function openNewsModal() {
-  let modal = document.getElementById("newsModal");
-  if (!modal) {
-    modal = document.createElement("div");
-    modal.id = "newsModal";
-    modal.className = "modal";
-    modal.innerHTML = `
-      <div class="modal-content">
-        <button class="xbtn" onclick="closeNews()">✕</button>
-        <h2>📰 최신 뉴스</h2>
-        <div id="newsList" style="max-height:300px;overflow-y:auto;margin-bottom:10px;"></div>
-        <button id="autoNewsBtn">자동 뉴스 생성</button>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  modal.style.display = "flex";
-  newsListEl = document.getElementById("newsList");
-  loadNews();
-  document.getElementById("autoNewsBtn").onclick = autoGenerateNews;
-}
-
-// ===== 모달 닫기 =====
-window.closeNews = function() {
-  const modal = document.getElementById("newsModal");
-  if (modal) modal.style.display = "none";
-};
-
-// ===== 뉴스 로드 =====
-async function loadNews() {
-  try {
-    const q = query(collection(db, "news"), orderBy("time", "desc"), limit(20));
-    const snap = await getDocs(q);
-    const newsArr = snap.docs.map(d => d.data());
-    renderNews(newsArr);
-  } catch (e) {
-    console.error(e);
-    if (newsListEl) newsListEl.innerHTML = "<p>뉴스를 불러올 수 없습니다.</p>";
-  }
-}
-
-// ===== 뉴스 실시간 갱신 (옵션) =====
-onSnapshot(query(collection(db, "news"), orderBy("time", "desc"), limit(20)), snap => {
-  const newsArr = snap.docs.map(d => d.data());
-  renderNews(newsArr);
-});
-
-// ===== 뉴스 렌더링 =====
-function renderNews(newsArr) {
-  if (!newsListEl) return;
-  if (!newsArr.length) {
-    newsListEl.innerHTML = "<p>등록된 뉴스가 없습니다.</p>";
-    return;
-  }
-
-  newsListEl.innerHTML = "";
-  newsArr.forEach(n => {
-    const div = document.createElement("div");
-    div.style.borderBottom = "1px solid #374151";
-    div.style.padding = "6px 0";
-    const time = n.time?.toDate ? formatDate(n.time.toDate()) : "";
-    div.innerHTML = `
-      <strong style="color:#facc15;">${n.title || "뉴스"}</strong><br>
-      <span style="color:#9ca3af;">${time}</span><br>
-      ${n.text || ""}
-    `;
-    newsListEl.appendChild(div);
+// ======= 실시간 뉴스 구독 =======
+function subscribeNews() {
+  const qy = query(collection(db, "news"), orderBy("createdAt", "desc"));
+  onSnapshot(qy, (snap) => {
+    const wrap = document.getElementById("newsList");
+    if (!wrap) return;
+    let html = "";
+    snap.forEach(docu => {
+      const d = docu.data();
+      if (!d.visible) return;
+      const date = new Date(d.createdAt || Date.now()).toLocaleString();
+      html += `
+        <div class="req-card">
+          <div><strong>${d.title}</strong></div>
+          <div style="color:var(--ink2); font-size:14px;">${d.content}</div>
+          <div style="font-size:12px; color:#94a3b8;">${date} (${d.type === "real" ? "🟢진짜" : "🟣가짜"})</div>
+        </div>`;
+    });
+    wrap.innerHTML = html || "<div style='opacity:0.6;'>표시할 뉴스가 없습니다.</div>";
   });
 }
 
-// ===== 자동 뉴스 생성 =====
-async function autoGenerateNews() {
-  const user = auth.currentUser;
-  if (!user) return alert("로그인 후 이용해주세요.");
-
-  const templates = [
-    "📈 ${name}의 주가가 급등했습니다! 투자자들의 관심이 집중되고 있습니다.",
-    "📉 ${name}의 시세가 하락세를 보이고 있습니다. 조정 국면일까요?",
-    "💥 ${name} 관련 대규모 거래가 발생했습니다!",
-    "🔔 ${name} 신규 공시 발표 — 시장에 큰 영향 예상!",
-    "🧩 ${name}의 기술 제휴 소식이 전해졌습니다.",
-    "⚡ ${name}의 코인 거래량이 폭발적으로 증가했습니다!",
-    "🏦 ${name}에서 배당금 지급을 예고했습니다."
-  ];
-
-  // 랜덤 기업명 생성 (샘플)
-  const companies = ["작두", "사쿠라", "칠성파", "벌집", "느와르", "백호자동차", "중앙경찰"];
-  const randomCompany = companies[Math.floor(Math.random() * companies.length)];
-  const template = templates[Math.floor(Math.random() * templates.length)];
-  const text = template.replace("${name}", randomCompany);
-
-  const newsItem = {
-    title: `${randomCompany} 관련 속보`,
-    text,
-    time: serverTimestamp(),
-    author: user.uid
-  };
+// ======= 관리자 전용 뉴스 목록 =======
+async function renderNewsAdminList() {
+  const host = document.getElementById('adminNewsList');
+  if (!host) return;
+  host.innerHTML = '불러오는 중...';
 
   try {
-    await addDoc(collection(db, "news"), newsItem);
-    log(`📰 ${newsItem.title}`);
+    const snap = await getDocs(query(collection(db, "news"), orderBy("createdAt", "desc")));
+    let html = "";
+    snap.forEach(docu => {
+      const d = docu.data();
+      const id = docu.id;
+      const date = new Date(d.createdAt || Date.now()).toLocaleString();
+      html += `
+        <div class="req-card">
+          <div><strong>${d.title}</strong> <span style="font-size:12px;color:#94a3b8;">${date}</span></div>
+          <div style="font-size:14px;color:var(--ink2);margin-top:4px;">${d.content}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;">
+            <button onclick="toggleNewsVisibility('${id}', ${d.visible ? 'false' : 'true'})">
+              ${d.visible ? '숨기기' : '표시하기'}
+            </button>
+            <button onclick="deleteNews('${id}')">삭제</button>
+          </div>
+        </div>`;
+    });
+    host.innerHTML = html || '뉴스 없음';
   } catch (e) {
-    console.error(e);
-    alert("자동 뉴스 생성 실패");
+    console.error('뉴스 목록 불러오기 오류:', e);
+    host.innerHTML = '오류 발생';
   }
 }
+
+// ======= 뉴스 표시/숨김 =======
+async function toggleNewsVisibility(id, visible) {
+  try {
+    await updateDoc(doc(db, "news", id), { visible });
+    renderNewsAdminList();
+  } catch (e) {
+    console.error(e);
+    alert('표시 상태 변경 실패: ' + (e.message || e));
+  }
+}
+
+// ======= 뉴스 삭제 =======
+async function deleteNews(id) {
+  if (!confirm('정말 삭제하시겠습니까?')) return;
+  try {
+    await deleteDoc(doc(db, "news", id));
+    alert('삭제 완료');
+    renderNewsAdminList();
+  } catch (e) {
+    console.error(e);
+    alert('삭제 실패: ' + (e.message || e));
+  }
+}
+
+// ======= 뉴스 생성 (자동/수동) =======
+const fakeNewsPool = {
+  "사쿠라": [
+    "사쿠라 조직원 A씨의 발언 “꽃길이 아닌 불꽃길이었다”",
+    "사쿠라의 신상품 '벚꽃 주가 예측기' 출시!"
+  ],
+  "리얼월드 관리자": [
+    "금일 리얼월드 리붓 예정, 호황인가 불황인가?",
+    "긴급 리붓, 디도스의 소행인가?"
+  ],
+  "칠성파": [
+    "칠성파 본거지 앞에서 대규모 주가 조작 의혹?",
+    "칠성파, 투자 신사업 진출 선언!"
+  ]
+};
+
+// ======= 진짜 뉴스 생성 =======
+async function generateRealNews() {
+  const rising = companiesStock.filter(c => c.livePrice > c.basePrice * 1.05);
+  const falling = companiesStock.filter(c => c.livePrice < c.basePrice * 0.95);
+  let title = "", content = "";
+
+  if (rising.length) {
+    const c = rising[Math.floor(Math.random() * rising.length)];
+    title = `${c.name} 주가 상승세 지속`;
+    content = `${c.name}의 주가가 ${Math.round((c.livePrice / c.basePrice - 1) * 100)}% 상승했습니다.`;
+  } else if (falling.length) {
+    const c = falling[Math.floor(Math.random() * falling.length)];
+    title = `${c.name} 주가 급락 소식`;
+    content = `${c.name}의 주가가 ${Math.round((1 - c.livePrice / c.basePrice) * 100)}% 하락했습니다.`;
+  } else {
+    const c = companiesStock[Math.floor(Math.random() * companiesStock.length)];
+    title = `${c.name} 보합세 유지`;
+    content = `${c.name}의 주가가 안정적인 흐름을 보이고 있습니다.`;
+  }
+
+  await addDoc(collection(db, "news"), {
+    title, content, type: "real", createdAt: Date.now(), visible: true
+  });
+}
+
+// ======= 가짜 뉴스 생성 =======
+async function generateFakeNews() {
+  const keys = Object.keys(fakeNewsPool);
+  const topic = keys[Math.floor(Math.random() * keys.length)];
+  const newsList = fakeNewsPool[topic];
+  const text = newsList[Math.floor(Math.random() * newsList.length)];
+  const title = `[속보] ${topic}`;
+
+  await addDoc(collection(db, "news"), {
+    title, content: text, type: "fake", createdAt: Date.now(), visible: true
+  });
+}
+
+// ======= 자동 뉴스 생성 타이머 =======
+let newsTimer = null;
+
+function startAutoNews() {
+  if (newsTimer) clearInterval(newsTimer);
+  newsTimer = setInterval(() => {
+    const isReal = Math.random() < 0.5;
+    if (isReal) generateRealNews();
+    else generateFakeNews();
+  }, 5 * 60 * 1000); // 5분 간격
+  console.log("📰 자동 뉴스 생성 시작됨");
+}
+
+function stopAutoNews() {
+  if (newsTimer) { clearInterval(newsTimer); newsTimer = null; }
+  console.log("🛑 자동 뉴스 생성 중지됨");
+}
+
+// ======= 전역 바인딩 =======
+window.subscribeNews = subscribeNews;
+window.renderNewsAdminList = renderNewsAdminList;
+window.toggleNewsVisibility = toggleNewsVisibility;
+window.deleteNews = deleteNews;
+window.generateRealNews = generateRealNews;
+window.generateFakeNews = generateFakeNews;
+window.startAutoNews = startAutoNews;
+window.stopAutoNews = stopAutoNews;
