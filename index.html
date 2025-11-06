@@ -6,95 +6,7 @@
   <title>작두 투자 센터</title>
 
   <!-- ====== 스타일 ====== -->
-  <style>
-    :root {
-      --bg:#0f172a; --card:#1f2937; --ink:#e5e7eb; --ink2:#cbd5e1;
-      --accent:#334155; --accentH:#475569; --danger:#7f1d1d; --ok:#065f46;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; padding: 20px;
-      font-family: Arial, sans-serif;
-      background: var(--bg); color: var(--ink);
-      overflow-x: hidden;
-    }
-
-    h1 { text-align:center; margin:4px 0 16px; }
-
-    /* 공통 카드형 */
-    .req-card {
-      background: var(--card);
-      border-radius: 10px;
-      padding: 12px;
-      margin: 8px 0;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    /* 모달 기본 */
-    .modal { position:fixed; inset:0; background:rgba(0,0,0,0.5);
-      display:none; align-items:center; justify-content:center; z-index:99; }
-    .modal-content { background:var(--card); padding:20px; border-radius:12px; max-height:90vh; overflow:auto; }
-
-    /* 출석, 환전 등 */
-    .attendance-day {
-      display:inline-flex; align-items:center; justify-content:center;
-      width:50px; height:50px; margin:4px; border-radius:8px;
-      background:var(--accent); cursor:pointer; transition:.2s;
-    }
-    .attendance-day.checked { background:var(--ok); }
-    .attendance-day:hover { background:var(--accentH); }
-
-    /* 채팅창 */
-    #chatBox {
-      position:fixed; bottom:20px; right:20px;
-      width:360px; height:480px;
-      display:flex; flex-direction:column;
-      background:var(--card); border-radius:12px;
-      box-shadow:0 6px 16px rgba(0,0,0,0.4);
-      overflow:hidden; resize:none; z-index:98;
-    }
-    #chatHeader {
-      display:flex; justify-content:space-between; align-items:center;
-      padding:8px 12px; background:var(--accent);
-      border-bottom:1px solid #475569;
-      cursor:grab; font-weight:bold;
-    }
-    #chatMessages {
-      flex:1; overflow-y:auto; padding:8px;
-    }
-    #chatInputWrap {
-      display:flex; border-top:1px solid #475569;
-    }
-    #chatInput {
-      flex:1; padding:8px; background:transparent;
-      color:var(--ink); border:none; outline:none;
-    }
-    #chatInputWrap button {
-      background:var(--accent); color:var(--ink);
-      border:none; padding:8px 12px; cursor:pointer;
-    }
-    #chatResizer {
-      height:6px; background:#475569; cursor:ns-resize;
-    }
-    .chat-right .chat-msg { background:#334155; margin:4px 0; padding:6px 8px; border-radius:8px; text-align:right; }
-    .chat-left .chat-msg  { background:#1e293b; margin:4px 0; padding:6px 8px; border-radius:8px; text-align:left; }
-    .chat-meta { font-size:11px; color:#9ca3af; margin-top:2px; }
-
-    /* 버튼 */
-    button {
-      background:var(--accent); color:var(--ink);
-      border:none; border-radius:6px; padding:6px 10px;
-      cursor:pointer; transition:.2s;
-    }
-    button:hover { background:var(--accentH); }
-
-    #modeToggleBtn {
-      position:fixed; top:20px; right:20px;
-      background:#475569; border-radius:20px;
-      padding:10px 16px; font-weight:bold;
-      z-index:100;
-    }
-  </style>
+  <link rel="stylesheet" href="css/styles.css">
 
   <!-- ====== Firebase SDK ====== -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
@@ -108,7 +20,11 @@
   <!-- ====== 유저 정보 영역 ====== -->
   <section id="userRow">
     <div id="userInfo">로그인 필요</div>
-    <button id="logoutBtn" onclick="logout()">로그아웃</button>
+    <div>
+      <button onclick="openExchangeModal()">💱 환전</button>
+      <button onclick="openAttendanceModal()">📅 출석</button>
+      <button id="logoutBtn" onclick="logout()">🚪 로그아웃</button>
+    </div>
   </section>
 
   <!-- ====== 로그인 모달 ====== -->
@@ -126,8 +42,10 @@
     <div class="modal-content">
       <h2>💱 RWW → COIN 환전</h2>
       <input type="number" id="exchangeAmount" placeholder="금액 입력" />
-      <button onclick="exchangeCashToCoin()">환전</button>
-      <button onclick="closeExchangeModal()">닫기</button>
+      <div style="margin-top:10px;">
+        <button onclick="exchangeCashToCoin()">환전</button>
+        <button onclick="closeExchangeModal()">닫기</button>
+      </div>
     </div>
   </div>
 
@@ -135,8 +53,8 @@
   <div class="modal" id="attendanceModal">
     <div class="modal-content">
       <h2>📅 출석체크</h2>
-      <div id="attendanceGrid" style="display:flex;flex-wrap:wrap;max-width:400px;"></div>
-      <button onclick="closeAttendanceModal()">닫기</button>
+      <div id="attendanceGrid"></div>
+      <button style="margin-top:10px;" onclick="closeAttendanceModal()">닫기</button>
     </div>
   </div>
 
@@ -144,10 +62,28 @@
   <div class="modal" id="adminPanelAll">
     <div class="modal-content" id="adminPanelHeaderSticky">
       <h2>🛡️ 관리자 패널</h2>
-      <div id="adminSummary"></div>
-      <div id="userList"></div>
+
+      <div id="adminSummary" class="req-card"></div>
+
+      <div class="req-card">
+        <h3>유저 목록</h3>
+        <div id="userList"></div>
+      </div>
+
+      <div class="req-card">
+        <h3>뉴스 관리</h3>
+        <div id="adminNewsList"></div>
+      </div>
+
+      <button onclick="closeAdmin('adminPanelAll')" style="margin-top:10px;">닫기</button>
     </div>
   </div>
+
+  <!-- ====== 뉴스 영역 ====== -->
+  <section id="newsList" style="margin-top:30px;">
+    <h2>📰 뉴스 피드</h2>
+    <div>로딩 중...</div>
+  </section>
 
   <!-- ====== 실시간 채팅창 ====== -->
   <div id="chatBox">
@@ -172,11 +108,11 @@
   <script src="js/attendance.js"></script>
   <script src="js/exchange.js"></script>
   <script src="js/chat.js"></script>
+  <script src="js/news.js"></script>
 
-  <!-- 향후 추가 -->
+  <!-- (선택) 나중에 추가할 파일 -->
   <!-- <script src="js/finance.js"></script> -->
   <!-- <script src="js/market.js"></script> -->
-  <!-- <script src="js/news.js"></script> -->
   <!-- <script src="js/ui.js"></script> -->
 </body>
 </html>
