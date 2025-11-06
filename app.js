@@ -10,12 +10,13 @@ import {
 
 // ====== Firebase 설정 ======
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAVCFjQ0ton4HPtkcYAHMeuMubH1gD1KWg",
+      authDomain: "cotyledons-of-stock-a1241.firebaseapp.com",
+      projectId: "cotyledons-of-stock-a1241",
+      storageBucket: "cotyledons-of-stock-a1241.appspot.com",
+      messagingSenderId: "962984742513",
+      appId: "1:962984742513:web:25082eed6cdcc9c37b95d0",
+      measurementId: "G-NRPT075Q3X"
 };
 
 // ====== Firebase 초기화 ======
