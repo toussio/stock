@@ -52,9 +52,92 @@
 
     .req-card { background:var(--card); border-radius:10px; padding:12px; margin:8px 0; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 
-    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center; align-items:center; z-index:3000; }
-    .modal-content { background:var(--card); padding:20px; border-radius:10px; text-align:center; width:min(90%,520px); position:relative; max-height:85vh; overflow:auto; }
-    .xbtn { position:absolute; top:8px; right:8px; background:var(--danger); border:none; color:white; border-radius:50%; width:28px; height:28px; cursor:pointer; }
+   /* 🔧 모든 모달 디자인 개선 */
+.modal {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  justify-content:center;
+  align-items:center;
+  z-index:3000;
+}
+
+/* 📦 모달 본문 박스 */
+.modal-content {
+  background:var(--card);
+  padding:28px 24px 22px;
+  border-radius:14px;
+  text-align:center;
+  width:min(90%,480px);
+  max-height:85vh;
+  overflow:auto;
+  position:relative;
+  box-shadow:0 8px 24px rgba(0,0,0,0.55);
+  border:1px solid #374151;
+  animation:fadeIn .25s ease;
+}
+
+/* 제목 */
+.modal-content h2 {
+  margin-top:0;
+  margin-bottom:16px;
+  font-size:20px;
+  color:var(--ink);
+  font-weight:700;
+}
+
+/* 🧾 입력창 & 버튼 통일 */
+.modal-content input,
+.modal-content textarea {
+  width:90%;
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid #475569;
+  background:#0b1220;
+  color:var(--ink);
+  margin:6px 0;
+  font-size:15px;
+}
+.modal-content button {
+  margin-top:10px;
+  padding:10px 18px;
+  background:var(--accent);
+  border:none;
+  border-radius:8px;
+  color:var(--ink);
+  cursor:pointer;
+  font-size:15px;
+  transition:background .2s ease;
+}
+.modal-content button:hover { background:var(--accentH); }
+
+/* ❌ 닫기버튼 고정 및 정렬 */
+.xbtn {
+  position:absolute;
+  top:10px;
+  right:10px;
+  background:#dc2626;
+  border:none;
+  color:white;
+  border-radius:50%;
+  width:30px;
+  height:30px;
+  font-size:17px;
+  font-weight:bold;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:background .2s ease, transform .1s ease;
+}
+.xbtn:hover { background:#b91c1c; transform:scale(1.05); }
+
+/* ✨ 애니메이션 효과 */
+@keyframes fadeIn {
+  from { opacity:0; transform:translateY(-10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
 
     /* 관리자 패널 */
     #adminPanelAll .modal-content { width:min(96%,1200px); text-align:left; }
@@ -94,27 +177,28 @@
   <div id="companies"></div>
   <div id="log"></div>
 
-  <div id="loginModal" class="modal">
-    <div class="modal-content">
-      <h2>정보 입력 후 시작</h2>
-      <input type="text" id="customId" placeholder="고유번호 입력"><br>
-      <input type="text" id="customName" placeholder="이름 입력"><br>
-      <button id="startBtn">시작</button>
-    </div>
+ <div id="loginModal" class="modal">
+  <div class="modal-content">
+    <h2>👤 정보 입력 후 시작</h2>
+    <input type="text" id="customId" placeholder="고유번호 입력"><br>
+    <input type="text" id="customName" placeholder="이름 입력"><br>
+    <button id="startBtn">시작</button>
   </div>
+</div>
+  
   <!-- 출금 요청 모달 (현금 전용, 수수료 20%) -->
-  <div id="withdrawModal" class="modal">
-    <div class="modal-content">
-      <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
-      <h2>출금 요청</h2>
-      <input type="text" id="withdrawId" placeholder="고유번호 입력"><br>
-      <input type="text" id="withdrawName" placeholder="이름 입력"><br>
-      <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()"><br>
-      <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
-      <input type="text" id="withdrawAccount" placeholder="본인 계좌번호 입력"><br>
-      <button onclick="submitWithdraw()">요청</button>
-    </div>
+ <div id="withdrawModal" class="modal">
+  <div class="modal-content">
+    <button class="xbtn" onclick="closeWithdrawModal()">✕</button>
+    <h2>💸 출금 요청</h2>
+    <input type="text" id="withdrawId" placeholder="고유번호 입력">
+    <input type="text" id="withdrawName" placeholder="이름 입력">
+    <input type="number" id="withdrawAmount" placeholder="출금 금액 입력" oninput="updateWithdrawFee()">
+    <div id="withdrawFeeInfo" style="color:#9ca3af; margin:6px 0;"></div>
+    <input type="text" id="withdrawAccount" placeholder="본인 계좌번호 입력">
+    <button onclick="submitWithdraw()">요청</button>
   </div>
+</div>
 
   <!-- 공지 모달 -->
   <div id="noticeModal" class="modal">
@@ -2130,3 +2214,4 @@
 
 </body>
 </html>
+
