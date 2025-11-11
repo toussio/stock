@@ -664,18 +664,21 @@
     }
 
     async function marketClose(){
-      if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
-      marketOpenFlag = false;
+  if(!ADMIN_MODE) return alert("관리자만 가능합니다.");
+  marketOpenFlag = false;
 
-      try{
-        await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
-      }catch(e){ console.warn(e); }
+  try{
+    await setDoc(doc(db,"marketState","main"), { isOpen:false, updatedAt: Date.now() }, { merge:true });
+  }catch(e){ console.warn(e); }
 
-      stopLocalTimerStock();
-      stopAutoNews();
-      renderMarketStatus();
-      alert("📉 주식 장 마감");
-    }
+  // ✅ bias 초기화
+  Object.keys(marketState.bias).forEach(k => marketState.bias[k] = 0);
+
+  stopLocalTimerStock();
+  stopAutoNews();
+  renderMarketStatus();
+  alert("📉 주식 장 마감");
+}
 
     function startLocalTimerStock(){
       if(priceTimerStock) clearInterval(priceTimerStock);
@@ -689,36 +692,62 @@
     }
 
     // 시장 상태 구독
-    onSnapshot(doc(db,"marketState","main"), (snap)=>{
-      const d = snap.exists() ? snap.data() : {};
-      marketOpenFlag = !!d.isOpen;
+   // 시장 상태 구독 (드라이버 충돌 방지 버전)
+onSnapshot(doc(db,"marketState","main"), (snap)=>{
+  const d = snap.exists() ? snap.data() : {};
+  marketOpenFlag = !!d.isOpen;
 
-      if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
-        updateIntervalStock = d.intervalStock;
-      }
+  // 드라이버 교체 감지
+if (d.driverId && d.driverId !== localSimId) {
+  stopLocalTimerStock();
+  currentDriver = d.driverId;
 
-      const amDriver = d.driverId === localSimId;
-      renderMarketStatus();
+  // ⏱️ 드라이버 유효성 검사
+  const inactiveTime = Date.now() - (d.updatedAt || 0);
+  if (inactiveTime > updateIntervalStock * 3) {
+    console.warn("⚠️ 기존 드라이버 응답 없음, 새 드라이버 선점 시도");
+    setDoc(doc(db,"marketState","main"), { driverId: localSimId }, { merge:true });
+  }
+  return;
+}
 
-      if(amDriver && !priceTimerStock && marketOpenFlag){
-        stopLocalTimerStock();
-        startLocalTimerStock();
-        currentDriver = localSimId;
-        lastIntervalStock = updateIntervalStock;
-        console.log('▶️ 타이머 최초 시작(드라이버)');
-      }
-      if(amDriver && marketOpenFlag){
-        if(updateIntervalStock !== lastIntervalStock){
-          startLocalTimerStock();
-          lastIntervalStock = updateIntervalStock;
-          console.log('⏱️ 주식 타이머 재시작');
-        }
-      }
-      if(!marketOpenFlag){
-        stopLocalTimerStock();
-        console.log('⏹ 타이머 정지');
-      }
-    });
+
+  // 주기 조정
+  if(typeof d.intervalStock === "number" && d.intervalStock >= 500){
+    updateIntervalStock = d.intervalStock;
+  }
+
+  const amDriver = d.driverId === localSimId;
+  renderMarketStatus();
+
+  // ✅ 드라이버가 없을 때만 내가 새로 선점
+  if(!d.driverId && marketOpenFlag){
+    setDoc(doc(db,"marketState","main"), { driverId: localSimId }, { merge:true });
+    console.log("🧭 드라이버 선점:", localSimId);
+  }
+
+  if(amDriver && !priceTimerStock && marketOpenFlag){
+    stopLocalTimerStock();
+    startLocalTimerStock();
+    currentDriver = localSimId;
+    lastIntervalStock = updateIntervalStock;
+    console.log('▶️ 타이머 최초 시작(드라이버)');
+  }
+
+  if(amDriver && marketOpenFlag){
+    if(updateIntervalStock !== lastIntervalStock){
+      startLocalTimerStock();
+      lastIntervalStock = updateIntervalStock;
+      console.log('⏱️ 주식 타이머 재시작');
+    }
+  }
+
+  if(!marketOpenFlag){
+    stopLocalTimerStock();
+    console.log('⏹ 타이머 정지');
+  }
+});
+
 
     function subscribeGlobals(){
       if(unsubGlobals){ try{unsubGlobals();}catch(e){} unsubGlobals=null; }
@@ -738,6 +767,12 @@
       if(!marketOpenFlag) return;
 
       const tickAt = Math.floor(Date.now() / 1000) * 1000;
+       const msnap = await getDoc(doc(db,"marketState","main"));
+  const lastTick = msnap.exists() ? (msnap.data().lastTickAt || 0) : 0;
+  if(tickAt - lastTick < updateIntervalStock - 200) {
+    console.warn("🛑 중복 틱 방지 - 이번 틱 스킵");
+    return;
+  }
       const batch = writeBatch(db);
 
       for(const c of targetCompanies){
@@ -751,7 +786,7 @@
         const bias = marketState.bias[c.id] || 0;
         marketState.bias[c.id] = bias * 0.9;
 
-        const tradeImpact = Math.abs(bias) * 5;
+        const tradeImpact = Math.min(1, Math.abs(bias) * 2);
         const baseVol = volatility + tradeImpact;
 
         const stepPct = ((Math.random() * baseVol) / 100) * Math.max(0, c.multiplier || 1);
@@ -2274,7 +2309,3 @@
 
 </body>
 </html>
-
-
-
-
