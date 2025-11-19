@@ -806,7 +806,12 @@ if (d.driverId && d.driverId !== localSimId) {
 
       try{
         await batch.commit();
-        await setDoc(doc(db,"marketState","main"), { lastTickAt: tickAt, driverId: localSimId }, { merge:true });
+await setDoc(doc(db,"marketState","main"), {
+  lastTickAt: tickAt,
+  updatedAt: Date.now(),
+  driverId: localSimId
+}, { merge:true });
+
       }catch(e){
         console.error("시뮬레이션 반영 실패:", e);
       }
@@ -2309,3 +2314,4 @@ if (d.driverId && d.driverId !== localSimId) {
 
 </body>
 </html>
+
